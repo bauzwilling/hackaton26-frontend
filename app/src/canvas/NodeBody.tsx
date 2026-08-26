@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import { BoxoutsPage } from "../pages/Boxouts";
 import { OrbitPage } from "../pages/Orbit";
@@ -35,7 +35,7 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
   );
 }
 
-export function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
+export const NodeBody = memo(function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
   if (node.kind === "log") return <RequestLog viewport={viewport} />;
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;
@@ -50,4 +50,4 @@ export function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { 
     if (node.appId === "orbit") return <OrbitPage />;
   }
   return null;
-}
+});

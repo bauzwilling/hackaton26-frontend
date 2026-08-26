@@ -13,7 +13,7 @@ export function ConciergeChat() {
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries.length]);
+  }, [entries]);
 
   return (
     <div className="concierge-chat" ref={listRef} onWheel={(e) => e.stopPropagation()}>
@@ -27,7 +27,7 @@ export function ConciergeChat() {
           onClick={() => setSelectedEntryId(e.id)}
         >
           <div className="chat-bubble chat-user">{e.query}</div>
-          <div className="chat-bubble chat-assistant">
+          <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
             <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
             {e.confirmApps && e.confirmApps.length > 0 && (
               <div className="concierge-confirm">

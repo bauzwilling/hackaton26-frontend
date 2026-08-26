@@ -20,6 +20,7 @@ type Appearance = {
   accent: AccentId;
   showWires: boolean;
   showGrid: boolean;
+  bubbleMode: boolean;
 };
 
 const DEFAULT_APPEARANCE: Appearance = {
@@ -27,6 +28,7 @@ const DEFAULT_APPEARANCE: Appearance = {
   accent: "yellow",
   showWires: false,
   showGrid: true,
+  bubbleMode: false,
 };
 
 function loadAppearance(): Appearance {
@@ -39,6 +41,7 @@ function loadAppearance(): Appearance {
       accent: data.accent && data.accent in ACCENTS ? data.accent : "yellow",
       showWires: data.showWires === true,
       showGrid: data.showGrid !== false,
+      bubbleMode: data.bubbleMode === true,
     };
   } catch {
     return DEFAULT_APPEARANCE;
@@ -56,15 +59,19 @@ type Ctx = {
   setShowWires: (v: boolean) => void;
   showGrid: boolean;
   setShowGrid: (v: boolean) => void;
+  bubbleMode: boolean;
+  setBubbleMode: (v: boolean) => void;
   signOut: () => void;
 };
 
 const SessionCtx = createContext<Ctx | null>(null);
 
-function applyLook(theme: Theme, accent: AccentId) {
+function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean) {
   const a = ACCENTS[accent];
   const root = document.documentElement;
   root.dataset.theme = theme;
+  if (bubbleMode) root.dataset.bubble = "on";
+  else delete root.dataset.bubble;
   if (theme === "dark") {
     root.style.setProperty("--acc", a.dark);
     root.style.setProperty("--acc-lite", a.acc);
@@ -80,18 +87,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [look, setLook] = useState<Appearance>(() => {
     const a = loadAppearance();
-    applyLook(a.theme, a.accent);
+    applyLook(a.theme, a.accent, a.bubbleMode);
     return a;
   });
-  const { theme, accent, showWires, showGrid } = look;
+  const { theme, accent, showWires, showGrid, bubbleMode } = look;
 
   function patch(partial: Partial<Appearance>) {
     setLook((prev) => ({ ...prev, ...partial }));
   }
 
   useEffect(() => {
-    applyLook(theme, accent);
-  }, [theme, accent]);
+    applyLook(theme, accent, bubbleMode);
+  }, [theme, accent, bubbleMode]);
 
   useEffect(() => {
     try {
@@ -110,8 +117,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setShowWires: (v) => patch({ showWires: v }),
     showGrid,
     setShowGrid: (v) => patch({ showGrid: v }),
+    bubbleMode,
+    setBubbleMode: (v) => patch({ bubbleMode: v }),
     signOut: () => { clearSession(); setSession(null); },
-  }), [session, theme, accent, showWires, showGrid]);
+  }), [session, theme, accent, showWires, showGrid, bubbleMode]);
 
   return <SessionCtx.Provider value={value}>{children}</SessionCtx.Provider>;
 }

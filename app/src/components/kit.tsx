@@ -130,12 +130,13 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, onFocus, onClose, onHide, onDrag, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; hidden?: boolean; autoSize?: boolean;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
+  onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
   children: ReactNode;
 }) {
@@ -160,7 +161,14 @@ export function Window({
       ref={ref}
       className={`win${kind ? ` win-${kind}` : ""}${fit ? " win-autosize" : ""}`}
       style={{ left: x, top: y, zIndex: z, width, height: fit ? undefined : height, display: hidden ? "none" : undefined }}
-      onPointerDown={(e) => { e.stopPropagation(); onFocus(); }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onFocus();
+        if (!onGrab || e.button !== 0) return;
+        const t = e.target as HTMLElement;
+        if (t.closest("button, input, textarea, a, select")) return;
+        onGrab(e);
+      }}
     >
       <div className="win-bar" onPointerDown={onDrag}>
         <span className="win-dot" />
@@ -177,7 +185,7 @@ export function Window({
 }
 
 function VizAccordion() {
-  const { theme, setTheme, accent, setAccent, showWires, setShowWires, showGrid, setShowGrid } = useSession();
+  const { theme, setTheme, accent, setAccent, showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode } = useSession();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -209,6 +217,7 @@ function VizAccordion() {
           />
           <Switch on={showWires} onToggle={() => setShowWires(!showWires)} label="Show wires" note={showWires ? "On" : "Off"} />
           <Switch on={showGrid} onToggle={() => setShowGrid(!showGrid)} label="Show grid" note={showGrid ? "On" : "Off"} />
+          <Switch on={bubbleMode} onToggle={() => setBubbleMode(!bubbleMode)} label="Bubble mode" note={bubbleMode ? "On" : "Off"} />
           <div className="viz-label">Accent color</div>
           <div className="viz-accents">
             {(Object.keys(ACCENTS) as AccentId[]).map((id) => (

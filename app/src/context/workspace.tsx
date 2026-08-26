@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import { askConcierge } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { useSession } from "./session";
 
@@ -41,6 +42,7 @@ export type RequestEntry = {
   result: "app" | "text" | "denied";
   reply?: string;
   confirmApps?: WorkspaceApp[];
+  pending?: boolean;
 };
 
 const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
@@ -145,16 +147,6 @@ const APP_W = 960;
 const NOTE_W = 240;
 const NOTE_H = 160;
 
-const CONCIERGE_BODY = "Upload a design or describe it. F2F routes CNC, wood, sheet metal and print jobs across a decentralized network. Quotes are ranges until a file is confirmed — then the nearest capable machine produces and ships.";
-
-const INTENTS: { app: WorkspaceApp; title: string; label: string; why: string; licensed?: AppId; perm?: string; re: RegExp }[] = [
-  { app: "orbit", title: "CNC Orbit", label: "CNC Orbit", why: "Machine and worklist questions open CNC Orbit", perm: "overview", re: /orbit|worklist|machine|dashboard|cnc/i },
-  { app: "projects", title: "Projects", label: "Projects", why: "Order history opens Projects", re: /project|order|history|quote/i },
-  { app: "plyworks", title: "Plyworks", label: "Plyworks", why: "Panel and furniture jobs open Plyworks", licensed: "plyworks", re: /plywood|plyworks|panel|shelf|cabinet|furniture/i },
-  { app: "simpleparts", title: "Simple Parts", label: "Simple Parts", why: "DXF and part jobs open Simple Parts", licensed: "simpleparts", re: /simple\s*-?\s*parts|\bdxf\b|laser|bracket|\bpart/i },
-  { app: "boxouts", title: "Door boxouts", label: "Boxouts", why: "Dimensioned box jobs open Boxouts", licensed: "boxouts", re: /boxout|box[\s-]?out|\d{2,4}\s*[x×*]\s*\d{2,4}/i },
-];
-
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string }[] = [
   { id: "boxouts", label: "Boxouts", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
@@ -210,7 +202,12 @@ function migrateEntry(e: RequestEntry): RequestEntry {
   if ((e.result === "text" || !e.appId) && !targetIds.includes(CONCIERGE_ID)) {
     targetIds.unshift(CONCIERGE_ID);
   }
-  return { ...e, targetIds, reply: e.reply ?? e.routeWhy };
+  return {
+    ...e,
+    targetIds,
+    reply: e.pending ? "The request was interrupted. Try again." : (e.reply ?? e.routeWhy),
+    pending: false,
+  };
 }
 
 function uid(prefix: string) {
@@ -261,6 +258,10 @@ function allowed(session: Session | null, app: WorkspaceApp) {
   if (meta.licensed && !hasApp(session, meta.licensed)) return false;
   if (meta.perm && !can(session, meta.perm)) return false;
   return true;
+}
+
+function licensedApps(session: Session | null): WorkspaceApp[] {
+  return WORKSPACE_APPS.filter((a) => allowed(session, a.id)).map((a) => a.id);
 }
 
 function emptyPersist(): Persist {
@@ -469,41 +470,67 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
     if (!q) return;
-    const intent = INTENTS.find((it) => it.re.test(q)) ?? null;
     const conciergeId = ensureConcierge();
-    const targetIds: string[] = [conciergeId];
-    let result: RequestEntry["result"] = "text";
-    let appId: WorkspaceApp | undefined;
-    let reply = CONCIERGE_BODY;
-    let routeLabel = "Concierge";
-    let routeWhy = "Answered on the canvas";
+    const entryId = uid("e");
+    const history = entriesRef.current
+      .filter((e) => !e.pending && e.reply)
+      .slice(-8)
+      .flatMap((e) => [
+        { role: "user" as const, content: e.query },
+        { role: "assistant" as const, content: e.reply as string },
+      ]);
+    const apps = licensedApps(session);
 
-    if (intent) {
-      appId = intent.app;
-      const ok = allowed(session, intent.app);
-      result = ok ? "app" : "denied";
-      routeLabel = intent.label;
-      routeWhy = intent.why;
-      reply = ok
-        ? `${intent.why.replace(/\.$/, "")}. Opening ${intent.title} for you.`
-        : `${intent.title} is not on this company's plan.`;
-      const appTarget = openApp(intent.app, { parentId: conciergeId, query: q });
-      if (appTarget) targetIds.push(appTarget);
-    }
-
-    const entry: RequestEntry = {
-      id: uid("e"),
+    setEntries((list) => [...list, {
+      id: entryId,
       at: Date.now(),
       query: q,
-      routeLabel,
-      routeWhy,
-      targetIds,
-      appId,
-      result,
-      reply,
-    };
-    setEntries((list) => [...list, entry]);
-    setSelectedEntryId(entry.id);
+      routeLabel: "Concierge",
+      routeWhy: "Answered on the canvas",
+      targetIds: [conciergeId],
+      result: "text",
+      reply: "Thinking…",
+      pending: true,
+    }]);
+    setSelectedEntryId(entryId);
+
+    void (async () => {
+      try {
+        const result = await askConcierge(q, history, apps);
+        const appId = result.app && isWorkspaceApp(result.app) ? result.app : undefined;
+        const targetIds: string[] = [conciergeId];
+        let status: RequestEntry["result"] = "text";
+        let routeLabel = "Concierge";
+        let routeWhy = "Answered on the canvas";
+
+        if (appId) {
+          const ok = allowed(session, appId);
+          status = ok ? "app" : "denied";
+          routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
+          routeWhy = result.reply;
+          const appTarget = openApp(appId, { parentId: conciergeId, query: q });
+          if (appTarget) targetIds.push(appTarget);
+        }
+
+        setEntries((list) => list.map((e) => (e.id === entryId ? {
+          ...e,
+          appId,
+          result: status,
+          routeLabel,
+          routeWhy,
+          reply: result.reply,
+          targetIds,
+          pending: false,
+        } : e)));
+      } catch {
+        setEntries((list) => list.map((e) => (e.id === entryId ? {
+          ...e,
+          reply: "I couldn’t reach the assistant. Try again in a moment.",
+          routeWhy: "The assistant could not reply",
+          pending: false,
+        } : e)));
+      }
+    })();
   }, [openApp, ensureConcierge, session]);
 
   const ingestFiles = useCallback((files: File[]) => {
