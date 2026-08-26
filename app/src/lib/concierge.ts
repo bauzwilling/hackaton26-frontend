@@ -6,11 +6,12 @@ export async function askConcierge(
   message: string,
   history: ConciergeTurn[],
   apps: string[],
+  restricted: string[] = [],
 ): Promise<ConciergeResult> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, apps }),
+    body: JSON.stringify({ message, history, apps, restricted }),
   });
   if (!res.ok) {
     throw new Error(`Concierge request failed (${res.status})`);

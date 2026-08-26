@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     history: List[HistoryTurn] = Field(default_factory=list)
     apps: List[str] = Field(default_factory=list)
+    restricted: List[str] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -43,6 +44,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             message,
             history=[t.model_dump() for t in req.history],
             available_apps=req.apps,
+            restricted_apps=req.restricted,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail="The assistant could not reply.") from exc

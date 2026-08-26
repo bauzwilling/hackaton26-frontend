@@ -48,6 +48,9 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
     if (node.appId === "plyworks") return <PlyworksPage />;
     if (node.appId === "projects") return <ProjectsPage />;
     if (node.appId === "orbit") return <OrbitPage />;
+    if (node.appId === "admin") {
+      return <p style={{ margin: 0 }}>The Admin console is not available yet.</p>;
+    }
   }
   return null;
 });
