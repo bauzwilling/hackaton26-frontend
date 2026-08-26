@@ -6,13 +6,15 @@ import { CHIPS } from "../lib/catalog";
 export function AskMenu({
   at,
   host,
+  world,
   onClose,
 }: {
   at: { x: number; y: number };
   host: { width: number; height: number };
+  world: { x: number; y: number };
   onClose: () => void;
 }) {
-  const { ask, entries } = useWorkspace();
+  const { ask, addNote, entries } = useWorkspace();
   const [value, setValue] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const W = 420;
@@ -67,6 +69,17 @@ export function AskMenu({
             ))}
           </div>
         )}
+        <div className="ctx-actions">
+          <Surface
+            as="button"
+            type="button"
+            relief="inset"
+            style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+            onClick={() => { addNote({ x: world.x, y: world.y }); onClose(); }}
+          >
+            Add note
+          </Surface>
+        </div>
       </Surface>
     </>
   );

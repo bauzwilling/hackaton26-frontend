@@ -5,7 +5,7 @@ import { useWorkspace } from "../context/workspace";
 import { DEFAULT_TEMPLATES, loadTemplates, saveTemplates, uidTemplate, type RequestTemplate } from "../lib/templates";
 
 export function Overview({ viewport }: { viewport: { width: number; height: number } }) {
-  const { nodes, entries, overviewOpen, setOverviewOpen, tile, show, hide, close, focus, clear, ask } = useWorkspace();
+  const { nodes, entries, overviewOpen, setOverviewOpen, tile, show, hide, close, focus, clear, ask, addNote } = useWorkspace();
   const { session } = useSession();
   const email = session?.email ?? "anon";
   const [tplPanel, setTplPanel] = useState<"closed" | "menu" | "save" | "open">("closed");
@@ -73,6 +73,9 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
           <div className="overview-tools">
             <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={clear}>
               Clear board
+            </Surface>
+            <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { addNote(); setOverviewOpen(false); }}>
+              Add note
             </Surface>
             <Surface as="button" type="button" active={tplPanel !== "closed"} style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => setTplPanel((p) => (p === "closed" ? "menu" : "closed"))}>
               Templates

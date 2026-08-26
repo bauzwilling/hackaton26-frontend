@@ -2,8 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
 import { useSession } from "./session";
 
-export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text";
+export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
 export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit";
+
+export function isResizableKind(kind: NodeKind) {
+  return kind === "log" || kind === "note";
+}
 
 export type WorkspaceNode = {
   id: string;
@@ -25,7 +29,7 @@ export type WorkspaceNode = {
   autoSize?: boolean;
 };
 
-export type WorkspaceEdge = { from: string; to: string };
+export type WorkspaceEdge = { from: string; to: string; hot?: boolean };
 
 /** Session transcript. Later this is the API payload for a user chat thread. */
 export type RequestEntry = {
@@ -38,6 +42,55 @@ export type RequestEntry = {
   appId?: WorkspaceApp;
   result: "app" | "text" | "denied";
 };
+
+const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
+
+function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEntryId: string | null): WorkspaceEdge[] {
+  const vis = nodes.filter((n) => !n.hidden && n.kind !== "note");
+  const live = new Set(vis.map((n) => n.id));
+  const apps = vis.filter((n) => n.kind === "app");
+  const appBy = (id: WorkspaceApp) => apps.find((n) => n.appId === id);
+  const log = vis.find((n) => n.kind === "log");
+  const selected = selectedEntryId ? entries.find((e) => e.id === selectedEntryId) : null;
+  const hotTargets = new Set(selected?.targetIds ?? []);
+  const edges: WorkspaceEdge[] = [];
+  const seen = new Set<string>();
+
+  const add = (from: string, to: string, hot = false) => {
+    if (from === to || !live.has(from) || !live.has(to)) return;
+    const key = `${from}->${to}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push({ from, to, hot });
+  };
+
+  if (log) {
+    for (const entry of entries) {
+      const hot = entry.id === selectedEntryId;
+      for (const id of entry.targetIds) add(log.id, id, hot);
+    }
+    for (const n of vis) {
+      if (n.parentId === log.id) add(log.id, n.id, hotTargets.has(n.id));
+    }
+  }
+
+  const projects = appBy("projects");
+  if (projects) {
+    for (const id of JOB_APPS) {
+      const job = appBy(id);
+      if (job) add(job.id, projects.id);
+    }
+  }
+
+  const orbit = appBy("orbit");
+  if (orbit) {
+    for (const n of apps) {
+      if (n.appId && n.appId !== "orbit") add(n.id, orbit.id);
+    }
+  }
+
+  return edges;
+}
 
 type Persist = {
   nodes: WorkspaceNode[];
@@ -60,6 +113,8 @@ type Ctx = {
   setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setZoom: (z: number | ((prev: number) => number)) => void;
   openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => string | null;
+  addNote: (opts?: { x?: number; y?: number }) => string;
+  setNodeBody: (id: string, body: string) => void;
   ask: (query: string) => void;
   restoreEntry: (entryId: string, viewport?: { width: number; height: number }) => void;
   focusTargets: (ids: string[], viewport: { width: number; height: number }) => void;
@@ -81,6 +136,8 @@ const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
 const APP_W = 960;
+const NOTE_W = 240;
+const NOTE_H = 160;
 
 const CONCIERGE_BODY = "Upload a design or describe it. F2F routes CNC, wood, sheet metal and print jobs across a decentralized network. Quotes are ranges until a file is confirmed — then the nearest capable machine produces and ships.";
 
@@ -147,6 +204,7 @@ const EST_H: Record<NodeKind, number> = {
   denied: 160,
   request: 160,
   menu: 200,
+  note: NOTE_H,
 };
 
 function boxOf(n: WorkspaceNode) {
@@ -198,10 +256,20 @@ function logNode(): WorkspaceNode {
     y: 20,
     z: 8,
     w: LOG_W,
-    h: 1,
+    h: EST_H.log,
     hidden: false,
-    autoSize: true,
+    autoSize: false,
   };
+}
+
+function normalizeNode(n: WorkspaceNode): WorkspaceNode {
+  if (n.kind === "note") {
+    return { ...n, autoSize: false, w: Math.max(n.w, 140), h: Math.max(n.h, 80) };
+  }
+  if (n.kind === "log") {
+    return { ...n, autoSize: false, w: Math.max(n.w || LOG_W, 240), h: n.h > 40 ? n.h : EST_H.log };
+  }
+  return { ...n, autoSize: true };
 }
 
 function withLog(list: WorkspaceNode[]): WorkspaceNode[] {
@@ -230,7 +298,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const saved = loadPersist(company) ?? emptyPersist();
     skipSave.current += 1;
-    const cleaned = saved.nodes.filter((n) => n.kind !== "request");
+    const cleaned = saved.nodes.filter((n) => n.kind !== "request").map(normalizeNode);
     setNodes(cleaned);
     setEdges(saved.edges);
     setPan(saved.pan ?? { x: 0, y: 0 });
@@ -450,13 +518,48 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNodes((list) => list.map((n) => (n.id === id ? { ...n, x, y } : n)));
   }, []);
 
+  const addNote = useCallback((opts?: { x?: number; y?: number }) => {
+    const id = uid("n");
+    zTop.current += 1;
+    setNodes((list) => {
+      const slot = opts?.x != null && opts?.y != null
+        ? { x: opts.x, y: opts.y }
+        : placeBeside(list, NOTE_W, NOTE_H);
+      const note: WorkspaceNode = {
+        id,
+        kind: "note",
+        title: "Note",
+        code: "NOTE",
+        body: "",
+        x: slot.x,
+        y: slot.y,
+        z: zTop.current,
+        w: NOTE_W,
+        h: NOTE_H,
+        hidden: false,
+        autoSize: false,
+      };
+      return [...list, note];
+    });
+    return id;
+  }, []);
+
+  const setNodeBody = useCallback((id: string, body: string) => {
+    setNodes((list) => list.map((n) => (n.id === id ? { ...n, body } : n)));
+  }, []);
+
   const resize = useCallback((id: string, w: number, h: number) => {
-    setNodes((list) => list.map((n) => (n.id === id ? { ...n, w: Math.max(240, w), h: Math.max(120, h), autoSize: false } : n)));
+    setNodes((list) => list.map((n) => {
+      if (n.id !== id || !isResizableKind(n.kind)) return n;
+      const minW = n.kind === "note" ? 140 : 240;
+      const minH = n.kind === "note" ? 80 : 140;
+      return { ...n, w: Math.max(minW, w), h: Math.max(minH, h), autoSize: false };
+    }));
   }, []);
 
   const fit = useCallback((id: string, w: number, h: number) => {
     setNodes((list) => list.map((n) => {
-      if (n.id !== id || n.autoSize === false) return n;
+      if (n.id !== id || n.autoSize === false || isResizableKind(n.kind)) return n;
       const nw = Math.max(240, Math.round(w));
       const nh = Math.max(80, Math.round(h));
       if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
@@ -489,25 +592,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNodes((list) => {
       const vis = list.filter((n) => !n.hidden);
       if (!vis.length) return list;
-      const pad = 16;
-      const cols = Math.max(1, Math.ceil(Math.sqrt(vis.length)));
-      const rows = Math.ceil(vis.length / cols);
-      const cellW = Math.max(280, (viewport.width - pad * (cols + 1)) / cols);
-      const cellH = Math.max(180, (viewport.height - pad * (rows + 1)) / rows);
-      let i = 0;
+      const pad = 24;
+      const limit = Math.max(viewport.width, 400);
+      let x = pad;
+      let y = pad;
+      let rowH = 0;
+      const placed = new Map<string, { x: number; y: number }>();
+      for (const n of vis) {
+        const w = Math.max(n.w, 160);
+        const h = Math.max(n.h, 80);
+        if (x > pad && x + w + pad > limit) {
+          x = pad;
+          y += rowH + pad;
+          rowH = 0;
+        }
+        placed.set(n.id, { x, y });
+        x += w + pad;
+        rowH = Math.max(rowH, h);
+      }
       return list.map((n) => {
-        if (n.hidden) return n;
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        i += 1;
-        return {
-          ...n,
-          x: pad + col * (cellW + pad),
-          y: pad + row * (cellH + pad),
-          w: cellW,
-          h: cellH,
-          autoSize: false,
-        };
+        const p = placed.get(n.id);
+        return p ? { ...n, x: p.x, y: p.y } : n;
       });
     });
   }, []);
@@ -521,14 +626,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     zTop.current = 10;
   }, [entries.length]);
 
-  const wireEdges = useMemo<WorkspaceEdge[]>(() => {
-    const log = nodes.find((n) => n.kind === "log" && !n.hidden);
-    const entry = entries.find((e) => e.id === selectedEntryId);
-    if (!log || !entry) return [];
-    return entry.targetIds
-      .filter((id) => nodes.some((n) => n.id === id && !n.hidden))
-      .map((to) => ({ from: log.id, to }));
-  }, [nodes, entries, selectedEntryId]);
+  const wireEdges = useMemo(
+    () => buildWires(nodes, entries, selectedEntryId),
+    [nodes, entries, selectedEntryId],
+  );
 
   const value = useMemo<Ctx>(() => ({
     nodes,
@@ -543,6 +644,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPan,
     setZoom,
     openApp,
+    addNote,
+    setNodeBody,
     ask,
     restoreEntry,
     focusTargets,
@@ -555,7 +658,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     show,
     tile,
     clear,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, ask, restoreEntry, focusTargets, focus, move, resize, fit, close, hide, show, tile, clear]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, restoreEntry, focusTargets, focus, move, resize, fit, close, hide, show, tile, clear]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

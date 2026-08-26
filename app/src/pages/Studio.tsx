@@ -8,10 +8,10 @@ import { isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { CHIPS } from "../lib/catalog";
 
 export function StudioPage() {
-  const { nodes, ask, openApp } = useWorkspace();
+  const { nodes, ask, openApp, addNote, pan, zoom } = useWorkspace();
   const [query, setQuery] = useState("");
   const [params, setParams] = useSearchParams();
-  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const root = useRef<HTMLDivElement>(null);
@@ -46,7 +46,14 @@ export function StudioPage() {
     e.preventDefault();
     const box = e.currentTarget.getBoundingClientRect();
     setHost({ width: box.width, height: box.height });
-    setCtx({ x: e.clientX - box.left, y: e.clientY - box.top });
+    setCtx({
+      x: e.clientX - box.left,
+      y: e.clientY - box.top,
+      world: {
+        x: (e.clientX - box.left - pan.x) / zoom,
+        y: (e.clientY - box.top - pan.y) / zoom,
+      },
+    });
   }
 
   return (
@@ -55,13 +62,16 @@ export function StudioPage() {
       {empty && (
         <div className="empty-hero">
           <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
-          <p className="muted" style={{ marginTop: 14 }}>Upload a design or just describe it. Right-click anywhere to ask. Drag the canvas to look around.</p>
+          <p className="muted" style={{ marginTop: 14 }}>Upload a design or just describe it. Right-click anywhere to ask or add a note. Drag the canvas to look around.</p>
           <div className="chips">
             {CHIPS.map((c) => (
               <Surface key={c} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => ask(c)}>
                 {c}
               </Surface>
             ))}
+            <Surface as="button" type="button" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => addNote()}>
+              Add note
+            </Surface>
           </div>
         </div>
       )}
@@ -88,7 +98,7 @@ export function StudioPage() {
         </Surface>
       </Surface>
       <Overview viewport={viewport} />
-      {ctx && <AskMenu at={ctx} host={host} onClose={() => setCtx(null)} />}
+      {ctx && <AskMenu at={ctx} host={host} world={ctx.world} onClose={() => setCtx(null)} />}
     </div>
   );
 }

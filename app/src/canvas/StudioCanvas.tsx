@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as PE } from "react";
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
-import { useWorkspace, type WorkspaceNode } from "../context/workspace";
+import { useWorkspace, type WorkspaceNode, isResizableKind } from "../context/workspace";
 import { NodeBody } from "./NodeBody";
 import { WireLayer } from "./WireLayer";
 
@@ -124,6 +124,7 @@ export function StudioCanvas() {
   }
 
   function startResize(node: WorkspaceNode, e: PE<HTMLDivElement>) {
+    if (!isResizableKind(node.kind)) return;
     const el = layer.current;
     if (!el) return;
     e.stopPropagation();
@@ -171,7 +172,7 @@ export function StudioCanvas() {
             onClose={() => close(n.id)}
             onHide={() => hide(n.id)}
             onDrag={(e) => startDrag(n, e)}
-            onResize={(e) => startResize(n, e)}
+            onResize={isResizableKind(n.kind) ? (e) => startResize(n, e) : undefined}
             onFit={(w, h) => fit(n.id, w, h)}
           >
             <NodeBody node={n} viewport={viewport} />
