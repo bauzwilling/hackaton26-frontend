@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AskMenu } from "../canvas/AskMenu";
 import { Overview } from "../canvas/Overview";
 import { StudioCanvas } from "../canvas/StudioCanvas";
 import { Surface } from "../components/kit";
+import { useSession } from "../context/session";
 import { isWorkspaceApp, useWorkspace } from "../context/workspace";
-import { CHIPS } from "../lib/catalog";
+import { chipsFor } from "../lib/catalog";
+import { can } from "../lib/auth";
 import { FILE_ACCEPT } from "../lib/intake";
 
 function isFileDrag(e: DragEvent) {
@@ -21,6 +23,7 @@ function ClipIcon() {
 }
 
 export function StudioPage() {
+  const { session } = useSession();
   const { nodes, ask, openApp, addNote, ingestFiles, pan, zoom } = useWorkspace();
   const [query, setQuery] = useState("");
   const [params, setParams] = useSearchParams();
@@ -31,6 +34,7 @@ export function StudioPage() {
   const root = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
+  const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
 
   useEffect(() => {
     const app = params.get("app");
@@ -137,7 +141,7 @@ export function StudioPage() {
           <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
           <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-click anywhere to ask or add a note. Drag the canvas to look around.</p>
           <div className="chips">
-            {CHIPS.map((c) => (
+            {chips.map((c) => (
               <Surface key={c} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => ask(c)}>
                 {c}
               </Surface>

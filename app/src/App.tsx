@@ -31,6 +31,7 @@ export default function App() {
         <Route path="/plyworks" element={<Navigate to="/?app=plyworks" replace />} />
         <Route path="/projects" element={<Navigate to="/?app=projects" replace />} />
         <Route path="/orbit" element={<Navigate to="/?app=orbit" replace />} />
+        <Route path="/admin" element={<Navigate to="/?app=admin" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

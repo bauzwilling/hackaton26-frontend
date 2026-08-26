@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import { askConcierge } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit" | "admin";
 
 export type WorkspaceNode = {
   id: string;
@@ -41,6 +42,7 @@ export type RequestEntry = {
   result: "app" | "text" | "denied";
   reply?: string;
   confirmApps?: WorkspaceApp[];
+  pending?: boolean;
 };
 
 const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
@@ -89,7 +91,7 @@ function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEnt
   const orbit = appBy("orbit");
   if (orbit) {
     for (const n of apps) {
-      if (n.appId && n.appId !== "orbit") add(n.id, orbit.id);
+      if (n.appId && n.appId !== "orbit" && n.appId !== "admin") add(n.id, orbit.id);
     }
   }
 
@@ -131,7 +133,8 @@ type Ctx = {
   hide: (id: string) => void;
   show: (id: string) => void;
   tile: (viewport: { width: number; height: number }) => void;
-  clear: () => void;
+  clear: (opts?: { transcript?: boolean }) => void;
+  clearTranscript: () => void;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -145,39 +148,31 @@ const APP_W = 960;
 const NOTE_W = 240;
 const NOTE_H = 160;
 
-const CONCIERGE_BODY = "Upload a design or describe it. F2F routes CNC, wood, sheet metal and print jobs across a decentralized network. Quotes are ranges until a file is confirmed — then the nearest capable machine produces and ships.";
-
-const INTENTS: { app: WorkspaceApp; title: string; label: string; why: string; licensed?: AppId; perm?: string; re: RegExp }[] = [
-  { app: "orbit", title: "CNC Orbit", label: "CNC Orbit", why: "Machine and worklist questions open CNC Orbit", perm: "overview", re: /orbit|worklist|machine|dashboard|cnc/i },
-  { app: "projects", title: "Projects", label: "Projects", why: "Order history opens Projects", re: /project|order|history|quote/i },
-  { app: "plyworks", title: "Plyworks", label: "Plyworks", why: "Panel and furniture jobs open Plyworks", licensed: "plyworks", re: /plywood|plyworks|panel|shelf|cabinet|furniture/i },
-  { app: "simpleparts", title: "Simple Parts", label: "Simple Parts", why: "DXF and part jobs open Simple Parts", licensed: "simpleparts", re: /simple\s*-?\s*parts|\bdxf\b|laser|bracket|\bpart/i },
-  { app: "boxouts", title: "Door boxouts", label: "Boxouts", why: "Dimensioned box jobs open Boxouts", licensed: "boxouts", re: /boxout|box[\s-]?out|\d{2,4}\s*[x×*]\s*\d{2,4}/i },
-];
-
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string }[] = [
   { id: "boxouts", label: "Boxouts", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
-  { id: "orbit", label: "Orbit", perm: "overview" },
+  { id: "orbit", label: "Orbit", perm: "orbit" },
+  { id: "admin", label: "Admin console", perm: "users" },
 ];
 
 export function isWorkspaceApp(v: string): v is WorkspaceApp {
   return WORKSPACE_APPS.some((a) => a.id === v);
 }
 
-function persistKey(company: string) {
-  return `f2f.workspace.${company}`;
+// Stand-in until a per-user config API exists.
+function persistKey(email: string) {
+  return `f2f.workspace.${email || "anon"}`;
 }
 
 function requestsKey(email: string) {
   return `f2f.requests.${email || "anon"}`;
 }
 
-function loadPersist(company: string): Persist | null {
+function loadPersist(email: string): Persist | null {
   try {
-    const raw = localStorage.getItem(persistKey(company));
+    const raw = localStorage.getItem(persistKey(email));
     if (!raw) return null;
     const data = JSON.parse(raw) as Persist;
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) return null;
@@ -210,7 +205,12 @@ function migrateEntry(e: RequestEntry): RequestEntry {
   if ((e.result === "text" || !e.appId) && !targetIds.includes(CONCIERGE_ID)) {
     targetIds.unshift(CONCIERGE_ID);
   }
-  return { ...e, targetIds, reply: e.reply ?? e.routeWhy };
+  return {
+    ...e,
+    targetIds,
+    reply: e.pending ? "The request was interrupted. Try again." : (e.reply ?? e.routeWhy),
+    pending: false,
+  };
 }
 
 function uid(prefix: string) {
@@ -261,6 +261,34 @@ function allowed(session: Session | null, app: WorkspaceApp) {
   if (meta.licensed && !hasApp(session, meta.licensed)) return false;
   if (meta.perm && !can(session, meta.perm)) return false;
   return true;
+}
+
+function licensedApps(session: Session | null): WorkspaceApp[] {
+  return WORKSPACE_APPS.filter((a) => allowed(session, a.id)).map((a) => a.id);
+}
+
+function restrictedApps(session: Session | null): WorkspaceApp[] {
+  return WORKSPACE_APPS.filter((a) => !allowed(session, a.id)).map((a) => a.id);
+}
+
+function denyCopy(session: Session | null, app: WorkspaceApp) {
+  const meta = WORKSPACE_APPS.find((a) => a.id === app);
+  const label = meta?.label ?? app;
+  if (meta?.licensed && !hasApp(session, meta.licensed)) {
+    return {
+      title: `${label} — not licensed`,
+      body: session
+        ? `${label} is not on ${COMPANIES[session.company].name}'s plan.`
+        : `${label} is not available.`,
+    };
+  }
+  const body =
+    app === "orbit"
+      ? "CNC Orbit is only available to operators and admins."
+      : app === "admin"
+        ? "The Admin console is only available to admins."
+        : `You do not have permission to open ${label}.`;
+  return { title: `${label} — no access`, body };
 }
 
 function emptyPersist(): Persist {
@@ -322,7 +350,6 @@ function withConcierge(list: WorkspaceNode[]): WorkspaceNode[] {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
-  const company = session?.company ?? "none";
   const email = session?.email ?? "anon";
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const [edges, setEdges] = useState<WorkspaceEdge[]>([]);
@@ -340,7 +367,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
   useEffect(() => {
-    const saved = loadPersist(company) ?? emptyPersist();
+    const saved = loadPersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
       .filter((n) => n.kind !== "request" && (n.kind !== "text" || n.id === CONCIERGE_ID))
@@ -350,7 +377,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPan(saved.pan ?? { x: 0, y: 0 });
     setZoom(saved.zoom ?? 1);
     zTop.current = saved.zTop ?? 10;
-  }, [company]);
+  }, [email]);
 
   useEffect(() => {
     skipEntries.current += 1;
@@ -368,9 +395,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     const data: Persist = { nodes, edges, pan, zoom, zTop: zTop.current };
     try {
-      localStorage.setItem(persistKey(company), JSON.stringify(data));
+      localStorage.setItem(persistKey(email), JSON.stringify(data));
     } catch { /* ignore */ }
-  }, [company, nodes, edges, pan, zoom]);
+  }, [email, nodes, edges, pan, zoom]);
 
   useEffect(() => {
     if (skipEntries.current > 0) {
@@ -398,17 +425,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!allowed(session, app)) {
       const id = uid("d");
       zTop.current += 1;
+      const copy = denyCopy(session, app);
       const denied: WorkspaceNode = {
         id,
         kind: "denied",
-        title: `${meta.label} — not licensed`,
+        title: copy.title,
         code: `LIC-${Math.floor(1000 + Math.random() * 9000)}`,
         appId: app,
         query: opts?.query,
         parentId: opts?.parentId,
-        body: session
-          ? `${meta.label} is not on ${COMPANIES[session.company].name}'s plan.`
-          : `${meta.label} is not available.`,
+        body: copy.body,
         x: RAIL_X,
         y: 20,
         z: zTop.current,
@@ -469,41 +495,68 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
     if (!q) return;
-    const intent = INTENTS.find((it) => it.re.test(q)) ?? null;
     const conciergeId = ensureConcierge();
-    const targetIds: string[] = [conciergeId];
-    let result: RequestEntry["result"] = "text";
-    let appId: WorkspaceApp | undefined;
-    let reply = CONCIERGE_BODY;
-    let routeLabel = "Concierge";
-    let routeWhy = "Answered on the canvas";
+    const entryId = uid("e");
+    const history = entriesRef.current
+      .filter((e) => !e.pending && e.reply)
+      .slice(-8)
+      .flatMap((e) => [
+        { role: "user" as const, content: e.query },
+        { role: "assistant" as const, content: e.reply as string },
+      ]);
+    const apps = licensedApps(session);
+    const restricted = restrictedApps(session);
 
-    if (intent) {
-      appId = intent.app;
-      const ok = allowed(session, intent.app);
-      result = ok ? "app" : "denied";
-      routeLabel = intent.label;
-      routeWhy = intent.why;
-      reply = ok
-        ? `${intent.why.replace(/\.$/, "")}. Opening ${intent.title} for you.`
-        : `${intent.title} is not on this company's plan.`;
-      const appTarget = openApp(intent.app, { parentId: conciergeId, query: q });
-      if (appTarget) targetIds.push(appTarget);
-    }
-
-    const entry: RequestEntry = {
-      id: uid("e"),
+    setEntries((list) => [...list, {
+      id: entryId,
       at: Date.now(),
       query: q,
-      routeLabel,
-      routeWhy,
-      targetIds,
-      appId,
-      result,
-      reply,
-    };
-    setEntries((list) => [...list, entry]);
-    setSelectedEntryId(entry.id);
+      routeLabel: "Concierge",
+      routeWhy: "Answered on the canvas",
+      targetIds: [conciergeId],
+      result: "text",
+      reply: "Thinking…",
+      pending: true,
+    }]);
+    setSelectedEntryId(entryId);
+
+    void (async () => {
+      try {
+        const result = await askConcierge(q, history, apps, restricted);
+        const appId = result.app && isWorkspaceApp(result.app) ? result.app : undefined;
+        const targetIds: string[] = [conciergeId];
+        let status: RequestEntry["result"] = "text";
+        let routeLabel = "Concierge";
+        let routeWhy = "Answered on the canvas";
+
+        if (appId) {
+          const ok = allowed(session, appId);
+          status = ok ? "app" : "denied";
+          routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
+          routeWhy = result.reply;
+          const appTarget = openApp(appId, { parentId: conciergeId, query: q });
+          if (appTarget) targetIds.push(appTarget);
+        }
+
+        setEntries((list) => list.map((e) => (e.id === entryId ? {
+          ...e,
+          appId,
+          result: status,
+          routeLabel,
+          routeWhy,
+          reply: result.reply,
+          targetIds,
+          pending: false,
+        } : e)));
+      } catch {
+        setEntries((list) => list.map((e) => (e.id === entryId ? {
+          ...e,
+          reply: "I couldn’t reach the assistant. Try again in a moment.",
+          routeWhy: "The assistant could not reply",
+          pending: false,
+        } : e)));
+      }
+    })();
   }, [openApp, ensureConcierge, session]);
 
   const ingestFiles = useCallback((files: File[]) => {
@@ -616,7 +669,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
       if (appTarget) targetIds.push(appTarget);
     }
-    setEntries((list) => list.map((e) => (e.id === entryId ? { ...e, targetIds } : e)));
+    const appTarget = targetIds.find((id) => id !== conciergeId);
+    setEntries((list) => list.map((e) => {
+      if (e.id === entryId) return { ...e, targetIds };
+      if (entry.result === "app" && e.result === "app" && e.appId && e.appId === entry.appId && appTarget) {
+        const next: string[] = e.targetIds.filter((id) => id === CONCIERGE_ID);
+        if (!next.includes(CONCIERGE_ID)) next.unshift(conciergeId);
+        if (!next.includes(appTarget)) next.push(appTarget);
+        return { ...e, targetIds: next };
+      }
+      return e;
+    }));
     setSelectedEntryId(entryId);
     if (viewport) {
       window.setTimeout(() => focusTargets(targetIds, viewport), 0);
@@ -664,15 +727,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const nw = Math.max(minW, Math.round(w));
       const nh = Math.max(80, Math.round(h));
       if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
-      const grown = { ...n, w: nw, h: nh };
-      const others = list.filter((o) => o.id !== id && !o.hidden);
-      const overlaps = others.some((o) => hits(
-        { x: grown.x, y: grown.y, w: nw, h: nh },
-        boxOf(o),
-      ));
-      if (!overlaps) return grown;
-      const slot = placeBeside(list, nw, nh, id);
-      return { ...grown, ...slot };
+      return { ...n, w: nw, h: nh };
     }));
   }, []);
 
@@ -718,14 +773,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const clear = useCallback(() => {
-    setNodes(entries.length ? withConcierge([logNode()]) : []);
+  const clearTranscript = useCallback(() => {
+    setEntries([]);
+    setSelectedEntryId(null);
+  }, []);
+
+  const clear = useCallback((opts?: { transcript?: boolean }) => {
+    if (opts?.transcript) {
+      setEntries([]);
+      setSelectedEntryId(null);
+      setNodes([]);
+    } else {
+      setNodes((list) => list.filter((n) => n.kind === "log" || n.id === CONCIERGE_ID));
+    }
     setEdges([]);
     setOverviewOpen(false);
     setPan({ x: 0, y: 0 });
     setZoom(1);
     zTop.current = 10;
-  }, [entries.length]);
+  }, []);
 
   const wireEdges = useMemo(
     () => buildWires(nodes, entries, selectedEntryId),
@@ -760,7 +826,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     show,
     tile,
     clear,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear]);
+    clearTranscript,
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
@@ -774,9 +841,13 @@ export function useWorkspace() {
 export function appLabel(app: WorkspaceApp) {
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
+  if (app === "admin") return "Admin console";
   return APP_LABELS[app as AppId] ?? app;
 }
 
 export function entryIsLive(entry: RequestEntry, nodes: WorkspaceNode[]) {
-  return entry.targetIds.some((id) => nodes.some((n) => n.id === id));
+  const ids = entry.result === "app" || entry.result === "denied"
+    ? entry.targetIds.filter((id) => id !== CONCIERGE_ID)
+    : entry.targetIds;
+  return ids.some((id) => nodes.some((n) => n.id === id));
 }

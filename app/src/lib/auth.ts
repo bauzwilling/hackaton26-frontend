@@ -45,12 +45,12 @@ export const ROLES: Record<RoleId, { label: string; blurb: string; grants: strin
   operator: {
     label: "Operator",
     blurb: "Runs the floor: validates files, drives machines.",
-    grants: ["overview", "worklists.read", "worklists.write", "orders.create", "validation", "machines.read", "machines.control"],
+    grants: ["overview", "worklists.read", "worklists.write", "orders.create", "validation", "machines.read", "machines.control", "orbit"],
   },
   admin: {
     label: "Admin",
     blurb: "Everything an operator can do, plus users, apps and billing.",
-    grants: ["overview", "worklists.read", "worklists.write", "orders.create", "validation", "machines.read", "machines.control", "users", "apps.manage", "billing"],
+    grants: ["overview", "worklists.read", "worklists.write", "orders.create", "validation", "machines.read", "machines.control", "orbit", "users", "apps.manage", "billing"],
   },
 };
 

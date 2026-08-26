@@ -28,6 +28,8 @@
 }
 button.sf { cursor: pointer; }
 button.sf:active { transform: translateY(1px); }
+button.sf:disabled { opacity: 0.45; cursor: default; }
+button.sf:disabled:active { transform: none; }
 
 .chrome {
   display: flex;
@@ -250,6 +252,15 @@ html[data-theme="dark"] .win-note {
 .win-body .viewer { height: 180px; }
 .win-body .pad { padding: 14px 16px; }
 
+html[data-bubble="on"] .win {
+  cursor: grab;
+  transform-origin: 50% 58%;
+  will-change: transform;
+}
+html[data-bubble="on"] .win:active { cursor: grabbing; }
+html[data-bubble="on"] .win-bar { cursor: grab; }
+html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
+
 .studio { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .studio-layer {
   position: relative;
@@ -307,6 +318,8 @@ html[data-theme="dark"] .win-note {
   padding: 13px 14px 9px; border-bottom: 1px solid color-mix(in oklab, var(--muted) 25%, transparent);
 }
 .overview-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px 0; }
+.overview-clear-prompt { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 0; }
+.overview-clear-prompt p { margin: 0; font-size: 13px; line-height: 1.4; }
 .overview-list { list-style: none; margin: 8px 0 0; padding: 0 8px 8px; }
 .overview-list li { display: flex; align-items: center; gap: 4px; }
 .overview-item {
@@ -317,6 +330,7 @@ html[data-theme="dark"] .win-note {
 .overview-item:hover { background: color-mix(in oklab, var(--face2) 70%, var(--acc-lite)); }
 
 .request-log { position: relative; display: flex; flex-direction: column; gap: 10px; height: auto; }
+.panel-clear { display: flex; justify-content: flex-end; flex: none; }
 .request-log-list { overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 72px; }
 .request-row {
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
@@ -434,6 +448,9 @@ html[data-theme="dark"] .win-note {
   align-self: flex-start;
   background: linear-gradient(145deg, var(--face), var(--face2));
   box-shadow: var(--clay-press);
+}
+.chat-assistant.is-pending {
+  opacity: 0.65;
 }
 .chat-turn.is-selected .chat-user {
   box-shadow: 0 0 0 2px var(--acc);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { useWorkspace } from "../context/workspace";
+import { CONCIERGE_ID, useWorkspace } from "../context/workspace";
 import { DEFAULT_TEMPLATES, loadTemplates, saveTemplates, uidTemplate, type RequestTemplate } from "../lib/templates";
 
 export function Overview({ viewport }: { viewport: { width: number; height: number } }) {
@@ -9,6 +9,7 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
   const { session } = useSession();
   const email = session?.email ?? "anon";
   const [tplPanel, setTplPanel] = useState<"closed" | "menu" | "save" | "open">("closed");
+  const [confirmClear, setConfirmClear] = useState(false);
   const [name, setName] = useState("");
   const [saved, setSaved] = useState<RequestTemplate[]>(() => loadTemplates(email));
 
@@ -17,8 +18,22 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
   }, [email]);
 
   useEffect(() => {
-    if (!overviewOpen) setTplPanel("closed");
+    if (!overviewOpen) {
+      setTplPanel("closed");
+      setConfirmClear(false);
+    }
   }, [overviewOpen]);
+
+  const hasLogOrConcierge = entries.length > 0 || nodes.some((n) => n.kind === "log" || n.id === CONCIERGE_ID);
+
+  function onClearBoard() {
+    if (hasLogOrConcierge) {
+      setConfirmClear(true);
+      setTplPanel("closed");
+      return;
+    }
+    clear();
+  }
 
   function saveCurrentView() {
     const trimmed = name.trim();
@@ -70,17 +85,34 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
               ×
             </Surface>
           </div>
-          <div className="overview-tools">
-            <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={clear}>
-              Clear board
-            </Surface>
-            <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { addNote(); setOverviewOpen(false); }}>
-              Add note
-            </Surface>
-            <Surface as="button" type="button" active={tplPanel !== "closed"} style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => setTplPanel((p) => (p === "closed" ? "menu" : "closed"))}>
-              Templates
-            </Surface>
-          </div>
+          {confirmClear ? (
+            <div className="overview-clear-prompt">
+              <p>Also clear the request log and concierge?</p>
+              <div className="overview-tools" style={{ padding: 0 }}>
+                <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { setConfirmClear(false); clear(); }}>
+                  Keep them
+                </Surface>
+                <Surface as="button" type="button" relief="accent" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { setConfirmClear(false); clear({ transcript: true }); }}>
+                  Clear those too
+                </Surface>
+                <Surface as="button" type="button" relief="ghost" style={{ padding: "7px 10px", fontSize: 12 }} onClick={() => setConfirmClear(false)}>
+                  Cancel
+                </Surface>
+              </div>
+            </div>
+          ) : (
+            <div className="overview-tools">
+              <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={onClearBoard}>
+                Clear board
+              </Surface>
+              <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { addNote(); setOverviewOpen(false); }}>
+                Add note
+              </Surface>
+              <Surface as="button" type="button" active={tplPanel !== "closed"} style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => setTplPanel((p) => (p === "closed" ? "menu" : "closed"))}>
+                Templates
+              </Surface>
+            </div>
+          )}
           {tplPanel === "menu" && (
             <div className="overview-tpl-actions">
               <Surface as="button" type="button" relief="inset" style={{ padding: "8px 12px", borderRadius: 14, fontSize: 13, textAlign: "left" }} onClick={() => setTplPanel("save")}>

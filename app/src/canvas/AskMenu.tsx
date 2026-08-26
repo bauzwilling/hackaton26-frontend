@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Surface } from "../components/kit";
+import { useSession } from "../context/session";
 import { useWorkspace } from "../context/workspace";
-import { CHIPS } from "../lib/catalog";
+import { chipsFor } from "../lib/catalog";
+import { can } from "../lib/auth";
 import { FILE_ACCEPT } from "../lib/intake";
 
 export function AskMenu({
@@ -15,6 +17,7 @@ export function AskMenu({
   world: { x: number; y: number };
   onClose: () => void;
 }) {
+  const { session } = useSession();
   const { ask, addNote, ingestFiles, entries } = useWorkspace();
   const [value, setValue] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -30,7 +33,10 @@ export function AskMenu({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const suggestions = CHIPS.filter((c) => !entries.some((n) => n.query.toLowerCase() === c.toLowerCase())).slice(0, 3);
+  const suggestions = useMemo(
+    () => chipsFor(can(session, "orbit")).filter((c) => !entries.some((n) => n.query.toLowerCase() === c.toLowerCase())).slice(0, 3),
+    [session, entries],
+  );
 
   function submit(raw = value) {
     const q = raw.trim();

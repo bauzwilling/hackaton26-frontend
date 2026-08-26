@@ -7,16 +7,21 @@ function replyOf(entry: RequestEntry) {
 }
 
 export function ConciergeChat() {
-  const { entries, selectedEntryId, setSelectedEntryId, confirmIntake } = useWorkspace();
+  const { entries, selectedEntryId, setSelectedEntryId, confirmIntake, clearTranscript } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries.length]);
+  }, [entries]);
 
   return (
     <div className="concierge-chat" ref={listRef} onWheel={(e) => e.stopPropagation()}>
+      <div className="panel-clear">
+        <Surface as="button" type="button" relief="inset" style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12 }} onClick={clearTranscript} disabled={entries.length === 0}>
+          Clear
+        </Surface>
+      </div>
       {entries.length === 0 && (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>Ask anything or drop a file — replies land here.</p>
       )}
@@ -27,7 +32,7 @@ export function ConciergeChat() {
           onClick={() => setSelectedEntryId(e.id)}
         >
           <div className="chat-bubble chat-user">{e.query}</div>
-          <div className="chat-bubble chat-assistant">
+          <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
             <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
             {e.confirmApps && e.confirmApps.length > 0 && (
               <div className="concierge-confirm">
