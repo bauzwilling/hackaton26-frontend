@@ -418,8 +418,27 @@ html[data-theme="dark"] .win-note {
 .drop-overlay-title {
   margin: 0 0 8px; font-size: 22px; font-weight: 600; color: var(--acc-deep);
 }
-.concierge-body { display: flex; flex-direction: column; gap: 12px; }
-.concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; }
+.concierge-chat { display: flex; flex-direction: column; gap: 12px; }
+.chat-turn { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+.chat-bubble {
+  padding: 10px 12px; border-radius: 16px; font-size: 13.5px; line-height: 1.45;
+  max-width: 92%;
+}
+.chat-user {
+  align-self: flex-end;
+  background: color-mix(in oklab, var(--acc-lite) 70%, var(--face));
+  color: var(--acc-deep);
+  font-weight: 500;
+}
+.chat-assistant {
+  align-self: flex-start;
+  background: linear-gradient(145deg, var(--face), var(--face2));
+  box-shadow: var(--clay-press);
+}
+.chat-turn.is-selected .chat-user {
+  box-shadow: 0 0 0 2px var(--acc);
+}
+.concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
 
 .empty-hero {

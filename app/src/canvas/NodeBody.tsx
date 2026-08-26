@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Surface } from "../components/kit";
-import { appLabel, useWorkspace, type WorkspaceNode } from "../context/workspace";
+import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import { BoxoutsPage } from "../pages/Boxouts";
 import { OrbitPage } from "../pages/Orbit";
 import { PartsPage } from "../pages/Parts";
 import { PlyworksPage, ProjectsPage } from "../pages/Projects";
 import { RequestLog } from "./RequestLog";
+import { ConciergeChat } from "./Concierge";
 
 function NotePanel({ node }: { node: WorkspaceNode }) {
   const { setNodeBody } = useWorkspace();
@@ -36,33 +36,11 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 }
 
 export function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
-  const { confirmIntake } = useWorkspace();
-
   if (node.kind === "log") return <RequestLog viewport={viewport} />;
   if (node.kind === "note") return <NotePanel node={node} />;
-  if (node.kind === "denied" || node.kind === "text") {
-    const chips = node.kind === "text" ? node.confirmApps : undefined;
-    return (
-      <div className="concierge-body">
-        <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{node.body}</p>
-        {chips && chips.length > 0 && (
-          <div className="concierge-confirm">
-            {chips.map((app) => (
-              <Surface
-                key={app}
-                as="button"
-                type="button"
-                relief="inset"
-                style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
-                onClick={() => confirmIntake(node.id, app)}
-              >
-                {appLabel(app)}
-              </Surface>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+  if (node.kind === "text") return <ConciergeChat />;
+  if (node.kind === "denied") {
+    return <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{node.body}</p>;
   }
   if (node.kind === "app") {
     if (node.appId === "boxouts") return <BoxoutsPage />;
