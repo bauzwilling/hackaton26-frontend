@@ -209,12 +209,6 @@ button.sf:active { transform: translateY(1px); }
 .win-body { padding: 16px 18px 18px; overflow: auto; flex: 1; min-height: 0; }
 .win-autosize { height: auto; min-height: 0; }
 .win-autosize .win-body { overflow: visible; flex: none; height: auto; min-height: 0; }
-.win-resize {
-  position: absolute; right: 6px; bottom: 6px; width: 14px; height: 14px;
-  cursor: nwse-resize; border-radius: 4px;
-  background: linear-gradient(135deg, transparent 50%, var(--muted) 50%);
-  opacity: 0.45;
-}
 .win-request, .win-denied, .win-text { width: 300px; }
 .win-note {
   min-width: 140px;
@@ -229,12 +223,13 @@ html[data-theme="dark"] .win-note {
 .win-note .win-body {
   padding: 4px 12px 18px;
   display: flex;
-  overflow: hidden;
+  overflow: visible;
 }
 .note-body {
-  flex: 1;
+  flex: none;
   width: 100%;
-  min-height: 0;
+  min-height: 72px;
+  overflow: hidden;
   border: none;
   resize: none;
   background: transparent;
@@ -245,9 +240,9 @@ html[data-theme="dark"] .win-note {
   padding: 0;
 }
 .note-body::placeholder { color: color-mix(in oklab, currentColor 45%, transparent); }
-.win-log .win-body { display: flex; flex-direction: column; overflow: hidden; }
-.win-log .request-log { flex: 1; min-height: 0; max-height: none; height: auto; }
-.win-log .request-log-list { flex: 1; min-height: 0; }
+.win-log .win-body { display: flex; flex-direction: column; overflow: visible; }
+.win-log .request-log { flex: none; min-height: 0; max-height: none; height: auto; }
+.win-log .request-log-list { flex: none; min-height: 0; }
 .win-body .page { max-width: none; margin: 0; padding: 0 0 12px; }
 .win-body .hero { max-width: none; margin: 0 0 16px; }
 .win-body .hero h1 { font-size: 22px; }
@@ -321,7 +316,7 @@ html[data-theme="dark"] .win-note {
 }
 .overview-item:hover { background: color-mix(in oklab, var(--face2) 70%, var(--acc-lite)); }
 
-.request-log { position: relative; display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.request-log { position: relative; display: flex; flex-direction: column; gap: 10px; height: auto; }
 .request-log-list { overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 72px; }
 .request-row {
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
@@ -403,9 +398,28 @@ html[data-theme="dark"] .win-note {
   display: flex; gap: 10px; align-items: center;
   padding: 10px 12px; border-radius: 24px; z-index: 40;
 }
-.dock input {
+.dock input[type="text"] {
   flex: 1; border: none; background: transparent; outline: none; font-size: 15px;
 }
+.dock input[type="file"] { display: none; }
+.dock-attach {
+  width: 44px; height: 44px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: var(--muted);
+}
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 80;
+  display: grid; place-items: center;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--bg) 58%, transparent);
+}
+.drop-overlay-card {
+  padding: 28px 36px; border-radius: 24px; text-align: center;
+}
+.drop-overlay-title {
+  margin: 0 0 8px; font-size: 22px; font-weight: 600; color: var(--acc-deep);
+}
+.concierge-body { display: flex; flex-direction: column; gap: 12px; }
+.concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
 
 .empty-hero {

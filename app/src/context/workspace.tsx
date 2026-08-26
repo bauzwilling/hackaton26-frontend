@@ -1,13 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import { classifyFile, openingMessage } from "../lib/intake";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
 export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit";
-
-export function isResizableKind(kind: NodeKind) {
-  return kind === "log" || kind === "note";
-}
 
 export type WorkspaceNode = {
   id: string;
@@ -20,6 +17,7 @@ export type WorkspaceNode = {
   parentId?: string;
   routeLabel?: string;
   routeWhy?: string;
+  confirmApps?: WorkspaceApp[];
   x: number;
   y: number;
   z: number;
@@ -67,11 +65,15 @@ function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEnt
   if (log) {
     for (const entry of entries) {
       const hot = entry.id === selectedEntryId;
-      for (const id of entry.targetIds) add(log.id, id, hot);
+      const chain = entry.targetIds.filter((id) => live.has(id));
+      if (!chain.length) continue;
+      add(log.id, chain[0], hot);
+      for (let i = 1; i < chain.length; i++) add(chain[i - 1], chain[i], hot);
     }
-    for (const n of vis) {
-      if (n.parentId === log.id) add(log.id, n.id, hotTargets.has(n.id));
-    }
+  }
+
+  for (const n of vis) {
+    if (n.parentId) add(n.parentId, n.id, hotTargets.has(n.id));
   }
 
   const projects = appBy("projects");
@@ -116,11 +118,12 @@ type Ctx = {
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
   ask: (query: string) => void;
+  ingestFiles: (files: File[]) => void;
+  confirmIntake: (nodeId: string, app: WorkspaceApp) => void;
   restoreEntry: (entryId: string, viewport?: { width: number; height: number }) => void;
   focusTargets: (ids: string[], viewport: { width: number; height: number }) => void;
   focus: (id: string) => void;
   move: (id: string, x: number, y: number) => void;
-  resize: (id: string, w: number, h: number) => void;
   fit: (id: string, w: number, h: number) => void;
   close: (id: string) => void;
   hide: (id: string) => void;
@@ -258,18 +261,13 @@ function logNode(): WorkspaceNode {
     w: LOG_W,
     h: EST_H.log,
     hidden: false,
-    autoSize: false,
+    autoSize: true,
   };
 }
 
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
-  if (n.kind === "note") {
-    return { ...n, autoSize: false, w: Math.max(n.w, 140), h: Math.max(n.h, 80) };
-  }
-  if (n.kind === "log") {
-    return { ...n, autoSize: false, w: Math.max(n.w || LOG_W, 240), h: n.h > 40 ? n.h : EST_H.log };
-  }
-  return { ...n, autoSize: true };
+  const minW = n.kind === "note" ? 140 : 240;
+  return { ...n, autoSize: true, w: Math.max(n.w || minW, minW), h: Math.max(n.h || 80, 80) };
 }
 
 function withLog(list: WorkspaceNode[]): WorkspaceNode[] {
@@ -411,7 +409,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return id;
   }, [session]);
 
-  const spawnText = useCallback((query: string, parentId: string) => {
+  const spawnText = useCallback((query: string, parentId: string, opts?: { body?: string; confirmApps?: WorkspaceApp[] }) => {
     const id = uid("t");
     zTop.current += 1;
     setNodes((list) => {
@@ -424,7 +422,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         code: "F2F",
         parentId,
         query,
-        body: CONCIERGE_BODY,
+        body: opts?.body ?? CONCIERGE_BODY,
+        confirmApps: opts?.confirmApps,
         x: slot.x,
         y: slot.y,
         z: zTop.current,
@@ -470,6 +469,84 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setEntries((list) => [...list, entry]);
     setSelectedEntryId(entry.id);
   }, [openApp, spawnText, session]);
+
+  const ingestFiles = useCallback((files: File[]) => {
+    const list = Array.from(files).filter(Boolean);
+    if (!list.length) return;
+
+    for (const file of list) {
+      const verdict = classifyFile(file);
+      const query = verdict.fileName;
+      const textId = spawnText(query, LOG_ID, {
+        body: verdict.message,
+        confirmApps: verdict.kind === "confirm" ? verdict.confirmApps : undefined,
+      });
+
+      const targetIds = [textId];
+      let appId: WorkspaceApp | undefined;
+      let result: RequestEntry["result"] = "text";
+      let routeLabel = "Concierge";
+      let routeWhy = "Answered on the canvas";
+
+      if (verdict.kind === "route") {
+        appId = verdict.appId;
+        const appTarget = openApp(verdict.appId, { parentId: textId, query });
+        if (appTarget) targetIds.push(appTarget);
+        result = allowed(session, verdict.appId) ? "app" : "denied";
+        routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
+        routeWhy = verdict.message;
+      } else if (verdict.kind === "confirm") {
+        routeLabel = "Confirm";
+        routeWhy = "Need a confirmation before opening an app";
+      } else {
+        routeWhy = "File type is not supported yet";
+      }
+
+      const entry: RequestEntry = {
+        id: uid("e"),
+        at: Date.now(),
+        query,
+        routeLabel,
+        routeWhy,
+        targetIds,
+        appId,
+        result,
+      };
+      setEntries((prev) => [...prev, entry]);
+      setSelectedEntryId(entry.id);
+    }
+  }, [openApp, spawnText, session]);
+
+  const confirmIntake = useCallback((nodeId: string, app: WorkspaceApp) => {
+    if (app !== "boxouts" && app !== "simpleparts" && app !== "plyworks") return;
+    const node = nodesRef.current.find((n) => n.id === nodeId);
+    if (!node) return;
+    const query = node.query ?? "";
+    const message = openingMessage(app, query);
+    const meta = WORKSPACE_APPS.find((a) => a.id === app);
+
+    setNodes((list) => list.map((n) => (
+      n.id === nodeId ? { ...n, body: message, confirmApps: undefined } : n
+    )));
+
+    const appTarget = openApp(app, { parentId: nodeId, query });
+    const result: RequestEntry["result"] = allowed(session, app) ? "app" : "denied";
+
+    setEntries((prev) => prev.map((e) => {
+      if (!e.targetIds.includes(nodeId)) return e;
+      const targetIds = appTarget && !e.targetIds.includes(appTarget)
+        ? [...e.targetIds, appTarget]
+        : e.targetIds;
+      return {
+        ...e,
+        appId: app,
+        result,
+        routeLabel: meta?.label ?? e.routeLabel,
+        routeWhy: message,
+        targetIds,
+      };
+    }));
+  }, [openApp, session]);
 
   const focusTargets = useCallback((ids: string[], viewport: { width: number; height: number }) => {
     const live = nodesRef.current.filter((n) => ids.includes(n.id));
@@ -537,7 +614,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         w: NOTE_W,
         h: NOTE_H,
         hidden: false,
-        autoSize: false,
+        autoSize: true,
       };
       return [...list, note];
     });
@@ -548,19 +625,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNodes((list) => list.map((n) => (n.id === id ? { ...n, body } : n)));
   }, []);
 
-  const resize = useCallback((id: string, w: number, h: number) => {
-    setNodes((list) => list.map((n) => {
-      if (n.id !== id || !isResizableKind(n.kind)) return n;
-      const minW = n.kind === "note" ? 140 : 240;
-      const minH = n.kind === "note" ? 80 : 140;
-      return { ...n, w: Math.max(minW, w), h: Math.max(minH, h), autoSize: false };
-    }));
-  }, []);
-
   const fit = useCallback((id: string, w: number, h: number) => {
     setNodes((list) => list.map((n) => {
-      if (n.id !== id || n.autoSize === false || isResizableKind(n.kind)) return n;
-      const nw = Math.max(240, Math.round(w));
+      if (n.id !== id || n.autoSize === false) return n;
+      const minW = n.kind === "note" ? 140 : 240;
+      const nw = Math.max(minW, Math.round(w));
       const nh = Math.max(80, Math.round(h));
       if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
       const grown = { ...n, w: nw, h: nh };
@@ -647,18 +716,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     addNote,
     setNodeBody,
     ask,
+    ingestFiles,
+    confirmIntake,
     restoreEntry,
     focusTargets,
     focus,
     move,
-    resize,
     fit,
     close,
     hide,
     show,
     tile,
     clear,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, restoreEntry, focusTargets, focus, move, resize, fit, close, hide, show, tile, clear]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
