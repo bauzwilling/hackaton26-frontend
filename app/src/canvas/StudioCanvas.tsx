@@ -3,7 +3,6 @@ import { Window } from "../components/kit";
 import { useSession } from "../context/session";
 import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import {
-  bubbleRadius,
   capSpeed,
   spawnVelocity,
   stepBubbles,
@@ -102,23 +101,19 @@ export function StudioCanvas() {
       const list = nodesRef.current;
       const bodies = bodiesRef.current;
       const flushed = flushedRef.current;
-      const bounds = viewportToWorld(panRef.current, zoomRef.current, viewportRef.current);
-      const span = Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top);
       const live = new Set<string>();
       for (const n of list) {
         if (n.hidden) continue;
         live.add(n.id);
-        const r = Math.min(bubbleRadius(n.w, n.h), span * 0.48);
         let b = bodies.get(n.id);
         if (!b) {
           const v = spawnVelocity();
-          b = { id: n.id, x: n.x, y: n.y, vx: v.vx, vy: v.vy, w: n.w, h: n.h, r };
+          b = { id: n.id, x: n.x, y: n.y, vx: v.vx, vy: v.vy, w: n.w, h: n.h, phase: Math.random() * Math.PI * 2 };
           bodies.set(n.id, b);
           flushed.set(n.id, { x: n.x, y: n.y });
         } else {
           b.w = n.w;
           b.h = n.h;
-          b.r = r;
           const f = flushed.get(n.id);
           if (f && (Math.abs(n.x - f.x) > 0.5 || Math.abs(n.y - f.y) > 0.5)) {
             b.x = n.x;
