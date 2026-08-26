@@ -252,7 +252,11 @@ html[data-theme="dark"] .win-note {
 .win-body .viewer { height: 180px; }
 .win-body .pad { padding: 14px 16px; }
 
-html[data-bubble="on"] .win { cursor: grab; }
+html[data-bubble="on"] .win {
+  cursor: grab;
+  transform-origin: 50% 58%;
+  will-change: transform;
+}
 html[data-bubble="on"] .win:active { cursor: grabbing; }
 html[data-bubble="on"] .win-bar { cursor: grab; }
 html[data-bubble="on"] .win-bar:active { cursor: grabbing; }

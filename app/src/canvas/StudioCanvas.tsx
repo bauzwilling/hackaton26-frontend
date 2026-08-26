@@ -105,12 +105,13 @@ export function StudioCanvas() {
         let b = bodies.get(n.id);
         if (!b) {
           const v = spawnVelocity();
-          b = { id: n.id, x: n.x, y: n.y, vx: v.vx, vy: v.vy, w: n.w, h: n.h, phase: Math.random() * Math.PI * 2 };
+          b = { id: n.id, x: n.x, y: n.y, vx: v.vx, vy: v.vy, w: n.w, h: n.h, phase: Math.random() * Math.PI * 2, tilt: 0 };
           bodies.set(n.id, b);
           flushed.set(n.id, { x: n.x, y: n.y });
         } else {
           b.w = n.w;
           b.h = n.h;
+          if (b.tilt == null) b.tilt = 0;
           const f = flushed.get(n.id);
           if (f && (Math.abs(n.x - f.x) > 0.5 || Math.abs(n.y - f.y) > 0.5)) {
             b.x = n.x;
@@ -229,6 +230,8 @@ export function StudioCanvas() {
     if (d?.bubble) {
       const body = bodiesRef.current.get(d.id);
       if (body) {
+        body.vx *= 1.2;
+        body.vy *= 1.2;
         capSpeed(body);
         moveRef.current(body.id, body.x, body.y);
         flushedRef.current.set(body.id, { x: body.x, y: body.y });
@@ -305,6 +308,7 @@ export function StudioCanvas() {
               kind={n.kind}
               hidden={n.hidden}
               autoSize
+              tilt={bubbleMode ? b?.tilt : undefined}
               onFocus={() => focus(n.id)}
               onClose={() => close(n.id)}
               onHide={() => hide(n.id)}

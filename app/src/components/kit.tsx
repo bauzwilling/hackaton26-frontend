@@ -130,10 +130,10 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
-  kind?: string; hidden?: boolean; autoSize?: boolean;
+  kind?: string; hidden?: boolean; autoSize?: boolean; tilt?: number;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
@@ -160,7 +160,15 @@ export function Window({
     <Surface
       ref={ref}
       className={`win${kind ? ` win-${kind}` : ""}${fit ? " win-autosize" : ""}`}
-      style={{ left: x, top: y, zIndex: z, width, height: fit ? undefined : height, display: hidden ? "none" : undefined }}
+      style={{
+        left: x,
+        top: y,
+        zIndex: z,
+        width,
+        height: fit ? undefined : height,
+        display: hidden ? "none" : undefined,
+        transform: tilt && Math.abs(tilt) > 0.05 ? `rotate(${tilt.toFixed(2)}deg)` : undefined,
+      }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onFocus();
