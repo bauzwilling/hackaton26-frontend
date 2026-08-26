@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-b58540ab-ae59-445d-a1c5-9610ccaf8e79/styles.css">
+  <script src="_ds/organic-b58540ab-ae59-445d-a1c5-9610ccaf8e79/_ds_bundle.js"></script>
+  <style>
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+    html,body{margin:0;padding:0;}
+    body{background:#f8f9fa;font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;}
+    a{text-decoration:none;color:inherit;}
+    button:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+  </style>
+</helmet>
+
+<div style="{{ rootStyle }}">
+  <div style="position:absolute;inset:0;pointer-events:none;opacity:0.5;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E&quot;);mix-blend-mode:soft-light;"></div>
+
+  <div style="position:relative;max-width:1180px;margin:0 auto;padding:36px 30px 90px;">
+
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px 22px;margin-bottom:54px;">
+      <div style="display:flex;align-items:center;gap:22px;padding:18px 30px 18px 20px;border-radius:30px;background:linear-gradient(145deg,var(--face2),var(--face));box-shadow:var(--clay-out),var(--clay-in);">
+        <img src="datab_logo.png" alt="datab" style="height:70px;width:auto;display:block;filter:var(--logo-filter);" />
+        <span style="display:flex;flex-direction:column;gap:13px;">
+          <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:40px;letter-spacing:-0.02em;line-height:1;color:var(--ink);">FILE&nbsp;<span style="color:var(--acc);">&rarr;</span>&nbsp;FACTORY</span>
+          <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);">CEB Hackathon</span>
+        </span>
+      </div>
+
+      <div style="margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;">
+        <div style="display:flex;gap:4px;padding:5px;border-radius:999px;background:linear-gradient(145deg,var(--face),var(--face2));box-shadow:var(--clay-press);">
+          <sc-for list="{{ modeList }}" as="m" hint-placeholder-count="2">
+            <button onClick="{{ m.on }}" style="{{ m.pillStyle }}">{{ m.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:46px;max-width:60ch;">
+      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:clamp(36px,5vw,58px);line-height:1.03;color:var(--acc-deep);text-wrap:pretty;">Make everything. Manufacturable.</div>
+      <div style="font-size:17px;line-height:1.6;color:var(--muted);margin-top:17px;">Every page of the mockup stands on its own and is fully operable. Jump straight to the area you want to work on.</div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:30px;">
+      <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+        <button onClick="{{ f.on }}" style="{{ f.style }}">{{ f.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:26px;margin-bottom:44px;">
+      <sc-for list="{{ pages }}" as="p" hint-placeholder-count="6">
+        <a href="{{ p.href }}" style="{{ p.cardStyle }}">
+          <span style="{{ p.tileStyle }}">
+            <span style="{{ p.glyphOuter }}">
+              <span style="{{ p.g1 }}"></span>
+              <span style="{{ p.g2 }}"></span>
+              <span style="{{ p.g3 }}"></span>
+            </span>
+          </span>
+          <span style="display:flex;align-items:baseline;gap:10px;margin-top:20px;">
+            <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:22px;line-height:1.1;color:var(--ink);">{{ p.title }}</span>
+            <span style="{{ p.statusStyle }}">{{ p.status }}</span>
+          </span>
+          <span style="display:block;font-size:14.5px;line-height:1.55;color:var(--muted);margin-top:9px;">{{ p.desc }}</span>
+          <span style="display:flex;flex-wrap:wrap;gap:7px;margin-top:16px;">
+            <sc-for list="{{ p.tags }}" as="tg" hint-placeholder-count="2">
+              <span style="{{ tg.style }}">{{ tg.label }}</span>
+            </sc-for>
+          </span>
+          <span style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--acc-deep);margin-top:18px;">Open &rsaquo;</span>
+        </a>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:26px;">
+      <div style="{{ panelStyle }}">
+        <div style="{{ panelTitle }}">Status</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+            <div style="{{ s.style }}">
+              <span style="font-size:12.5px;color:var(--muted);">{{ s.label }}</span>
+              <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:26px;line-height:1;color:var(--acc-deep);margin-top:9px;display:block;">{{ s.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="{{ panelStyle }}">
+        <div style="{{ panelTitle }}">Recently changed</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+            <a href="{{ r.href }}" style="{{ r.style }}">
+              <span style="font-size:15px;font-weight:600;color:var(--ink);">{{ r.title }}</span>
+              <span style="margin-left:auto;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:11px;letter-spacing:0.06em;color:var(--muted);">{{ r.when }}</span>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bright&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;bright&quot;,&quot;tsType&quot;:&quot;'bright' | 'dark'&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;blue&quot;,&quot;red&quot;,&quot;yellow&quot;,&quot;green&quot;,&quot;purple&quot;,&quot;grey&quot;],&quot;default&quot;:&quot;yellow&quot;,&quot;tsType&quot;:&quot;'blue' | 'red' | 'yellow' | 'green' | 'purple' | 'grey'&quot;}}">
+class Component extends DCLogic {
+  state = { mode: 'bright', accentKey: 'yellow', filter: 'All' };
+
+  accents = {
+    blue:   { label: 'Google Blue', base: '#1a73e8', deep: '#174ea6', lite: '#8ab4f8', bg: '#f8f9fa' },
+    red:    { label: 'Red',         base: '#ea4335', deep: '#c5221f', lite: '#f28b82', bg: '#f8f9fa' },
+    yellow: { label: 'Yellow',      base: '#f9ab00', deep: '#ea8600', lite: '#fdd663', bg: '#f8f9fa' },
+    green:  { label: 'Green',       base: '#34a853', deep: '#188038', lite: '#81c995', bg: '#f8f9fa' },
+    purple: { label: 'Purple',      base: '#a142f4', deep: '#7627bb', lite: '#c58af9', bg: '#f8f9fa' },
+    grey:   { label: 'Graphite',    base: '#5f6368', deep: '#202124', lite: '#9aa0a6', bg: '#f8f9fa' }
+  };
+
+  pages = [
+    { title: 'Main page', href: 'F2F Mockup Clay.dc.html', status: 'Core', group: 'Core',
+      desc: 'The concierge with its window canvas: ask, open windows, drag them, scroll.',
+      tags: ['Canvas', 'Windows', 'Chat'], shape: 'windows' },
+    { title: 'Dashboard', href: 'CNC Orbit Dashboard.dc.html', status: 'Core', group: 'Core',
+      desc: 'CNC Orbit: operations overview, worklists, validation and machine monitoring.',
+      tags: ['4 tabs', 'Machines'], shape: 'bars' },
+    { title: 'Projects', href: 'F2F Projects.dc.html', status: 'Custom', group: 'Custom', wide: true,
+      desc: 'Every order and configuration as a card grid with filters and search.',
+      tags: ['Grid', 'Filter'], shape: 'grid' },
+    { title: 'Simple Parts', href: 'Clay Simple Parts.dc.html', status: 'Apps', group: 'Apps', wide: true,
+      desc: 'Single parts from DXF: material, thickness, quantity, price — with the live app embedded.',
+      tags: ['Configurator', 'Live'], shape: 'part' },
+    { title: 'Boxouts', href: 'Clay Boxouts.dc.html', status: 'Apps', group: 'Apps',
+      desc: 'Configure a door boxout: dimensions, wood, quantity, nesting preview.',
+      tags: ['Configurator', 'Nesting'], shape: 'box' },
+    { title: 'Plyworks', href: 'Plyworks.html', status: 'Apps', group: 'Apps',
+      desc: 'Plywood editor: lay out sheets, set grain and cuts, see the panel take shape.',
+      tags: ['Editor', 'Plywood'], shape: 'ply' },
+    { title: 'Style study', href: 'Clay Style Study.dc.html', status: 'Reference', group: 'Reference',
+      desc: 'The clay material itself: tiles, controls, panels and charts.',
+      tags: ['Material', 'Controls'], shape: 'blobs' },
+    { title: 'Main page, old', href: 'F2F Mockup.dc.html', status: 'Archive', group: 'Reference',
+      desc: 'The glass variant before the clay rebuild, kept for comparison.',
+      tags: ['Glass', 'Before'], shape: 'windows' }
+  ];
+
+  componentDidMount(){
+    if (this.props.mode === 'bright' || this.props.mode === 'dark') this.setState({ mode: this.props.mode });
+    if (this.props.accent && this.accents[this.props.accent]) this.setState({ accentKey: this.props.accent });
+  }
+
+  renderVals(){
+    const dark = this.state.mode === 'dark';
+    const a = this.accents[this.state.accentKey] || this.accents.yellow;
+    const sage = this.accents.green;
+
+    const bg    = dark ? '#202124' : a.bg;
+    const face  = dark ? '#292a2d' : 'color-mix(in oklab, ' + bg + ' 72%, white)';
+    const face2 = dark ? '#35363a' : '#ffffff';
+    const ink   = dark ? '#e8eaed' : '#202124';
+    const muted = dark ? '#9aa0a6' : '#5f6368';
+    const hi    = dark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.95)';
+    const lo    = dark ? 'rgba(0,0,0,0.46)' : 'rgba(60,64,67,0.16)';
+    const drop  = dark ? 'rgba(0,0,0,0.54)' : 'rgba(60,64,67,0.20)';
+    const accDeep = dark ? a.lite : a.deep;
+    const mix = (c, pct, into) => 'color-mix(in oklab, ' + c + ' ' + pct + '%, ' + into + ')';
+
+    const clayOut = '14px 18px 34px ' + drop + ', 3px 5px 10px ' + drop;
+    const clayIn = 'inset 5px 5px 11px ' + hi + ', inset -6px -8px 14px ' + lo;
+    const clayPress = 'inset 7px 8px 15px ' + lo + ', inset -4px -4px 10px ' + hi;
+
+    const rootStyle = {
+      '--bg': bg, '--face': face, '--face2': face2, '--ink': ink, '--muted': muted,
+      '--hi': hi, '--lo': lo, '--drop': drop,
+      '--acc': a.base, '--acc-deep': accDeep, '--acc-lite': a.lite,
+      '--logo-filter': dark ? 'invert(1)' : 'none',
+      '--clay-out': clayOut, '--clay-in': clayIn, '--clay-press': clayPress,
+      position: 'relative', minHeight: '100vh', background: bg, color: ink, overflowX: 'hidden',
+      fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif"
+    };
+
+    const panelStyle = {
+      borderRadius: '26px', padding: '26px 28px',
+      background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')',
+      boxShadow: clayOut + ', ' + clayIn
+    };
+    const panelTitle = { fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '19px', lineHeight: 1.1, color: ink, marginBottom: '19px' };
+
+    const modeList = [
+      { key: 'bright', label: 'Bright' },
+      { key: 'dark', label: 'Dark' }
+    ].map(m => {
+      const active = this.state.mode === m.key;
+      return {
+        label: m.label, on: () => this.setState({ mode: m.key }),
+        pillStyle: {
+          font: 'inherit', fontSize: '11.5px', letterSpacing: '0.1em', textTransform: 'uppercase',
+          padding: '8px 15px', borderRadius: '999px', cursor: 'pointer', border: 'none',
+          color: active ? '#fff' : muted,
+          background: active ? 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')' : 'transparent',
+          boxShadow: active ? '3px 4px 9px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.3)' : 'none'
+        }
+      };
+    });
+
+    const accentList = Object.keys(this.accents).map(key => {
+      const ac = this.accents[key];
+      const active = this.state.accentKey === key;
+      return {
+        label: ac.label, on: () => this.setState({ accentKey: key }),
+        swatchStyle: {
+          width: '20px', height: '20px', borderRadius: '50%', padding: 0, border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(150deg, ' + ac.lite + ', ' + ac.base + ')',
+          boxShadow: active
+            ? '0 0 0 3px ' + face + ', 0 0 0 4.5px ' + ac.base + ', 2px 3px 6px ' + drop
+            : '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.45), inset -1px -2px 4px rgba(0,0,0,0.22)',
+          transform: active ? 'scale(1.06)' : 'none', transition: 'transform .15s ease'
+        }
+      };
+    });
+
+    const groups = ['All', 'Core', 'Custom', 'Apps', 'Reference'];
+    const filters = groups.map(label => {
+      const active = this.state.filter === label;
+      return {
+        label, on: () => this.setState({ filter: label }),
+        style: {
+          font: 'inherit', fontSize: '14px', fontWeight: active ? 700 : 500, cursor: 'pointer', border: 'none',
+          padding: '11px 20px', borderRadius: '16px', color: active ? '#fff' : muted,
+          background: active ? 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')' : 'linear-gradient(145deg, ' + face2 + ', ' + face + ')',
+          boxShadow: active
+            ? '6px 8px 16px ' + drop + ', inset 2px 2px 5px rgba(255,255,255,0.32), inset -3px -4px 8px rgba(0,0,0,0.20)'
+            : clayOut + ', ' + clayIn
+        }
+      };
+    });
+
+    const raised = (col, w, h, r) => ({
+      width: w, height: h, borderRadius: r,
+      background: 'linear-gradient(160deg, ' + mix(col, 72, 'white') + ', ' + col + ')',
+      boxShadow: '2px 3px 7px rgba(0,0,0,0.20), inset 1px 1px 3px rgba(255,255,255,0.40), inset -1px -2px 5px rgba(0,0,0,0.18)'
+    });
+
+    const shapes = {
+      windows: () => ({
+        outer: { position: 'relative', width: '58px', height: '48px' },
+        g1: Object.assign(raised(face2, '38px', '28px', '9px'), { position: 'absolute', left: 0, top: 0 }),
+        g2: Object.assign(raised(a.base, '34px', '26px', '9px'), { position: 'absolute', right: 0, bottom: 0 }),
+        g3: Object.assign(raised(sage.base, '11px', '11px', '50%'), { position: 'absolute', right: '2px', top: '2px' })
+      }),
+      bars: () => ({
+        outer: { display: 'flex', alignItems: 'flex-end', gap: '7px', height: '48px' },
+        g1: raised(a.base, '13px', '28px', '6px'),
+        g2: raised(sage.base, '13px', '46px', '6px'),
+        g3: raised(a.base, '13px', '36px', '6px')
+      }),
+      grid: () => ({
+        outer: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px', width: '48px', height: '48px' },
+        g1: raised(a.base, '100%', '100%', '8px'),
+        g2: raised(face2, '100%', '100%', '8px'),
+        g3: raised(sage.base, '100%', '100%', '8px')
+      }),
+      part: () => ({
+        outer: { position: 'relative', width: '52px', height: '48px' },
+        g1: Object.assign(raised(face2, '48px', '34px', '10px'), { position: 'absolute', left: 0, top: '7px' }),
+        g2: Object.assign(raised(a.base, '15px', '15px', '50%'), { position: 'absolute', left: '7px', top: '17px' }),
+        g3: Object.assign(raised(sage.base, '15px', '15px', '50%'), { position: 'absolute', right: '7px', top: '17px' })
+      }),
+      box: () => ({
+        outer: { position: 'relative', width: '54px', height: '48px' },
+        g1: Object.assign(raised(a.base, '40px', '34px', '9px'), { position: 'absolute', left: 0, bottom: 0 }),
+        g2: Object.assign(raised(face2, '40px', '11px', '6px'), { position: 'absolute', left: '10px', top: 0 }),
+        g3: Object.assign(raised(sage.base, '9px', '18px', '4px'), { position: 'absolute', right: '4px', bottom: '5px' })
+      }),
+      ply: () => ({
+        outer: { position: 'relative', width: '56px', height: '48px' },
+        g1: Object.assign(raised(mix(a.base, 55, 'white'), '52px', '13px', '5px'), { position: 'absolute', left: 0, bottom: 0 }),
+        g2: Object.assign(raised(a.base, '52px', '13px', '5px'), { position: 'absolute', left: '2px', bottom: '15px' }),
+        g3: Object.assign(raised(sage.base, '52px', '13px', '5px'), { position: 'absolute', left: '4px', bottom: '30px' })
+      }),
+      blobs: () => ({
+        outer: { position: 'relative', width: '52px', height: '48px' },
+        g1: Object.assign(raised(a.base, '30px', '30px', '50%'), { position: 'absolute', left: 0, top: 0 }),
+        g2: Object.assign(raised(sage.base, '24px', '24px', '50%'), { position: 'absolute', right: 0, bottom: 0 }),
+        g3: Object.assign(raised(face2, '15px', '15px', '50%'), { position: 'absolute', right: '3px', top: '3px' })
+      })
+    };
+
+    const statusTint = { Live: sage.base, Core: a.base, Custom: '#1a73e8', Apps: sage.base, Reference: muted, Archive: muted };
+    const list = this.state.filter === 'All' ? this.pages : this.pages.filter(p => p.group === this.state.filter);
+
+    const pages = list.map(p => {
+      const sh = (shapes[p.shape] || shapes.blobs)();
+      return {
+        title: p.title, href: p.href, desc: p.desc, status: p.status,
+        cardStyle: {
+          display: 'block', borderRadius: '28px', padding: '26px 26px 24px', color: ink, cursor: 'pointer',
+          background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')',
+          boxShadow: clayOut + ', ' + clayIn, transition: 'transform .18s ease',
+          gridColumnStart: p.wide ? 1 : 'auto', gridColumnEnd: 'auto'
+        },
+        tileStyle: {
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '84px', height: '84px', borderRadius: '26px',
+          background: 'linear-gradient(145deg, ' + mix(a.base, dark ? 20 : 12, face2) + ', ' + mix(a.base, dark ? 34 : 26, face) + ')',
+          boxShadow: clayPress
+        },
+        glyphOuter: sh.outer, g1: sh.g1, g2: sh.g2, g3: sh.g3,
+        statusStyle: {
+          fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '10px', letterSpacing: '0.1em',
+          textTransform: 'uppercase', padding: '5px 11px', borderRadius: '999px', color: '#fff',
+          background: statusTint[p.status] || muted,
+          boxShadow: '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.28)'
+        },
+        tags: p.tags.map(label => ({
+          label,
+          style: {
+            fontSize: '12.5px', padding: '7px 14px', borderRadius: '999px', color: muted,
+            background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress
+          }
+        }))
+      };
+    });
+
+    const statCard = {
+      borderRadius: '20px', padding: '17px 18px',
+      background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress
+    };
+    const stats = [
+      { label: 'Pages', value: String(this.pages.length) },
+      { label: 'Apps', value: '3' }
+    ].map(s => ({ label: s.label, value: s.value, style: statCard }));
+
+    const rowStyle = {
+      display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '18px', padding: '14px 17px',
+      background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress, color: ink
+    };
+    const recent = [
+      { title: 'Main page', href: 'F2F Mockup Clay.dc.html', when: 'just now' },
+      { title: 'Style study', href: 'Clay Style Study.dc.html', when: 'today' },
+      { title: 'Dashboard', href: 'CNC Orbit Dashboard.dc.html', when: 'today' },
+      { title: 'Projects', href: 'F2F Projects.dc.html', when: 'yesterday' }
+    ].map(r => ({ title: r.title, href: r.href, when: r.when, style: rowStyle }));
+
+    return { rootStyle, panelStyle, panelTitle, modeList, accentList, filters, pages, stats, recent };
+  }
+}
+</script>
+</body>
+</html>

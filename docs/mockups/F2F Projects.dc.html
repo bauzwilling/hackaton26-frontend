@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+    html,body{margin:0;padding:0;}
+    body{background:oklch(0.988 0.006 80);}
+    a{color:oklch(0.66 0.16 55);text-decoration:none;}
+    a:hover{color:oklch(0.58 0.16 55);}
+  </style>
+</helmet>
+
+<div style="min-height:100vh;background:oklch(0.988 0.006 80);color:oklch(0.24 0.012 265);font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;padding:26px 30px 80px;">
+
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:56px;">
+    <a href="index.dc.html" title="Overview" style="display:flex;align-items:center;font-size:13.5px;font-weight:600;text-decoration:none;color:oklch(0.55 0.016 265);padding:10px 16px;border-radius:14px;border:1px solid oklch(0.91 0.007 265);background:oklch(1 0 0);margin-right:6px;white-space:nowrap;">&lsaquo; Overview</a>
+    <a href="F2F Mockup Clay.dc.html" style="display:flex;align-items:center;gap:14px;">
+      <img src="datab_logo.png" alt="datab" style="height:48px;width:auto;display:block;" />
+      <span style="display:flex;flex-direction:column;gap:9px;border-left:1px solid oklch(0.91 0.007 265);padding-left:15px;">
+        <span style="font-weight:600;font-size:24px;letter-spacing:-0.015em;line-height:1;color:oklch(0.24 0.012 265);">FILE&nbsp;<span style="color:oklch(0.66 0.16 55);">&rarr;</span>&nbsp;FACTORY</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;color:oklch(0.55 0.016 265);text-transform:uppercase;">Manufacturing as a service</span>
+      </span>
+    </a>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+      <input type="text" placeholder="Search projects&hellip;" style="width:260px;border:1px solid oklch(0.91 0.007 265);background:oklch(1 0 0);border-radius:999px;padding:10px 17px;font-family:inherit;font-size:14px;color:oklch(0.24 0.012 265);outline:none;" />
+      <button style="display:flex;align-items:center;gap:9px;border:none;background:oklch(0.66 0.16 55);color:#fff;font-family:inherit;font-size:14px;font-weight:600;border-radius:999px;padding:11px 19px;cursor:pointer;" style-hover="filter:brightness(1.06);">
+        <span style="font-size:17px;line-height:1;">+</span> New project
+      </button>
+    </div>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto;">
+    <h1 style="font-weight:600;font-size:44px;letter-spacing:-0.03em;line-height:1.05;margin:0 0 10px;color:oklch(0.66 0.16 55);">Your projects</h1>
+    <p style="font-size:16px;line-height:1.55;color:oklch(0.55 0.016 265);margin:0 0 34px;max-width:56ch;">Every brief, configuration and order you started with the concierge. Pick one up where you left it.</p>
+
+    <div style="display:flex;gap:8px;margin-bottom:28px;flex-wrap:wrap;">
+      <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+        <button onClick="{{ f.on }}" style="{{ f.style }}">{{ f.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:20px;">
+      <sc-for list="{{ projects }}" as="p" hint-placeholder-count="6">
+        <a href="F2F Mockup.dc.html" style="{{ p.cardStyle }}" style-hover="border-color:oklch(0.66 0.16 55);transform:translateY(-2px);">
+          <div style="{{ p.thumbStyle }}">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:oklch(0.55 0.016 265);position:absolute;top:11px;left:12px;">{{ p.kind }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:22px;letter-spacing:-0.01em;color:oklch(0.66 0.16 55);">{{ p.glyph }}</span>
+          </div>
+          <div style="padding:15px 16px 17px;display:flex;flex-direction:column;gap:7px;">
+            <div style="font-weight:600;font-size:15.5px;letter-spacing:-0.01em;color:oklch(0.24 0.012 265);">{{ p.title }}</div>
+            <div style="font-size:13.5px;line-height:1.5;color:oklch(0.55 0.016 265);">{{ p.desc }}</div>
+            <div style="display:flex;align-items:center;gap:9px;margin-top:5px;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.55 0.016 265);">
+              <span style="{{ p.dotStyle }}"></span>{{ p.status }}<span style="margin-left:auto;">{{ p.when }}</span>
+            </div>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;}}">
+class Component extends DCLogic {
+  state = { filter: 'All' };
+
+  all = [
+    { title: 'Door boxout · 300×1790×945', desc: 'Six-box set, Kiefer + film plates, nesting confirmed.', kind: 'Boxout', glyph: '6×', status: 'Quoted', when: '2h ago', tag: 'Boxouts' },
+    { title: 'Simple Parts · bracket batch', desc: 'Laser-cut steel brackets, 2 mm, 240 units.', kind: 'Simple Parts', glyph: '240', status: 'In production', when: 'Yesterday', tag: 'Simple Parts' },
+    { title: 'Shelf system · oak', desc: 'Natural-language brief, three variants routed to two workshops.', kind: 'Furniture', glyph: '3', status: 'Draft', when: '3 days ago', tag: 'Briefs' },
+    { title: 'Door boxout set · 12 units', desc: 'Repeat order from March, dimensions unchanged.', kind: 'Boxout', glyph: '12×', status: 'Shipped', when: '1 week ago', tag: 'Boxouts' },
+    { title: 'Housing prototype', desc: 'SLS nylon, two iterations, tolerance ±0.15 mm.', kind: 'Prototype', glyph: 'v2', status: 'Quoted', when: '2 weeks ago', tag: 'Briefs' },
+    { title: 'Simple Parts · spacer rings', desc: 'Turned aluminium, 60 units, no finishing.', kind: 'Simple Parts', glyph: '60', status: 'Shipped', when: '3 weeks ago', tag: 'Simple Parts' }
+  ];
+
+  renderVals(){
+    const accent = 'oklch(0.66 0.16 55)';
+    const muted = 'oklch(0.55 0.016 265)';
+    const line = 'oklch(0.91 0.007 265)';
+    const names = ['All', 'Boxouts', 'Simple Parts', 'Briefs'];
+    const filters = names.map(label => {
+      const active = this.state.filter === label;
+      return {
+        label,
+        on: () => this.setState({ filter: label }),
+        style: {
+          fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', letterSpacing: '0.1em',
+          textTransform: 'uppercase', padding: '8px 15px', borderRadius: '999px', cursor: 'pointer',
+          background: active ? accent : 'oklch(1 0 0)',
+          color: active ? '#fff' : muted,
+          border: '1px solid ' + (active ? accent : line)
+        }
+      };
+    });
+
+    const statusColor = { 'In production': accent, 'Shipped': 'oklch(0.58 0.15 150)', 'Quoted': accent, 'Draft': muted };
+    const list = this.state.filter === 'All' ? this.all : this.all.filter(p => p.tag === this.state.filter);
+    const projects = list.map(p => ({
+      ...p,
+      cardStyle: {
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '14px',
+        background: 'oklch(1 0 0)', border: '1px solid ' + line, color: 'inherit',
+        boxShadow: '0 1px 2px rgba(20,23,40,.04), 0 10px 26px rgba(20,23,40,.06)',
+        transition: 'border-color .15s, transform .15s, box-shadow .15s'
+      },
+      thumbStyle: {
+        position: 'relative', height: '132px', flex: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'oklch(0.975 0.008 80)',
+        borderBottom: '1px solid ' + line,
+        backgroundImage: 'linear-gradient(oklch(0.955 0.01 80) 1px, transparent 1px), linear-gradient(90deg, oklch(0.955 0.01 80) 1px, transparent 1px)',
+        backgroundSize: '22px 22px'
+      },
+      dotStyle: {
+        width: '6px', height: '6px', borderRadius: '50%', flex: 'none',
+        background: statusColor[p.status] || muted
+      }
+    }));
+
+    return { filters, projects };
+  }
+}
+</script>
+</body>
+</html>

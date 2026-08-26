@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+    html,body{margin:0;padding:0;height:100%;}
+    body{background:#f8f9fa;overflow:hidden;}
+    @keyframes f2f-pulse{0%,100%{opacity:.3}50%{opacity:1}}
+    @keyframes f2f-rise{from{transform:translateY(9px) scale(.99)}to{transform:none}}
+    @keyframes f2f-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+    @keyframes f2f-fade{from{opacity:0}to{opacity:1}}
+    @keyframes f2f-spin3d{from{transform:translate(-50%,-50%) rotateX(-15deg) rotateY(0)}to{transform:translate(-50%,-50%) rotateX(-15deg) rotateY(360deg)}}
+    input::placeholder{color:var(--muted, oklch(0.55 0.02 260));opacity:.85;}
+  </style>
+</helmet>
+
+<div ref="{{ rootRef }}" onContextMenu="{{ onContext }}" style="{{ rootStyle }}">
+
+  <sc-if value="{{ showGrid }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--grid, oklch(0.945 0.005 260)) 1px, transparent 1px),linear-gradient(90deg, var(--grid, oklch(0.945 0.005 260)) 1px, transparent 1px);background-size:34px 34px;mask-image:radial-gradient(ellipse 100% 90% at 50% 40%, #000 55%, transparent 100%);"></div>
+  </sc-if>
+
+  <div id="f2f-header" style="position:absolute;top:19px;left:30px;right:30px;z-index:50;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px 24px;">
+  <div onClick="{{ resetHome }}" title="Home — reset to start" style="flex:none;cursor:pointer;display:flex;align-items:center;gap:22px;padding:18px 30px 18px 20px;border-radius:30px;background:linear-gradient(145deg,var(--face2),var(--face));box-shadow:var(--clay-out),var(--clay-in);transition:transform .18s ease;" style-hover="transform:translateY(-3px);">
+    <img src="datab_logo.png" alt="datab" style="height:70px;width:auto;display:block;filter:var(--logo-filter, none);">
+    <div style="display:flex;flex-direction:column;gap:13px;">
+      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:40px;letter-spacing:-0.02em;color:var(--ink, oklch(0.22 0.015 260));line-height:1;">FILE&nbsp;<span style="color:var(--accent, oklch(0.55 0.19 258));">→</span>&nbsp;FACTORY</div>
+      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14px;letter-spacing:0.14em;color:var(--muted, oklch(0.55 0.02 260));text-transform:uppercase;">Manufacturing as a service</div>
+    </div>
+  </div>
+
+  <div style="flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:11px;">
+    <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.12em;color:var(--muted, oklch(0.55 0.02 260));display:flex;align-items:center;gap:7px;text-transform:uppercase;white-space:nowrap;">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 2.4s ease-in-out infinite;"></span>
+      Decentralized network online
+    </div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;">
+      <a href="index.dc.html" title="Overview" style="display:flex;align-items:center;gap:9px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:10px 16px;border-radius:15px;background:linear-gradient(145deg,var(--face2),var(--face));color:var(--ink, #201e1d);border:none;box-shadow:var(--clay-out),var(--clay-in);">&lsaquo; Overview</a>
+    <sc-if value="{{ signedIn }}" hint-placeholder-val="{{ false }}">
+      <span style="{{ userChipStyle }}">
+        <span style="{{ userAvatarStyle }}">{{ userInitial }}</span>
+        <span style="display:flex;flex-direction:column;gap:3px;">
+          <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:13px;font-weight:600;color:var(--ink, #202124);white-space:nowrap;">{{ userName }}</span>
+          <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, #5f6368);white-space:nowrap;">{{ userRoleCompany }}</span>
+        </span>
+        <button onClick="{{ signOut }}" title="Sign out" style="{{ signOutStyle }}">Sign out</button>
+      </span>
+    </sc-if>
+    <sc-if value="{{ hasWindows }}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{ toggleOverview }}" style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:15px;cursor:pointer;background:linear-gradient(145deg,var(--face2),var(--face));color:var(--ink, #201e1d);border:none;box-shadow:var(--clay-out),var(--clay-in);" style-hover="border-color:var(--accent, oklch(0.55 0.19 258));">
+        <span style="display:inline-grid;grid-template-columns:1fr 1fr;gap:2px;">
+          <span style="width:4px;height:4px;background:currentColor;"></span><span style="width:4px;height:4px;background:currentColor;"></span><span style="width:4px;height:4px;background:currentColor;"></span><span style="width:4px;height:4px;background:currentColor;"></span>
+        </span>
+        All windows · {{ openCount }}
+      </button>
+    </sc-if>
+    <sc-if value="{{ showAccents }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:7px;padding:0 4px;">
+        <sc-for list="{{ accentList }}" as="ac" hint-placeholder-count="4">
+          <button onClick="{{ ac.on }}" title="{{ ac.label }}" aria-label="{{ ac.label }}" style="{{ ac.swatchStyle }}"></button>
+        </sc-for>
+      </div>
+    </sc-if>
+    <div style="display:flex;gap:4px;background:linear-gradient(145deg,var(--face),var(--face2));border:none;border-radius:999px;padding:5px;box-shadow:var(--clay-press);">
+      <sc-for list="{{ modeList }}" as="m" hint-placeholder-count="2">
+        <button onClick="{{ m.on }}" style="{{ m.pillStyle }}">{{ m.label }}</button>
+      </sc-for>
+    </div>
+    </div>
+  </div>
+
+  </div>
+
+  <sc-if value="{{ overviewVisible }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeOverview }}" style="position:absolute;inset:0;z-index:70;"></div>
+    <div style="position:absolute;top:132px;right:30px;z-index:75;width:340px;max-height:calc(100vh - 220px);display:flex;flex-direction:column;background:linear-gradient(145deg,var(--face2),var(--face));border:none;border-radius:24px;box-shadow:var(--clay-out),var(--clay-in);overflow:hidden;animation:f2f-rise .2s cubic-bezier(.2,.8,.25,1) both;">
+      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));padding:13px 14px 9px;border-bottom:1px solid var(--line, oklch(0.91 0.006 260));display:flex;align-items:center;gap:10px;">Open windows<button onClick="{{ tileWindows }}" title="Arrange windows in a grid" style="margin-left:auto;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink, #202124);cursor:pointer;border:none;padding:7px 12px;border-radius:999px;background:linear-gradient(145deg,var(--face2),var(--face));box-shadow:var(--clay-out),var(--clay-in);" style-hover="filter:brightness(1.03);">Arrange</button></div>
+      <div style="padding:11px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;">
+        <sc-for list="{{ overviewList }}" as="item" hint-placeholder-count="2">
+          <button onClick="{{ item.on }}" style="{{ item.thumbStyle }}">
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line, oklch(0.91 0.006 260));flex:none;">
+              <span style="{{ item.dotStyle }}"></span>
+              <span style="flex:1;min-width:0;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:10.5px;color:var(--ink, oklch(0.22 0.015 260));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ item.title }}</span>
+              <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;color:var(--muted, oklch(0.55 0.02 260));flex:none;">{{ item.code }}</span>
+            </div>
+            <div style="position:relative;flex:1;overflow:hidden;padding:8px 9px;">
+              <sc-if value="{{ item.isDone }}" hint-placeholder-val="{{ true }}">
+                <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;line-height:1.5;color:var(--muted, oklch(0.55 0.02 260));display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">{{ item.preview }}</div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:24px;background:linear-gradient(to top, var(--surface, oklch(1 0 0)), transparent);pointer-events:none;"></div>
+              </sc-if>
+              <sc-if value="{{ item.isLoading }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:7px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.04em;color:var(--muted, oklch(0.55 0.02 260));text-transform:uppercase;">
+                  <span style="display:inline-flex;gap:3px;">
+                    <span style="width:4px;height:4px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out infinite;"></span>
+                    <span style="width:4px;height:4px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out .15s infinite;"></span>
+                    <span style="width:4px;height:4px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out .3s infinite;"></span>
+                  </span>
+                  Routing
+                </div>
+              </sc-if>
+              <sc-if value="{{ item.isError }}" hint-placeholder-val="{{ false }}">
+                <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.04em;color:var(--muted, oklch(0.55 0.02 260));text-transform:uppercase;">Network unreachable</div>
+              </sc-if>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="{{ scrollerStyle }}">
+  <div ref="{{ layerRef }}" style="{{ canvasStyle }}">
+
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ emptyStyle }}">
+        <h1 style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:clamp(26px,min(4.8vw,7.4vh),60px);line-height:1.04;letter-spacing:-0.015em;color:var(--accent-deep, #8f4d24);margin:0;max-width:none;white-space:nowrap;">Make everything. Manufacturable.</h1>
+        <p style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:clamp(14px,2vh,17px);line-height:1.55;color:var(--muted, oklch(0.55 0.02 260));margin:clamp(10px,2.6vh,24px) 0 0;max-width:52ch;text-wrap:pretty;">Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.</p>
+      </div>
+    </sc-if>
+
+    <sc-for list="{{ windows }}" as="win" hint-placeholder-count="0">
+      <div key="{{ win.id }}" onPointerDown="{{ win.onFocus }}" style="{{ win.frameStyle }}">
+        <div onPointerDown="{{ win.onDrag }}" style="display:flex;align-items:center;gap:9px;height:40px;padding:0 8px 0 13px;border-bottom:1px solid var(--lo, rgba(0,0,0,.08));cursor:grab;user-select:none;flex:none;">
+          <span style="{{ win.dotStyle }}"></span>
+          <span style="flex:1;min-width:0;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:13px;color:var(--ink, oklch(0.22 0.015 260));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ win.title }}</span>
+          <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;color:var(--muted, oklch(0.55 0.02 260));letter-spacing:0.04em;flex:none;">{{ win.code }}</span>
+          <button onClick="{{ win.onClose }}" style="flex:none;width:24px;height:24px;border:none;background:transparent;color:var(--muted, oklch(0.55 0.02 260));font-size:18px;line-height:1;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;" style-hover="background:var(--lo, rgba(0,0,0,.10));color:var(--ink, #201e1d);">×</button>
+        </div>
+        <div style="padding:16px 18px;overflow-y:auto;flex:1;">
+          <sc-if value="{{ win.hasImage }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <div role="img" aria-label="Sample render" style="{{ win.imageStyle }}"></div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;letter-spacing:0.08em;color:var(--muted, oklch(0.55 0.02 260));text-transform:uppercase;margin-top:8px;display:flex;align-items:center;gap:7px;">
+                <span style="width:5px;height:5px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));"></span>
+                Sample preview · not your part yet
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isLoading }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:11px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;color:var(--muted, oklch(0.55 0.02 260));letter-spacing:0.02em;">
+              <span style="display:inline-flex;gap:4px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out infinite;"></span>
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out .15s infinite;"></span>
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));animation:f2f-pulse 1s ease-in-out .3s infinite;"></span>
+              </span>
+              Routing query across the network…
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isError }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14px;color:var(--ink, oklch(0.22 0.015 260));line-height:1.55;">
+              <div style="color:var(--muted, oklch(0.55 0.02 260));margin-bottom:12px;">The network couldn’t be reached just now.</div>
+              <button onClick="{{ win.onRetry }}" style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:8px 14px;border:1px solid var(--accent, oklch(0.55 0.19 258));color:var(--accent, oklch(0.55 0.19 258));background:transparent;border-radius:8px;cursor:pointer;">Retry</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isDone }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14px;line-height:1.62;color:var(--ink, oklch(0.22 0.015 260));white-space:pre-wrap;">{{ win.displayText }}<sc-if value="{{ win.typing }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:7px;height:14px;background:var(--accent, oklch(0.55 0.19 258));margin-left:1px;vertical-align:-2px;animation:f2f-blink 1s step-end infinite;"></span></sc-if></div>
+          </sc-if>
+          <sc-if value="{{ win.isRequest }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, #5f6368);">You asked</div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:15px;line-height:1.55;color:var(--ink, #202124);">{{ win.query }}</div>
+              <div style="display:flex;align-items:center;gap:9px;padding-top:10px;border-top:1px solid var(--lo, rgba(0,0,0,.08));">
+                <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent-deep, #7a4a00);">&rarr; {{ win.routeLabel }}</span>
+              </div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12.5px;line-height:1.5;color:var(--muted, #5f6368);">{{ win.routeWhy }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isStructured }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, #5f6368);">Structured input</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                <span style="{{ win.pillStyle }}">{{ win.source }}</span>
+                <span style="{{ win.pillStyle }}">&rarr; {{ win.target }}</span>
+              </div>
+              <sc-if value="{{ win.hasRows }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <sc-for list="{{ win.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:10px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12.5px;">
+                      <span style="color:var(--muted, #5f6368);">{{ r.label }}</span>
+                      <span style="margin-left:auto;color:var(--ink, #202124);">{{ r.value }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:11.5px;line-height:1.5;color:var(--muted, #5f6368);padding-top:9px;border-top:1px solid var(--lo, rgba(0,0,0,.08));">{{ win.inferred }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isDxf }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <div style="display:flex;align-items:center;gap:9px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, #5f6368);">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--ok, #12602a);"></span>
+                DXF written
+              </div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14.5px;font-weight:600;color:var(--ink, #202124);word-break:break-all;">{{ win.fileName }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                <span style="{{ win.pillStyle }}">{{ win.partCount }}</span>
+                <span style="{{ win.pillStyle }}">{{ win.sheetCount }}</span>
+              </div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:11.5px;line-height:1.5;color:var(--muted, #5f6368);padding-top:9px;border-top:1px solid var(--lo, rgba(0,0,0,.08));">Stored in the database and queued for production planning.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isDenied }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:13px;">
+              <div style="display:flex;align-items:center;gap:9px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted, #5f6368);">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--bad, #c5221f);"></span>
+                Not licensed
+              </div>
+              <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:15px;line-height:1.6;color:var(--ink, #202124);">{{ win.deniedCompany }} does not license <strong>{{ win.deniedApp }}</strong>. Ask your administrator to add it to your plan, and it will appear here.</div>
+              <a href="CNC Orbit Dashboard.dc.html" style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:13.5px;font-weight:600;color:var(--accent-deep, #ea8600);text-decoration:none;">See licensed apps &rsaquo;</a>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isApp }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:11px;height:100%;">
+              <div style="flex:none;display:flex;align-items:center;gap:9px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted, #7d7064);">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent, #c67139);"></span>
+                Live app &middot; {{ win.appHost }}
+                <a href="{{ win.appUrl }}" target="_blank" rel="noreferrer" style="margin-left:auto;color:var(--accent-deep, #8f4d24);text-decoration:none;letter-spacing:0.08em;">Open &nearr;</a>
+              </div>
+              <div style="flex:1;min-height:0;border:none;border-radius:16px;overflow:hidden;background:var(--face2, #fffaf2);box-shadow:var(--clay-press);">
+                <iframe src="{{ win.appUrl }}" title="{{ win.title }}" style="width:100%;height:100%;border:none;display:block;"></iframe>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ win.isBoxout }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:13px;">
+              <div style="display:flex;align-items:center;gap:8px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));flex:none;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent, oklch(0.55 0.19 258));"></span>{{ win.parsedLine }}
+              </div>
+              <div style="display:flex;gap:18px;">
+                <!-- params + nesting -->
+                <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
+                    <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));">Boxout parameters</span>
+                    <div style="display:flex;gap:4px;background:linear-gradient(145deg,var(--face),var(--face2));border:none;border-radius:999px;padding:5px;box-shadow:var(--clay-press);">
+                      <button onClick="{{ win.setKiefer }}" style="{{ win.kieferPill }}">Kiefer</button>
+                      <button onClick="{{ win.setFilm }}" style="{{ win.filmPill }}">Film</button>
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:24px 1fr 1fr 1fr 1fr 0.55fr;gap:8px;padding:0 7px 7px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));border-bottom:1px solid var(--line, oklch(0.91 0.006 260));">
+                    <span></span><span>Box</span><span>D·mm</span><span>H·mm</span><span>W·mm</span><span>Qty</span>
+                  </div>
+                  <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;max-height:190px;">
+                    <sc-for list="{{ win.boxRows }}" as="r" hint-placeholder-count="6">
+                      <div onClick="{{ r.pick }}" style="{{ r.rowStyle }}">
+                        <span style="{{ r.badgeStyle }}">{{ r.idx }}</span>
+                        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:12.5px;color:var(--ink, oklch(0.22 0.015 260));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.n }}</span>
+                        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;color:var(--ink, oklch(0.22 0.015 260));">{{ r.d }}</span>
+                        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;color:var(--ink, oklch(0.22 0.015 260));">{{ r.h }}</span>
+                        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;color:var(--ink, oklch(0.22 0.015 260));">{{ r.w }}</span>
+                        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;color:var(--muted, oklch(0.55 0.02 260));">{{ r.q }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="flex:none;padding-top:14px;display:flex;gap:30px;">
+                    <div>
+                      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));margin-bottom:7px;">Per box nesting</div>
+                      <div style="display:flex;align-items:flex-end;gap:13px;">
+                        <div style="text-align:center;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:22px;line-height:1;color:var(--accent, oklch(0.55 0.19 258));">{{ win.perKiefer }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.08em;color:var(--muted, oklch(0.55 0.02 260));margin-top:4px;">KIEFER</div></div>
+                        <div style="width:1px;height:26px;background:var(--line, oklch(0.91 0.006 260));"></div>
+                        <div style="text-align:center;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:22px;line-height:1;color:var(--ink, oklch(0.22 0.015 260));">{{ win.perFilm }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.08em;color:var(--muted, oklch(0.55 0.02 260));margin-top:4px;">FILM</div></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));margin-bottom:7px;">Full set nesting</div>
+                      <div style="display:flex;align-items:flex-end;gap:13px;">
+                        <div style="text-align:center;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:22px;line-height:1;color:var(--accent, oklch(0.55 0.19 258));">{{ win.fullKiefer }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.08em;color:var(--muted, oklch(0.55 0.02 260));margin-top:4px;">KIEFER</div></div>
+                        <div style="width:1px;height:26px;background:var(--line, oklch(0.91 0.006 260));"></div>
+                        <div style="text-align:center;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:600;font-size:22px;line-height:1;color:var(--ink, oklch(0.22 0.015 260));">{{ win.fullFilm }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.08em;color:var(--muted, oklch(0.55 0.02 260));margin-top:4px;">FILM</div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 3D preview -->
+                <div style="width:224px;flex:none;display:flex;flex-direction:column;">
+                  <div style="position:relative;height:212px;flex:none;border:1px solid var(--line, oklch(0.91 0.006 260));border-radius:11px;overflow:hidden;background:var(--surface, oklch(1 0 0));">
+                    <div style="position:absolute;top:10px;left:11px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9px;letter-spacing:0.06em;color:var(--muted, oklch(0.55 0.02 260));z-index:3;">PERSPECTIVE · 1:12</div>
+                    <div style="position:absolute;top:10px;right:11px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.08em;color:var(--accent, oklch(0.55 0.19 258));border:1px solid var(--accent, oklch(0.55 0.19 258));padding:2px 6px;border-radius:12px;z-index:3;">GENERATED</div>
+                    <div style="position:absolute;inset:0;perspective:1100px;">
+                      <div style="position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translate(-50%,-50%) rotateX(-15deg) rotateY(-28deg);animation:f2f-spin3d 26s linear infinite;">
+                        <div style="position:absolute;left:50%;top:50%;width:120px;height:270px;transform:translate(-50%,-50%) translateZ(34px);border:1.5px solid var(--accent, oklch(0.55 0.19 258));border-radius:7px;background:var(--accent-weak, transparent);">
+                          <div style="position:absolute;inset:9px;border:1px solid var(--line, oklch(0.91 0.006 260));border-radius:4px;"></div>
+                          <div style="position:absolute;left:9px;right:9px;top:56%;height:6px;background:var(--accent, oklch(0.55 0.19 258));border-radius:2px;"></div>
+                        </div>
+                        <div style="position:absolute;left:50%;top:50%;width:120px;height:270px;transform:translate(-50%,-50%) translateZ(-34px) rotateY(180deg);border:1px solid var(--line, oklch(0.91 0.006 260));border-radius:7px;"></div>
+                        <div style="position:absolute;left:50%;top:50%;width:68px;height:270px;transform:translate(-50%,-50%) rotateY(90deg) translateZ(60px);border:1.5px solid var(--accent, oklch(0.55 0.19 258));border-radius:7px;background:var(--accent-weak, transparent);"></div>
+                        <div style="position:absolute;left:50%;top:50%;width:68px;height:270px;transform:translate(-50%,-50%) rotateY(-90deg) translateZ(60px);border:1.5px solid var(--accent, oklch(0.55 0.19 258));border-radius:7px;background:var(--accent-weak, transparent);"></div>
+                        <div style="position:absolute;left:50%;top:50%;width:120px;height:68px;transform:translate(-50%,-50%) rotateX(90deg) translateZ(135px);border:1.5px solid var(--accent, oklch(0.55 0.19 258));border-radius:5px;background:var(--accent-weak, transparent);"></div>
+                        <div style="position:absolute;left:50%;top:50%;width:120px;height:68px;transform:translate(-50%,-50%) rotateX(-90deg) translateZ(135px);border:1px solid var(--line, oklch(0.91 0.006 260));border-radius:5px;"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:11px 4px 0;">
+                    <div style="text-align:center;flex:1;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:15px;color:var(--ink, oklch(0.22 0.015 260));">{{ win.selD }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.1em;color:var(--muted, oklch(0.55 0.02 260));margin-top:2px;">DEPTH</div></div>
+                    <div style="width:1px;background:var(--line, oklch(0.91 0.006 260));"></div>
+                    <div style="text-align:center;flex:1;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:15px;color:var(--ink, oklch(0.22 0.015 260));">{{ win.selH }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.1em;color:var(--muted, oklch(0.55 0.02 260));margin-top:2px;">HEIGHT</div></div>
+                    <div style="width:1px;background:var(--line, oklch(0.91 0.006 260));"></div>
+                    <div style="text-align:center;flex:1;"><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-weight:500;font-size:15px;color:var(--accent, oklch(0.55 0.19 258));">{{ win.selW }}</div><div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:8px;letter-spacing:0.1em;color:var(--muted, oklch(0.55 0.02 260));margin-top:2px;">WIDTH</div></div>
+                  </div>
+                </div>
+              </div>
+              <!-- actions -->
+              <div style="flex:none;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line, oklch(0.91 0.006 260));padding-top:13px;">
+                <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted, oklch(0.55 0.02 260));margin-right:auto;">{{ win.code }} · instant quote · no setup fee</span>
+                <button style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:13px;font-weight:500;color:var(--ink, oklch(0.22 0.015 260));background:transparent;border:1px solid var(--line, oklch(0.91 0.006 260));border-radius:9px;padding:10px 16px;cursor:pointer;" style-hover="border-color:var(--accent, oklch(0.55 0.19 258));color:var(--accent, oklch(0.55 0.19 258));">Preview nesting</button>
+                <button style="display:flex;align-items:center;gap:10px;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:14px;font-weight:600;color:#fff;background:var(--accent, oklch(0.55 0.19 258));border:none;border-radius:9px;padding:11px 18px;cursor:pointer;box-shadow:0 8px 22px rgba(20,23,40,.14);" style-hover="filter:brightness(1.08);">Place order <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.22);font-size:13px;">→</span></button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <div onPointerDown="{{ win.onResize }}" title="Resize" style="position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;z-index:5;opacity:.55;background:repeating-linear-gradient(135deg, transparent 0 2px, var(--muted, oklch(0.55 0.02 260)) 2px 3px);-webkit-mask:linear-gradient(135deg, transparent 42%, #000 46%);mask:linear-gradient(135deg, transparent 42%, #000 46%);"></div>
+      </div>
+    </sc-for>
+  </div>
+  </div>
+
+  <div ref="{{ dockRef }}" style="position:absolute;left:0;right:0;bottom:0;z-index:100000;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 24px 22px;background:linear-gradient(to top, var(--bg, oklch(0.985 0.003 255)) 55%, transparent);">
+
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:760px;pointer-events:auto;">
+        <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="8">
+          <button onClick="{{ chip.on }}" style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:13.5px;color:var(--ink, #201e1d);background:linear-gradient(145deg,var(--face2),var(--face));border:none;border-radius:999px;padding:10px 17px;cursor:pointer;box-shadow:var(--clay-out),var(--clay-in);transition:transform .15s ease;" style-hover="color:var(--accent, oklch(0.55 0.19 258));">{{ chip.label }}</button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+      <div style="width:100%;max-width:760px;pointer-events:auto;background:linear-gradient(145deg,var(--face2),var(--face));border:none;border-radius:999px;box-shadow:var(--clay-out),var(--clay-in);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 24px;">
+        <input ref="{{ dockInputRef }}" onKeyDown="{{ onDockKey }}" type="text" placeholder="Ask anything about File to Factory — or describe something to build…" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:15.5px;color:var(--ink, oklch(0.22 0.015 260));padding:11px 0;">
+        <button onClick="{{ onDockAsk }}" aria-label="Send" style="flex:none;width:44px;height:44px;border:none;border-radius:50%;background:linear-gradient(150deg,var(--accent, #c67139),var(--accent-deep, #8f4d24));color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:6px 8px 16px var(--drop),inset 2px 2px 5px rgba(255,255,255,0.32),inset -3px -4px 8px rgba(0,0,0,0.22);" style-hover="filter:brightness(1.05);">↑</button>
+      </div>
+    </sc-if>
+
+    <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.12em;color:var(--muted, oklch(0.55 0.02 260));text-transform:uppercase;pointer-events:none;">{{ dockStatus }}</div>
+  </div>
+
+  <sc-if value="{{ ctxOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeCtx }}" onContextMenu="{{ closeCtx }}" style="position:absolute;inset:0;z-index:100000;"></div>
+    <div style="{{ barStyle }}">
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 19px;">
+      <input ref="{{ inputRef }}" onKeyDown="{{ onKey }}" type="text" placeholder="Ask anything — or describe something to build…" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:15.5px;color:var(--ink, oklch(0.22 0.015 260));padding:11px 0;">
+      <button onClick="{{ onAsk }}" aria-label="Send" style="flex:none;width:44px;height:44px;border:none;border-radius:50%;background:linear-gradient(150deg,var(--accent, #c67139),var(--accent-deep, #8f4d24));color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:6px 8px 16px var(--drop),inset 2px 2px 5px rgba(255,255,255,0.32),inset -3px -4px 8px rgba(0,0,0,0.22);" style-hover="filter:brightness(1.05);">↑</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px;">
+        <sc-for list="{{ ctxSuggestions }}" as="s" hint-placeholder-count="2">
+          <button onClick="{{ s.on }}" style="{{ s.style }}">{{ s.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bright&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;bright&quot;,&quot;tsType&quot;:&quot;'bright' | 'dark'&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;blue&quot;,&quot;red&quot;,&quot;yellow&quot;,&quot;green&quot;,&quot;purple&quot;,&quot;grey&quot;],&quot;default&quot;:&quot;yellow&quot;,&quot;tsType&quot;:&quot;'blue' | 'red' | 'yellow' | 'green' | 'purple' | 'grey'&quot;},&quot;showGrid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;typewriter&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { windows: [], spawnCount: 0, overviewOpen: false, mode: 'bright', accentKey: 'yellow', ctx: null, headerH: 130, dockH: 190,
+    session: null, booted: false };
+
+  SESSION_KEY = 'f2f.session';
+  LOGIN = 'Login.dc.html';
+
+  ROLES = {
+    member:   { label: 'Member',   grants: ['overview', 'worklists.read', 'orders.create'] },
+    operator: { label: 'Operator', grants: ['overview', 'worklists.read', 'worklists.write', 'orders.create', 'validation', 'machines.read', 'machines.control'] },
+    admin:    { label: 'Admin',    grants: ['overview', 'worklists.read', 'worklists.write', 'orders.create', 'validation', 'machines.read', 'machines.control', 'users', 'apps.manage', 'billing'] }
+  };
+  COMPANIES = {
+    A: { name: 'Frischeis Holzwerk', short: 'Company A', apps: ['boxouts', 'simpleparts', 'plyworks', 'nesting'] },
+    B: { name: 'Strabag Formwork',   short: 'Company B', apps: ['boxouts', 'nesting'] },
+    C: { name: 'Peri Systems',       short: 'Company C', apps: ['simpleparts', 'plyworks'] }
+  };
+  APP_LABELS = { boxouts: 'Boxouts', simpleparts: 'Simple Parts', plyworks: 'Plyworks', nesting: 'Nesting' };
+
+  can(perm){
+    const s = this.state.session;
+    const r = s && this.ROLES[s.role];
+    return !!r && r.grants.indexOf(perm) !== -1;
+  }
+
+  hasApp(app){
+    const s = this.state.session;
+    const co = s && this.COMPANIES[s.company];
+    return !!co && co.apps.indexOf(app) !== -1;
+  }
+
+  signOut = () => {
+    try { localStorage.removeItem(this.SESSION_KEY); } catch (e) {}
+    window.location.href = this.LOGIN;
+  };
+
+  zTop = 20;
+  drag = null;
+  timers = {};
+
+  brightBase = { surface:'#ffffff', ink:'#202124', muted:'#5f6368', line:'#dadce0' };
+  accents = {
+    blue:   { label:'Google Blue', accent:'#1a73e8', darkAccent:'#8ab4f8', deep:'#0f3d82', bg:'#f8f9fa', grid:'#e8eaed' },
+    red:    { label:'Red',         accent:'#ea4335', darkAccent:'#f28b82', deep:'#a01a17', bg:'#f8f9fa', grid:'#e8eaed' },
+    yellow: { label:'Yellow',      accent:'#f9ab00', darkAccent:'#fdd663', deep:'#7a4a00', bg:'#f8f9fa', grid:'#e8eaed' },
+    green:  { label:'Green',       accent:'#34a853', darkAccent:'#81c995', deep:'#12602a', bg:'#f8f9fa', grid:'#e8eaed' },
+    purple: { label:'Purple',      accent:'#a142f4', darkAccent:'#c58af9', deep:'#5b1d8f', bg:'#f8f9fa', grid:'#e8eaed' },
+    grey:   { label:'Graphite',    accent:'#5f6368', darkAccent:'#9aa0a6', deep:'#202124', bg:'#f8f9fa', grid:'#e8eaed' }
+  };
+  darkPalette = { bg:'#202124', surface:'#292a2d', ink:'#e8eaed', muted:'#9aa0a6', line:'#3c4043', accent:'#8ab4f8', grid:'#2a2b2e' };
+
+  chipDefs = [
+    'Make a boxout 300×2000×1000 — 5×',
+    'Configure a door boxout',
+    'Open Simple Parts',
+    'How does plate nesting work?',
+    'What can you manufacture?',
+    'What does it cost?',
+    'Where do I order?'
+  ];
+
+  componentDidMount(){
+    let session = null, storageOk = true;
+    try {
+      const raw = localStorage.getItem(this.SESSION_KEY);
+      const s = raw ? JSON.parse(raw) : null;
+      if (s && this.ROLES[s.role] && this.COMPANIES[s.company]) session = s;
+    } catch (e) { storageOk = false; }
+    if (!session && storageOk) { window.location.replace(this.LOGIN); return; }
+    this.setState({ session, booted: true });
+    this.measure = () => {
+      const el = document.getElementById('f2f-header');
+      if (!el) return;
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      if (h && h !== this.state.headerH) this.setState({ headerH: h });
+    };
+    this._raf = requestAnimationFrame(() => { this.measure(); requestAnimationFrame(this.measure); });
+    this._t1 = setTimeout(this.measure, 400);
+    this._t2 = setTimeout(this.measure, 1200);
+    window.addEventListener('resize', this.measure);
+    if (typeof ResizeObserver === 'function') {
+      const el = document.getElementById('f2f-header');
+      if (el) { this._ro = new ResizeObserver(() => this.measure()); this._ro.observe(el); }
+    }
+    if (this.props.mode === 'bright' || this.props.mode === 'dark') this.setState({ mode: this.props.mode });
+    if (this.props.accent && this.accents[this.props.accent]) this.setState({ accentKey: this.props.accent });
+    this._move = (e) => this.onDragMove(e);
+    this._up = () => this.onDragEnd();
+    window.addEventListener('pointermove', this._move);
+    window.addEventListener('pointerup', this._up);
+    this._ctxKey = (e) => { if (e.key === 'Escape') this.closeCtx(); };
+    window.addEventListener('keydown', this._ctxKey);
+  }
+  componentDidUpdate(prev){
+    const patch = {};
+    if (prev.mode !== this.props.mode && (this.props.mode === 'bright' || this.props.mode === 'dark')) patch.mode = this.props.mode;
+    if (prev.accent !== this.props.accent && this.props.accent && this.accents[this.props.accent]) patch.accentKey = this.props.accent;
+    if (Object.keys(patch).length) this.setState(patch);
+  }
+  componentWillUnmount(){
+    if (this._ro) { this._ro.disconnect(); this._ro = null; }
+    if (this.measure) window.removeEventListener('resize', this.measure);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._t1) clearTimeout(this._t1);
+    if (this._t2) clearTimeout(this._t2);
+    if (this._roDock) { this._roDock.disconnect(); this._roDock = null; }
+    window.removeEventListener('pointermove', this._move);
+    window.removeEventListener('pointerup', this._up);
+    window.removeEventListener('keydown', this._ctxKey);
+    Object.values(this.timers).forEach(clearInterval);
+  }
+
+  openCtx(e){
+    e.preventDefault();
+    const host = this.rootEl ? this.rootEl.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const W = 620, H = 132;
+    const x = Math.max(12, Math.min(e.clientX - host.left - 26, host.width - W - 12));
+    const y = Math.max(12, Math.min(e.clientY - host.top - 22, host.height - H - 12));
+    this.setState({ ctx: { x, y } }, () => { if (this.inputEl) this.inputEl.focus(); });
+  }
+  closeCtx(){ if (this.state.ctx) this.setState({ ctx: null }); }
+
+  tileWindows(){
+    const wins = this.state.windows;
+    if (!wins.length) return;
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 700 };
+    const gap = 20, pad = 16;
+    const widest = wins.reduce((m, w) => Math.max(m, w.w || 420), 0);
+    const fits = Math.floor((layer.width - pad * 2 + gap) / (widest + gap));
+    const cols = Math.max(1, Math.min(fits, Math.ceil(Math.sqrt(wins.length))));
+    const colW = new Array(cols).fill(0);
+    wins.forEach((w, i) => { const c = i % cols; colW[c] = Math.max(colW[c], w.w || 420); });
+    const colX = [];
+    let x = pad;
+    for (let c = 0; c < cols; c++) { colX.push(x); x += colW[c] + gap; }
+    const rowY = [];
+    let y = pad;
+    for (let r = 0; r * cols < wins.length; r++) {
+      rowY.push(y);
+      let tallest = 0;
+      for (let c = 0; c < cols; c++) {
+        const w = wins[r * cols + c];
+        if (w) tallest = Math.max(tallest, w.h || 320);
+      }
+      y += tallest + gap;
+    }
+    const placed = wins.map((w, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      return Object.assign({}, w, {
+        x: Math.max(pad, Math.min(colX[c], Math.max(pad, layer.width - (w.w || 420) - pad))),
+        y: rowY[r],
+        z: ++this.zTop
+      });
+    });
+    this.setState({ windows: placed, overviewOpen: false });
+    const scroller = this.layerEl && this.layerEl.parentElement;
+    if (scroller) this.scrollTo(scroller, 0);
+  }
+
+  ctxSuggestions(){
+    const has = (re) => this.state.windows.some(w => re.test(w.query || ''));
+    const out = [];
+    if (!has(/boxout/i)) out.push('Make a boxout 300×2000×1000 — 5×');
+    if (!has(/simple\s*-?\s*parts/i)) out.push('Open Simple Parts');
+    if (this.state.windows.length) out.push('Nest the open jobs onto one sheet');
+    out.push('What does it cost?');
+    return out.slice(0, 2);
+  }
+
+  context(){
+    return [
+      'You are the AI concierge for "File to Factory" (F2F), a manufacturing-as-a-service company.',
+      'WHAT IT IS: Customers upload a digital design file (CAD / STEP / STL / drawing) OR simply describe an object in plain words. F2F\'s AI routes the job to the best-fit machines and workshops across a DECENTRALIZED production network, then the finished part or product is made and shipped.',
+      'VISION: Instead of one giant plant, F2F connects thousands of distributed machines and workshops into effectively "the largest factory in the world" \u2014 decentralized, elastic, and close to each customer. No single mega-factory.',
+      'CAPABILITIES: CNC machining, 3D printing (FDM / SLA / SLS), sheet metal, laser cutting, woodworking & furniture, finishing and assembly.',
+      'PRICING: Instant automated quoting based on the file, material, quantity, tolerance and lead time. No setup fees, pay per part, volume discounts. Always give ranges, never invent exact figures.',
+      'ORDERING: Upload a file in the web app \u2192 instant quote \u2192 confirm \u2192 the network produces and ships. Natural-language design briefs are also accepted.',
+      'STYLE RULES: Reply in English, warm and expert, concise (max ~110 words). Plain text only \u2014 no markdown headers, no bold, no asterisks. Short paragraphs or simple "- " dashes are fine.',
+      'If asked to design an object (e.g. a table), respond with a brief manufacturable concept: suggested materials, rough dimensions, the production process, and an indicative lead time \u2014 then invite the visitor to upload or refine the brief.',
+      'If asked about specific team members or exact investment terms, do not fabricate names or numbers; give honest framing and invite them to get in touch.'
+    ].join('\n');
+  }
+
+  imagePool = [
+    'https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=820&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1496307653780-42ee777d4833?w=820&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1449157291145-7efd050a4d0e?w=820&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?w=820&q=80&auto=format&fit=crop'
+  ];
+  imageRe = /\b(bild|bilder|image|images|picture|photo|foto|render|rendering|visual|visualis|grafik|graphic|zeig|show me|see (it|what)|wie sieht|how (it|does it) look|preview)\b/i;
+  boxoutRe = /\b(boxout|box[\s-]?out|door\s?box|t[\u00fcu]r(en)?box|schrank|configure|konfigur)\b|\d{2,4}\s*[x\u00d7*]\s*\d{2,4}\s*[x\u00d7*]\s*\d{2,4}/i;
+
+  sampleBoxes = [
+    { n: 'Box 1', d: 300, h: 1790, w: 945, q: 1 },
+    { n: 'Box 2', d: 262, h: 2502, w: 947, q: 1 },
+    { n: 'Box 3', d: 156, h: 2540, w: 967, q: 1 },
+    { n: 'Box 4', d: 334, h: 879,  w: 858, q: 1 },
+    { n: 'Box 5', d: 332, h: 941,  w: 813, q: 1 },
+    { n: 'Box 6', d: 186, h: 1590, w: 806, q: 1 }
+  ];
+
+  parseBoxes(q){
+    const re = /(\d{2,4})\s*[x\u00d7*]\s*(\d{2,4})\s*[x\u00d7*]\s*(\d{2,4})/gi;
+    const triples = [];
+    let m;
+    while ((m = re.exec(q)) !== null) triples.push([+m[1], +m[2], +m[3]]);
+    if (!triples.length) return this.sampleBoxes.map(b => ({ ...b }));
+    const rest = q.replace(re, ' ');
+    const qm = rest.match(/(\d{1,3})\s*[x\u00d7]/i) || rest.match(/[x\u00d7]\s*(\d{1,3})/i) || rest.match(/[-\u2013\u2014]\s*(\d{1,3})/);
+    const qty = qm ? Math.max(1, Math.min(99, +qm[1])) : 1;
+    return triples.map((t, i) => ({ n: 'Box ' + (i + 1), d: t[0], h: t[1], w: t[2], q: triples.length === 1 ? qty : 1 }));
+  }
+
+  nesting(boxes){
+    const c = boxes.reduce((s, b) => s + (b.q || 1), 0);
+    const perKiefer = Math.max(1, Math.ceil(c * 1.5));
+    const perFilm = Math.max(1, c);
+    return {
+      perKiefer, perFilm,
+      fullKiefer: Math.max(1, Math.round(perKiefer * 0.55)),
+      fullFilm: Math.max(1, Math.round(perFilm * 0.5)),
+      count: c
+    };
+  }
+
+  simplePartsRe = /simple\s*-?\s*parts/i;
+
+  /* what the concierge can open. first match wins, so keep the specific ones on top. */
+  intents = [
+    { app: 'boxouts', label: 'Boxouts', title: 'Door Boxout Generator', url: 'https://app.datab.at/', host: 'app.datab.at',
+      why: 'Door boxout request recognised',
+      re: /\b(boxout|box[\s-]?out|door\s?box|t[\u00fcu]r(en)?box|schrank|configure|konfigur)\b|\d{2,4}\s*[x\u00d7*]\s*\d{2,4}\s*[x\u00d7*]\s*\d{2,4}/i },
+    { app: 'plyworks', label: 'Plyworks', title: 'Plyworks', url: 'Plyworks.html', host: 'plyworks',
+      why: 'Panel and plywood work goes to Plyworks',
+      re: /\bplyworks|plywood|multiplex|\bpanel(s)?\b|\bply\b|shelf|shelves|cabinet|furniture\b/i },
+    { app: 'simpleparts', label: 'Simple Parts', title: 'Simple Parts', url: 'https://simple-parts.datab.at/', host: 'simple-parts.datab.at',
+      why: 'DXF and flat-part work goes to Simple Parts',
+      re: /simple\s*-?\s*parts|\bnest(ing|s|ed|en)?\b|\bdxf\b|\bdwg\b|laser|sheet\s?metal|bracket|\bflat\s?part|\bpart(s)?\b|\bplate(s)?\b|\bcut(ting)?\b/i },
+    { app: null, perm: 'overview', label: 'CNC Orbit', title: 'CNC Orbit', url: 'CNC Orbit Dashboard.dc.html', host: 'cnc orbit',
+      why: 'Machine and worklist questions open CNC Orbit',
+      re: /\bworklist(s)?\b|\bmachine(s)?\b|monitor|dashboard|\bcnc\b|validat|\bfleet\b|\butilis|\butiliz/i },
+    { app: null, perm: 'overview', label: 'Projects', title: 'Projects', url: 'F2F Projects.dc.html', host: 'projects',
+      why: 'Order history opens Projects',
+      re: /\bproject(s)?\b|\border(s)?\b|\bmy jobs\b|\bhistory\b|\bquote(s)?\b/i }
+  ];
+
+  RAIL_X = 20;
+  RAIL_W = 300;
+  RAIL_GAP = 16;
+
+  /* y for the next bubble in the current chain, stacked under the previous one */
+  railSlot(h){
+    const y = this.railY || 20;
+    this.railY = y + h + this.RAIL_GAP;
+    return y;
+  }
+
+  startChain(){
+    const inRail = this.state.windows.filter(w => ['request', 'structured', 'dxf', 'denied'].indexOf(w.status) !== -1);
+    const bottom = inRail.reduce((m, w) => Math.max(m, (w.y || 0) + (w.railH || w.h || 180)), 0);
+    this.railY = bottom ? bottom + this.RAIL_GAP * 2 : 20;
+  }
+
+  /* app windows follow the run they belong to, stepping down per open app */
+  railTopFor(h, index){
+    return 20 + index * (h + this.RAIL_GAP * 2);
+  }
+
+  /* keep the newest bubble in view — smooth scrollTo is ignored here, so ease it by hand */
+  scrollTo(scroller, target){
+    if (!scroller) return;
+    const from = scroller.scrollTop;
+    const dist = target - from;
+    if (Math.abs(dist) < 6) return;
+    if (this._scrollTimer) { window.clearInterval(this._scrollTimer); this._scrollTimer = null; }
+    const t0 = Date.now();
+    const dur = 360;
+    this._scrollTimer = window.setInterval(() => {
+      const p = Math.min(1, (Date.now() - t0) / dur);
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      scroller.scrollTop = from + dist * e;
+      if (p >= 1) { window.clearInterval(this._scrollTimer); this._scrollTimer = null; }
+    }, 16);
+  }
+
+  revealY(y, h){
+    const scroller = this.layerEl && this.layerEl.parentElement;
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) return;
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    const bottomNeeded = y + (h || 180) + 24 - scroller.clientHeight;
+    const target = Math.max(0, Math.min(Math.max(bottomNeeded, Math.min(y - 28, max)), max));
+    this.scrollTo(scroller, target);
+  }
+
+  route(q){
+    for (const it of this.intents) if (it.re.test(q)) return it;
+    return null;
+  }
+
+  spawnDenied(q, app){
+    const id = 'd' + Date.now() + Math.floor(Math.random()*1000);
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const W = Math.min(this.RAIL_W, Math.max(210, layer.width - 40));
+    const x = this.RAIL_X;
+    const y = this.railSlot(210);
+    const co = this.COMPANIES[this.state.session.company];
+    const win = {
+      id, code: 'LIC-' + String(Math.floor(1000 + Math.random()*9000)),
+      title: this.APP_LABELS[app] + ' — not licensed', query: q, status: 'denied',
+      deniedApp: this.APP_LABELS[app], deniedCompany: co.name,
+      x, y, z: ++this.zTop, w: W, h: 210, railH: 210
+    };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+    window.setTimeout(() => this.revealY(y, 210), 30);
+  }
+
+  spawnAppWindow(intent, q){
+    if (intent.app && !this.hasApp(intent.app)) { this.spawnDenied(q, intent.app); return; }
+    const id = 'a' + Date.now() + Math.floor(Math.random()*1000);
+    const code = (intent.label.slice(0, 3).toUpperCase()) + '-' + String(Math.floor(1000 + Math.random()*9000));
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const railEdge = this.RAIL_X + this.RAIL_W + 24;
+    const W = Math.min(880, Math.max(340, layer.width - railEdge - 24));
+    const H = Math.max(320, Math.min(540, layer.height - 40));
+    const n = this.state.spawnCount;
+    const openApps = this.state.windows.filter(w => w.status === 'app').length;
+    const x = Math.max(railEdge, Math.min(railEdge + (openApps % 3) * 22, Math.max(railEdge, layer.width - W - 20)));
+    const y = Math.max(8, this.railTopFor(H, openApps));
+    const win = { id, code, title: intent.title, query: q, status: 'app', url: intent.url, host: intent.host, x, y, z: ++this.zTop, w: W, h: H };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+  }
+
+  spawnApp(q){ this.spawnAppWindow(this.intents.find(i => i.app === 'simpleparts'), q); }
+
+  spawnBoxoutApp(q){ this.spawnAppWindow(this.intents.find(i => i.app === 'boxouts'), q); }
+
+  /* the typed request itself becomes a bubble, then the routed window follows */
+  spawnRequest(q, intent){
+    const id = 'r' + Date.now() + Math.floor(Math.random()*1000);
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const W = Math.min(this.RAIL_W, Math.max(210, layer.width - 40));
+    const x = this.RAIL_X;
+    const y = this.railSlot(180);
+    const win = {
+      id, code: 'YOU', title: 'Your request', query: q, status: 'request',
+      routeLabel: intent ? intent.label : 'Concierge',
+      routeWhy: intent ? intent.why : 'Answered in the chat',
+      x, y, z: ++this.zTop, w: W, railH: 180
+    };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+    window.setTimeout(() => this.revealY(y, 180), 30);
+  }
+
+  /* stage 1 of the architecture: input → structuring → orchestrator → app → DXF */
+  ask(q){
+    q = (q || '').trim();
+    if (!q) return;
+    const intent = this.route(q);
+    this.startChain();
+    this.spawnRequest(q, intent);
+    const at = (ms, fn) => { const k = 'seq' + Date.now() + Math.random(); this.timers[k] = setTimeout(() => { delete this.timers[k]; fn(); }, ms); };
+    if (!intent) { at(360, () => this.spawnAnswer(q)); return; }
+    const licensed = !intent.app || this.hasApp(intent.app);
+    at(360, () => this.spawnStructured(q, intent));
+    at(880, () => this.spawnAppWindow(intent, q));
+    if (licensed) at(1500, () => this.spawnDxf(q, intent));
+  }
+
+  /* AI data structuring — what the orchestrator gets handed */
+  spawnStructured(q, intent){
+    const id = 's' + Date.now() + Math.floor(Math.random()*1000);
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const W = Math.min(this.RAIL_W, Math.max(210, layer.width - 40));
+    const x = this.RAIL_X;
+    const boxes = this.parseBoxes(q);
+    const explicit = /(\d{2,4})\s*[x\u00d7*]\s*(\d{2,4})\s*[x\u00d7*]\s*(\d{2,4})/i.test(q);
+    const fileMatch = q.match(/\b\.?(dxf|dwg|csv|step|stp|stl|pdf|png|jpe?g|zip)\b/i);
+    const rows = explicit ? boxes.map(b => ({
+      label: b.n, value: b.d + ' × ' + b.h + ' × ' + b.w + (b.q > 1 ? '  ·  ' + b.q + '×' : '')
+    })) : [];
+    const y = this.railSlot(explicit ? 150 + rows.length * 21 : 168);
+    const win = {
+      id, code: 'STRUCT', title: 'Structured input', query: q, status: 'structured',
+      source: fileMatch ? fileMatch[0].toUpperCase().replace('.', '') + ' file' : 'Free text',
+      inferred: explicit
+        ? 'X, Y, Z read straight from your wording.'
+        : (fileMatch ? 'No dimensions in the text — they get read from the file you drop in.' : 'No dimensions yet. Describe them, or drop a file into the app window.'),
+      hasRows: explicit,
+      rows, target: intent.label,
+      x, y, z: ++this.zTop, w: W, railH: explicit ? 150 + rows.length * 21 : 168
+    };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+    window.setTimeout(() => this.revealY(y, explicit ? 150 + rows.length * 21 : 168), 30);
+  }
+
+  /* the app's output artifact, on its way to the database */
+  spawnDxf(q, intent){
+    const id = 'g' + Date.now() + Math.floor(Math.random()*1000);
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const W = Math.min(this.RAIL_W, Math.max(210, layer.width - 40));
+    const x = this.RAIL_X;
+    const y = this.railSlot(200);
+    const boxes = this.parseBoxes(q);
+    const count = boxes.reduce((s, b) => s + (b.q || 1), 0);
+    const sheets = Math.max(1, Math.ceil(count * 0.6));
+    const stamp = new Date();
+    const pad = (v) => String(v).padStart(2, '0');
+    const win = {
+      id, code: 'DXF-' + String(Math.floor(1000 + Math.random()*9000)),
+      title: 'DXF ready', query: q, status: 'dxf',
+      fileName: intent.label.toLowerCase().replace(/[^a-z]+/g, '-') + '-' + pad(stamp.getHours()) + pad(stamp.getMinutes()) + '.dxf',
+      partCount: count + (count === 1 ? ' part' : ' parts'),
+      sheetCount: sheets + (sheets === 1 ? ' sheet' : ' sheets'),
+      x, y, z: ++this.zTop, w: W, railH: 200
+    };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+    window.setTimeout(() => this.revealY(y, 200), 30);
+  }
+
+  spawnAnswer(q){
+    const id = 'w' + Date.now() + Math.floor(Math.random()*1000);
+    const code = 'FFT-' + String(Math.floor(1000 + Math.random()*9000));
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const wantsImage = this.imageRe.test(q);
+    const image = wantsImage ? this.imagePool[Math.floor(Math.random() * this.imagePool.length)] : null;
+    const W = image ? 420 : 400;
+    const n = this.state.spawnCount;
+    const baseX = 70 + (n % 6) * 36;
+    const baseY = 44 + (n % 6) * 34 + Math.floor(n / 6) * 24;
+    const x = Math.max(12, Math.min(baseX, layer.width - W - 24));
+    const y = Math.max(10, Math.min(baseY, Math.max(10, layer.height - 120)));
+    const win = { id, code, title: 'Concierge', query: q, status: 'loading', text: '', displayText: '', typing: false, x, y, z: ++this.zTop, w: W, image: image };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+    this.fetchAnswer(id, q, wantsImage);
+  }
+
+  spawnBoxout(q){
+    const id = 'b' + Date.now() + Math.floor(Math.random()*1000);
+    const code = 'BXO-' + String(Math.floor(1000 + Math.random()*9000));
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const boxes = this.parseBoxes(q);
+    const W = 736, H = Math.max(240, Math.min(500, layer.height - 16));
+    const n = this.state.spawnCount;
+    const baseX = 56 + (n % 5) * 34;
+    const baseY = 18 + (n % 5) * 26;
+    const x = Math.max(12, Math.min(baseX, Math.max(12, layer.width - W - 24)));
+    const y = Math.max(8, Math.min(baseY, Math.max(8, layer.height - H - 8)));
+    const title = boxes.length === 1 ? ('Door boxout \u00b7 ' + boxes[0].d + '\u00d7' + boxes[0].h + '\u00d7' + boxes[0].w) : ('Door boxout set \u00b7 ' + boxes.length + ' boxes');
+    const win = { id, code, title, query: q, status: 'boxout', boxes, sel: 0, plate: 'kiefer', x, y, z: ++this.zTop, w: W, h: H };
+    this.setState(s => ({ windows: [...s.windows, win], spawnCount: s.spawnCount + 1 }));
+  }
+
+  async fetchAnswer(id, q, wantsImage){
+    try {
+      if (!(window.claude && window.claude.complete)) throw new Error('offline');
+      let content = this.context() + '\n\nVisitor question: ' + q;
+      if (wantsImage) {
+        content += '\n\nNOTE: A sample reference image (an architectural / product-style photo) is already being shown above your answer in the UI. In 2-3 short sentences, acknowledge the preview, explain that this is just a sample of the kind of visual F2F can produce, and invite them to upload a file or describe their object for a real render. Do not describe the sample photo in detail.';
+      }
+      const text = await window.claude.complete({ messages: [{ role: 'user', content }] });
+      this.startTyping(id, (text || '').trim() || 'No response received.');
+    } catch (err) {
+      this.updateWin(id, { status: 'error' });
+    }
+  }
+
+  startTyping(id, full){
+    const tw = this.props.typewriter !== false;
+    if (!tw) { this.updateWin(id, { status: 'done', text: full, displayText: full, typing: false }); return; }
+    this.updateWin(id, { status: 'done', text: full, displayText: '', typing: true });
+    let i = 0;
+    const step = Math.max(2, Math.ceil(full.length / 90));
+    clearInterval(this.timers[id]);
+    this.timers[id] = setInterval(() => {
+      i += step;
+      if (i >= full.length) { clearInterval(this.timers[id]); this.updateWin(id, { displayText: full, typing: false }); return; }
+      this.updateWin(id, { displayText: full.slice(0, i) });
+    }, 18);
+  }
+
+  updateWin(id, patch){
+    this.setState(s => ({ windows: s.windows.map(w => w.id === id ? { ...w, ...patch } : w) }));
+  }
+  close(id){ clearInterval(this.timers[id]); this.setState(s => { const windows = s.windows.filter(w => w.id !== id); return { windows, overviewOpen: windows.length ? s.overviewOpen : false }; }); }
+  toggleOverview(){ this.setState(s => ({ overviewOpen: !s.overviewOpen })); }
+  resetHome(){
+    Object.values(this.timers).forEach(clearInterval);
+    this.timers = {};
+    this.zTop = 20;
+    this.drag = null;
+    if (this.inputEl) this.inputEl.value = '';
+    this.setState({ windows: [], overviewOpen: false, spawnCount: 0 });
+  }
+  selectWindow(id){
+    const w = this.state.windows.find(x => x.id === id);
+    if (!w) return;
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width: 1200, height: 600 };
+    const x = Math.max(8, Math.min(w.x, layer.width - 130));
+    const y = Math.max(0, Math.min(w.y, Math.max(0, layer.height - 40)));
+    this.updateWin(id, { x, y, z: ++this.zTop });
+    this.setState({ overviewOpen: false });
+    const scroller = this.layerEl && this.layerEl.parentElement;
+    if (scroller && scroller.scrollHeight > scroller.clientHeight) {
+      const target = Math.max(0, Math.min(y - 24, scroller.scrollHeight - scroller.clientHeight));
+      this.scrollTo(scroller, target);
+    }
+  }
+  focus(id){ const z = ++this.zTop; this.updateWin(id, { z }); }
+  retry(id){ const w = this.state.windows.find(x => x.id === id); if (!w) return; this.updateWin(id, { status: 'loading' }); this.fetchAnswer(id, w.query); }
+
+  startDrag(id, e){
+    if (e.button != null && e.button !== 0) return;
+    this.focus(id);
+    const w = this.state.windows.find(x => x.id === id);
+    if (!w) return;
+    const frame = e.currentTarget && e.currentTarget.parentElement;
+    const frameH = frame ? frame.offsetHeight : 200;
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { left:0, top:0, width:1200, height:600 };
+    this.drag = { id, dx: e.clientX - (layer.left + w.x), dy: e.clientY - (layer.top + w.y), layer, width: w.w, frameH };
+  }
+  startResize(id, e){
+    if (e.button != null && e.button !== 0) return;
+    e.stopPropagation();
+    this.focus(id);
+    const w = this.state.windows.find(x => x.id === id);
+    if (!w) return;
+    const frame = e.currentTarget && e.currentTarget.parentElement;
+    const layer = this.layerEl ? this.layerEl.getBoundingClientRect() : { width:1200, height:600 };
+    this.resize = { id, startX: e.clientX, startY: e.clientY, startW: w.w, startH: (w.h || (frame ? frame.offsetHeight : 320)), layer, x: w.x, y: w.y };
+  }
+  onDragMove(e){
+    if (this.resize) {
+      const r = this.resize;
+      let nw = r.startW + (e.clientX - r.startX);
+      let nh = r.startH + (e.clientY - r.startY);
+      nw = Math.max(300, Math.min(nw, r.layer.width - r.x - 8));
+      nh = Math.max(160, Math.min(nh, r.layer.height - r.y - 4));
+      this.updateWin(r.id, { w: nw, h: nh });
+      return;
+    }
+    if (!this.drag) return;
+    const { id, dx, dy, layer, width, frameH } = this.drag;
+    let x = e.clientX - layer.left - dx;
+    let y = e.clientY - layer.top - dy;
+    x = Math.max(-(width - 130), Math.min(x, layer.width - 130));
+    y = Math.max(0, Math.min(y, Math.max(0, layer.height - (frameH || 40))));
+    this.updateWin(id, { x, y });
+  }
+  onDragEnd(){ this.drag = null; this.resize = null; }
+
+  submitFrom(el){
+    const v = el ? el.value : '';
+    this.ask(v);
+    if (el) el.value = '';
+    if ((v || '').trim()) this.closeCtx();
+  }
+  submit(){ this.submitFrom(this.inputEl); }
+  submitDock(){ this.submitFrom(this.dockEl); }
+
+  renderVals(){
+    const dark = this.state.mode === 'dark';
+    const a = this.accents[this.state.accentKey] || this.accents.yellow;
+    const pal = dark
+      ? Object.assign({}, this.darkPalette, { accent: a.darkAccent })
+      : { bg: a.bg, surface: this.brightBase.surface, ink: this.brightBase.ink, muted: this.brightBase.muted, line: this.brightBase.line, accent: a.accent, grid: a.grid };
+    const face = dark ? '#292a2d' : 'color-mix(in oklab, ' + pal.bg + ' 72%, white)';
+    const face2 = dark ? '#35363a' : '#ffffff';
+    const hi = dark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.95)';
+    const lo = dark ? 'rgba(0,0,0,0.46)' : 'rgba(60,64,67,0.16)';
+    const drop = dark ? 'rgba(0,0,0,0.54)' : 'rgba(60,64,67,0.20)';
+    const clayOut = '14px 18px 34px ' + drop + ', 3px 5px 10px ' + drop;
+    const clayIn = 'inset 5px 5px 11px ' + hi + ', inset -6px -8px 14px ' + lo;
+    const clayPress = 'inset 7px 8px 15px ' + lo + ', inset -4px -4px 10px ' + hi;
+    const clayVars = { '--face': face, '--face2': face2, '--hi': hi, '--lo': lo, '--drop': drop,
+      '--clay-out': clayOut, '--clay-in': clayIn, '--clay-press': clayPress,
+      '--accent-deep': dark ? a.darkAccent : (a.deep || pal.accent) };
+    const vars = { '--bg': pal.bg, '--surface': pal.surface, '--ink': pal.ink, '--muted': pal.muted, '--line': pal.line, '--accent': pal.accent, '--accent-weak': 'color-mix(in srgb, ' + pal.accent + ' 16%, transparent)', '--grid': pal.grid, '--logo-filter': dark ? 'invert(1)' : 'none' };
+    Object.assign(vars, clayVars);
+    const rootStyle = Object.assign({
+      position: 'relative', width: '100%', height: '100vh', overflow: 'hidden',
+      fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif",
+      color: 'var(--ink)', backgroundColor: 'var(--bg)'
+    }, vars);
+
+    const glassBg = dark
+      ? 'linear-gradient(135deg, rgba(54,57,69,0.72), rgba(38,41,51,0.58))'
+      : 'linear-gradient(135deg, rgba(255,255,255,0.78), rgba(255,255,255,0.62))';
+    const glassBorder = dark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.78)';
+
+    const windows = this.state.windows.map(w => {
+      const base = {
+        ...w,
+        isLoading: w.status === 'loading',
+        isError: w.status === 'error',
+        isDone: w.status === 'done',
+        isBoxout: w.status === 'boxout',
+        isApp: w.status === 'app',
+        isDenied: w.status === 'denied',
+        isRequest: w.status === 'request',
+        isStructured: w.status === 'structured',
+        isDxf: w.status === 'dxf',
+        routeLabel: w.routeLabel,
+        routeWhy: w.routeWhy,
+        source: w.source,
+        inferred: w.inferred,
+        target: w.target,
+        rows: (w.rows || []).map(r => ({ label: r.label, value: r.value })),
+        hasRows: !!w.hasRows,
+        fileName: w.fileName,
+        partCount: w.partCount,
+        sheetCount: w.sheetCount,
+        pillStyle: {
+          fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif",
+          fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', borderRadius: '999px',
+          padding: '5px 11px', color: pal.ink, background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')',
+          boxShadow: clayPress
+        },
+        deniedApp: w.deniedApp,
+        deniedCompany: w.deniedCompany,
+        appUrl: w.url,
+        appHost: w.host,
+        hasImage: !!w.image,
+        imageStyle: w.image ? {
+          width: '100%', height: '184px', borderRadius: '9px', display: 'block',
+          backgroundImage: 'url("' + w.image + '")', backgroundSize: 'cover', backgroundPosition: 'center',
+          backgroundColor: 'var(--line)'
+        } : null,
+        frameStyle: {
+          position: 'absolute', left: w.x + 'px', top: w.y + 'px', width: w.w + 'px', zIndex: w.z,
+          display: 'flex', flexDirection: 'column',
+          maxHeight: w.h ? 'none' : 'calc(100vh - 270px)',
+          height: w.h ? w.h + 'px' : undefined,
+          background: 'linear-gradient(145deg, color-mix(in srgb, ' + face2 + ' 94%, transparent), color-mix(in srgb, ' + face + ' 94%, transparent))',
+          backdropFilter: 'blur(14px) saturate(1.2)', WebkitBackdropFilter: 'blur(14px) saturate(1.2)',
+          border: 'none', borderRadius: '26px', overflow: 'hidden',
+          boxShadow: clayOut + ', ' + clayIn,
+          animation: 'f2f-rise .26s cubic-bezier(.2,.8,.25,1) both'
+        },
+        dotStyle: {
+          width: '8px', height: '8px', borderRadius: '50%', flex: 'none',
+          background: 'var(--accent)',
+          animation: w.status === 'loading' ? 'f2f-pulse 1s ease-in-out infinite' : 'none',
+          opacity: w.status === 'loading' ? 1 : 0.85
+        },
+        onDrag: (e) => this.startDrag(w.id, e),
+        onResize: (e) => this.startResize(w.id, e),
+        onFocus: () => this.focus(w.id),
+        onClose: () => this.close(w.id),
+        onRetry: () => this.retry(w.id)
+      };
+      if (w.status === 'boxout') {
+        const boxes = w.boxes || [];
+        const sel = Math.min(w.sel || 0, Math.max(0, boxes.length - 1));
+        const nz = this.nesting(boxes);
+        base.boxRows = boxes.map((b, i) => ({
+          ...b, idx: i + 1, sel: i === sel,
+          pick: () => this.updateWin(w.id, { sel: i }),
+          rowStyle: {
+            display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1fr 1fr 0.55fr', gap: '8px',
+            alignItems: 'center', padding: '0 7px', height: '38px', cursor: 'pointer', borderRadius: '8px',
+            background: i === sel ? 'var(--accent-weak)' : 'transparent', transition: 'background .15s ease'
+          },
+          badgeStyle: {
+            width: '21px', height: '21px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '10px', fontWeight: 600,
+            background: i === sel ? 'var(--accent)' : 'transparent', color: i === sel ? '#fff' : 'var(--muted)',
+            border: '1px solid ' + (i === sel ? 'var(--accent)' : 'var(--line)')
+          }
+        }));
+        const sb = boxes[sel] || { d: '\u2013', h: '\u2013', w: '\u2013' };
+        base.selD = sb.d; base.selH = sb.h; base.selW = sb.w;
+        base.perKiefer = nz.perKiefer; base.perFilm = nz.perFilm; base.fullKiefer = nz.fullKiefer; base.fullFilm = nz.fullFilm;
+        base.parsedLine = 'Parsed ' + boxes.length + ' box' + (boxes.length === 1 ? '' : 'es') + ' \u00b7 ' + nz.count + ' unit' + (nz.count === 1 ? '' : 's') + ' \u00b7 Kiefer + Film';
+        const on = (w.plate || 'kiefer') === 'kiefer';
+        const seg = (act) => ({ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '9.5px', letterSpacing: '0.06em', padding: '5px 13px', borderRadius: '999px', cursor: 'pointer', border: 'none', background: act ? 'var(--accent)' : 'transparent', color: act ? '#fff' : 'var(--muted)' });
+        base.kieferPill = seg(on); base.filmPill = seg(!on);
+        base.setKiefer = () => this.updateWin(w.id, { plate: 'kiefer' });
+        base.setFilm = () => this.updateWin(w.id, { plate: 'film' });
+      }
+      return base;
+    });
+
+    const modeList = [
+      { key: 'bright', label: 'Bright', active: !dark, on: () => this.setState({ mode: 'bright' }) },
+      { key: 'dark',   label: 'Dark',   active: dark,  on: () => this.setState({ mode: 'dark' }) }
+    ].map(m => ({
+      key: m.key, label: m.label, active: m.active, on: m.on,
+      pillStyle: {
+        fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '10px', letterSpacing: '0.08em',
+        textTransform: 'uppercase', padding: '8px 14px', borderRadius: '999px', cursor: 'pointer', border: 'none',
+        background: m.active ? 'linear-gradient(150deg, ' + pal.accent + ', ' + (dark ? a.accent : a.deep) + ')' : 'transparent',
+        boxShadow: m.active ? '3px 4px 9px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.3)' : 'none',
+        color: m.active ? '#fff' : 'var(--muted)'
+      }
+    }));
+
+    const accentList = Object.keys(this.accents).map(key => {
+      const ac = this.accents[key];
+      const col = dark ? ac.darkAccent : ac.accent;
+      const active = this.state.accentKey === key;
+      return {
+        key, label: ac.label, color: col, active,
+        on: () => this.setState({ accentKey: key }),
+        swatchStyle: {
+          width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer', padding: 0, border: 'none',
+          background: 'linear-gradient(150deg, ' + (dark ? ac.darkAccent : ac.deep) + ', ' + col + ')',
+          boxShadow: active
+            ? '0 0 0 3px ' + pal.bg + ', 0 0 0 4.5px ' + col + ', 2px 3px 6px ' + drop
+            : '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.45), inset -1px -2px 4px rgba(0,0,0,0.22)',
+          transform: active ? 'scale(1.06)' : 'none',
+          transition: 'transform .15s ease'
+        }
+      };
+    });
+
+    const chipApp = {
+      'Make a boxout 300\u00d72000\u00d71000 \u2014 5\u00d7': 'boxouts',
+      'Configure a door boxout': 'boxouts',
+      'Open Simple Parts': 'simpleparts'
+    };
+    const chips = this.chipDefs
+      .filter(label => !chipApp[label] || this.hasApp(chipApp[label]))
+      .map(label => ({ label, on: () => this.ask(label) }));
+
+    const topZ = this.state.windows.reduce((m, w) => Math.max(m, w.z), 0);
+    const overviewList = this.state.windows.map(w => {
+      const active = w.z === topZ;
+      return {
+        id: w.id, title: w.title, code: w.code, active,
+        isLoading: w.status === 'loading', isError: w.status === 'error', isDone: w.status === 'done',
+        preview: (w.text || w.displayText || '').replace(/\s+/g, ' ').trim(),
+        on: () => this.selectWindow(w.id),
+        dotStyle: {
+          width: '7px', height: '7px', borderRadius: '50%', flex: 'none',
+          background: w.status === 'error' ? 'var(--muted)' : 'var(--accent)',
+          opacity: w.status === 'loading' ? 1 : 0.85,
+          animation: w.status === 'loading' ? 'f2f-pulse 1s ease-in-out infinite' : 'none'
+        },
+        thumbStyle: {
+          display: 'flex', flexDirection: 'column', textAlign: 'left', padding: 0, font: 'inherit',
+          height: '122px', overflow: 'hidden', borderRadius: '16px', cursor: 'pointer',
+          background: 'var(--surface)',
+          border: '1px solid ' + (active ? 'var(--accent)' : 'var(--line)'),
+          boxShadow: active ? '0 4px 14px rgba(20,23,40,.12)' : '0 1px 3px rgba(20,23,40,.06)',
+          transition: 'border-color .15s, box-shadow .15s, transform .15s'
+        }
+      };
+    });
+
+    const open = this.state.windows.length;
+    const dockStatus = open === 0
+      ? 'AI concierge \u00b7 live \u00b7 ask to begin'
+      : 'Right-click anywhere to ask \u00b7 ' + open + ' window' + (open === 1 ? '' : 's') + ' open';
+
+    return {
+      rootStyle, windows, modeList, accentList, chips, dockStatus, overviewList,
+      signedIn: !!this.state.session,
+      userName: this.state.session ? (this.state.session.name || this.state.session.email) : '',
+      userInitial: this.state.session ? ((this.state.session.name || this.state.session.email || '?').charAt(0).toUpperCase()) : '?',
+      userRoleCompany: this.state.session ? (this.ROLES[this.state.session.role].label + ' \u00b7 ' + this.COMPANIES[this.state.session.company].name) : '',
+      signOut: this.signOut,
+      userChipStyle: {
+        display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 13px 9px 10px', borderRadius: '17px',
+        background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')', boxShadow: clayOut + ', ' + clayIn
+      },
+      userAvatarStyle: {
+        width: '30px', height: '30px', borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff',
+        background: a.deep || pal.accent,
+        boxShadow: '3px 4px 9px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.22)'
+      },
+      signOutStyle: {
+        font: 'inherit', fontSize: '10px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
+        cursor: 'pointer', border: 'none', borderRadius: '999px', padding: '8px 12px', whiteSpace: 'nowrap',
+        color: pal.muted, background: 'transparent', boxShadow: clayPress
+      },
+      canvasStyle: (() => {
+        const needed = this.state.windows.reduce((m, w) => Math.max(m, (w.y || 0) + (w.h || 320)), 0);
+        return { position: 'relative', width: '100%', minHeight: open === 0 ? '100%' : 'max(230vh, ' + (needed + 170) + 'px)', paddingBottom: open === 0 ? '0' : '150px', display: 'flex', flexDirection: 'column' };
+      })(),
+      showAccents: true,
+      showGrid: this.props.showGrid !== false,
+      isEmpty: open === 0,
+      hasWindows: open > 0,
+      openCount: open,
+      overviewVisible: this.state.overviewOpen && open > 0,
+      toggleOverview: () => this.toggleOverview(),
+      closeOverview: () => this.setState({ overviewOpen: false }),
+      tileWindows: () => this.tileWindows(),
+      resetHome: () => this.resetHome(),
+      layerRef: (el) => { this.layerEl = el; },
+      scrollerStyle: { position: 'absolute', left: 0, right: 0, top: (19 + (this.state.headerH || 130) + 18) + 'px', bottom: 0, overflowX: 'hidden', overflowY: 'auto' },
+      emptyStyle: {
+        position: 'absolute', left: 0, right: 0, top: 0, bottom: ((this.state.dockH || 190) + 18) + 'px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'safe center',
+        textAlign: 'center', padding: '8px 24px 4px', overflowX: 'hidden', overflowY: 'auto'
+      },
+      heroFace: pal.accent,
+      heroDeep: dark ? a.accent : (a.deep || pal.accent),
+      dockRef: (el) => {
+        if (el === this.dockWrapEl) return;
+        this.dockWrapEl = el;
+        if (this._roDock) { this._roDock.disconnect(); this._roDock = null; }
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        this._roDock = new ResizeObserver(() => {
+          const h = Math.ceil(el.getBoundingClientRect().height);
+          if (h && h !== this.state.dockH) this.setState({ dockH: h });
+        });
+        this._roDock.observe(el);
+      },
+      rootRef: (el) => { this.rootEl = el; },
+      ctxOpen: !!this.state.ctx,
+      onContext: (e) => this.openCtx(e),
+      closeCtx: () => this.closeCtx(),
+      barStyle: this.state.ctx
+        ? { position: 'absolute', left: this.state.ctx.x + 'px', top: this.state.ctx.y + 'px', width: '620px', maxWidth: 'calc(100% - 24px)', zIndex: 100001, pointerEvents: 'auto', background: 'var(--surface, oklch(1 0 0))', border: '1px solid var(--accent, oklch(0.55 0.19 258))', borderRadius: '15px', boxShadow: '0 1px 2px rgba(20,23,40,.04),0 18px 44px rgba(20,23,40,.16)', display: 'flex', flexDirection: 'column', animation: 'f2f-rise .18s cubic-bezier(.2,.8,.25,1) both' }
+        : null,
+      inputRef: (el) => { this.inputEl = el; },
+      dockInputRef: (el) => { this.dockEl = el; },
+      onDockAsk: () => this.submitDock(),
+      onDockKey: (e) => { if (e.key === 'Enter') { e.preventDefault(); this.submitDock(); } },
+      onAsk: () => this.submit(),
+      ctxSuggestions: this.ctxSuggestions().map(label => ({
+        label,
+        on: () => { this.ask(label); this.closeCtx(); },
+        style: {
+          font: 'inherit', fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '13px', color: pal.ink,
+          cursor: 'pointer', border: 'none', padding: '9px 15px', borderRadius: '999px',
+          background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')',
+          boxShadow: '5px 6px 13px ' + drop + ', ' + clayIn
+        }
+      })),
+      onKey: (e) => { if (e.key === 'Enter') { e.preventDefault(); this.submit(); } if (e.key === 'Escape') this.closeCtx(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

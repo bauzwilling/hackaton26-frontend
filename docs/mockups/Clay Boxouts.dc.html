@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-b58540ab-ae59-445d-a1c5-9610ccaf8e79/styles.css">
+  <script src="_ds/organic-b58540ab-ae59-445d-a1c5-9610ccaf8e79/_ds_bundle.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+    html,body{margin:0;padding:0;}
+    a{text-decoration:none;color:inherit;}
+    button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+  </style>
+</helmet>
+
+<div style="{{ rootStyle }}">
+  <div style="position:relative;max-width:1180px;margin:0 auto;padding:30px 30px 80px;">
+
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px;margin-bottom:44px;">
+      <a href="index.dc.html" style="{{ backStyle }}">&lsaquo; Overview</a>
+      <span style="display:flex;align-items:center;gap:13px;">
+        <img src="datab_logo.png" alt="datab" style="height:34px;width:auto;display:block;filter:var(--logo-filter);" />
+        <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:18px;color:var(--ink);">Boxouts</span>
+      </span>
+      <div style="margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;">
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:999px;background:linear-gradient(145deg,var(--face2),var(--face));box-shadow:var(--clay-out),var(--clay-in);">
+          <sc-for list="{{ accentList }}" as="ac" hint-placeholder-count="6">
+            <button onClick="{{ ac.on }}" title="{{ ac.label }}" aria-label="{{ ac.label }}" style="{{ ac.swatchStyle }}"></button>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:4px;padding:5px;border-radius:999px;background:linear-gradient(145deg,var(--face),var(--face2));box-shadow:var(--clay-press);">
+          <sc-for list="{{ modeList }}" as="m" hint-placeholder-count="2">
+            <button onClick="{{ m.on }}" style="{{ m.pillStyle }}">{{ m.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:38px;max-width:58ch;">
+      <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:clamp(32px,4.4vw,50px);line-height:1.04;color:var(--acc-deep);">Door boxouts, built from dimensions.</div>
+      <div style="font-size:16.5px;line-height:1.6;color:var(--muted);margin-top:15px;">Set width, height and depth, pick the wood. Nesting, sheet count and milling time update as you go.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:26px;align-items:start;">
+
+      <div style="display:flex;flex-direction:column;gap:26px;">
+        <div style="{{ panelStyle }}">
+          <div style="{{ panelTitle }}">Dimensions</div>
+          <div style="display:flex;flex-direction:column;gap:24px;">
+            <sc-for list="{{ dims }}" as="d" hint-placeholder-count="3">
+              <div>
+                <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:13px;">
+                  <span style="font-size:12.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">{{ d.label }}</span>
+                  <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:24px;line-height:1;color:var(--acc-deep);margin-left:auto;">{{ d.value }} mm</span>
+                </div>
+                <div onPointerDown="{{ d.down }}" style="{{ d.trackStyle }}">
+                  <span style="{{ d.fillStyle }}"></span>
+                  <span style="{{ d.thumbStyle }}"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:10px;"><span>{{ d.min }}</span><span>{{ d.max }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="{{ panelStyle }}">
+          <div style="{{ panelTitle }}">Wood</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px;">
+            <sc-for list="{{ woods }}" as="w" hint-placeholder-count="4">
+              <button onClick="{{ w.on }}" style="{{ w.style }}">
+                <span style="{{ w.chipStyle }}"></span>
+                <span style="font-size:14.5px;font-weight:600;">{{ w.label }}</span>
+                <span style="font-size:12.5px;color:var(--muted);">{{ w.note }}</span>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="margin-top:26px;">
+            <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:14px;">
+              <span style="font-size:12.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Quantity</span>
+              <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:24px;line-height:1;color:var(--acc-deep);margin-left:auto;">{{ count }}</span>
+            </div>
+            <div style="{{ segStyle }}">
+              <sc-for list="{{ counts }}" as="c" hint-placeholder-count="5">
+                <button onClick="{{ c.on }}" style="{{ c.style }}">{{ c.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:17px;margin-top:26px;">
+            <div style="display:flex;align-items:center;gap:15px;">
+              <button onClick="{{ toggleFilm }}" style="{{ switchFilm }}"><span style="{{ knobFilm }}"></span></button>
+              <span style="font-size:15.5px;">Film-faced panels</span>
+              <span style="margin-left:auto;font-size:13px;color:var(--muted);">{{ labelFilm }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:15px;">
+              <button onClick="{{ toggleNest }}" style="{{ switchNest }}"><span style="{{ knobNest }}"></span></button>
+              <span style="font-size:15.5px;">Auto-Nesting</span>
+              <span style="margin-left:auto;font-size:13px;color:var(--muted);">{{ labelNest }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="{{ panelStyle }}">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:19px;">
+            <span style="{{ panelTitleInline }}">Nesting app</span>
+            <span style="{{ liveDot }}"></span>
+            <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">app.datab.at</span>
+            <a href="https://app.datab.at/" target="_blank" rel="noreferrer" style="margin-left:auto;font-size:13.5px;font-weight:600;color:var(--acc-deep);">Open &nearr;</a>
+          </div>
+          <div style="{{ frameStyle }}">
+            <iframe src="https://app.datab.at/" title="Door Boxout Generator" style="width:100%;height:100%;border:none;display:block;"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:26px;">
+        <div style="{{ panelStyle }}">
+          <div style="{{ panelTitle }}">Boxout</div>
+          <div style="{{ previewStyle }}">
+            <span style="{{ boxOuter }}">
+              <span style="{{ boxLeft }}"></span>
+              <span style="{{ boxRight }}"></span>
+              <span style="{{ boxTop }}"></span>
+              <span style="{{ boxFloor }}"></span>
+            </span>
+          </div>
+          <div style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:12px;letter-spacing:0.08em;color:var(--muted);text-align:center;margin-top:16px;">{{ dimLabel }}</div>
+        </div>
+
+        <div style="{{ panelStyle }}">
+          <div style="{{ panelTitle }}">Order</div>
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <span style="font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:42px;line-height:1;color:var(--acc-deep);">{{ total }}</span>
+            <span style="font-size:15px;color:var(--muted);">net</span>
+          </div>
+          <div style="font-size:14px;color:var(--muted);margin-top:9px;">{{ unitPrice }} per boxout</div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:22px;">
+            <sc-for list="{{ lines }}" as="l" hint-placeholder-count="5">
+              <div style="{{ l.style }}">
+                <span style="font-size:14.5px;color:var(--muted);">{{ l.label }}</span>
+                <span style="margin-left:auto;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;font-size:13.5px;color:var(--ink);">{{ l.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <button style="{{ primaryBtnStyle }}">Send to production</button>
+        </div>
+
+        <div style="{{ panelStyle }}">
+          <div style="{{ panelTitle }}">Sheet usage</div>
+          <div style="{{ sheetStyle }}">
+            <sc-for list="{{ nested }}" as="n" hint-placeholder-count="6">
+              <span style="{{ n.style }}"></span>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:11px;margin-top:16px;font-size:13.5px;color:var(--muted);">
+            <span style="{{ legendAcc }}"></span>Teile
+            <span style="{{ legendIdle }}"></span>Verschnitt
+            <span style="margin-left:auto;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;">{{ waste }} %</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bright&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;bright&quot;,&quot;tsType&quot;:&quot;'bright' | 'dark'&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;terracotta&quot;,&quot;sage&quot;,&quot;rose&quot;,&quot;ochre&quot;,&quot;slate&quot;,&quot;plum&quot;],&quot;default&quot;:&quot;terracotta&quot;,&quot;tsType&quot;:&quot;'terracotta' | 'sage' | 'rose' | 'ochre' | 'slate' | 'plum'&quot;}}">
+class Component extends DCLogic {
+  state = { mode: 'bright', accentKey: 'terracotta', wood: 'Pine', w: 300, h: 1790, d: 945, count: 6, film: true, nest: true };
+
+  accents = {
+    terracotta: { label: 'Terracotta', base: '#c67139', deep: '#8f4d24', lite: '#dd9a6b', bg: '#f5ead8' },
+    sage:       { label: 'Sage',       base: '#7a8a5e', deep: '#556140', lite: '#a2ae87', bg: '#eff0e4' },
+    rose:       { label: 'Clay rose',    base: '#c58d86', deep: '#8f5b55', lite: '#dcb2ad', bg: '#f6e9e5' },
+    ochre:      { label: 'Ochre',      base: '#c89a3f', deep: '#8f6b1f', lite: '#dfbc76', bg: '#f7eeda' },
+    slate:      { label: 'Slate',   base: '#7c95a3', deep: '#4f6673', lite: '#a6b8c2', bg: '#ecf0f2' },
+    plum:       { label: 'Plum',    base: '#8d6e8f', deep: '#614562', lite: '#b39cb4', bg: '#f2eaf1' }
+  };
+
+  woodDefs = [
+    { label: 'Pine',   note: 'Solid, oiled',    rate: 1.00, chip: '#d8b184' },
+    { label: 'Spruce', note: 'Solid, rough',    rate: 0.88, chip: '#e2c9a4' },
+    { label: 'Birch',  note: 'Plywood 18 mm',   rate: 1.24, chip: '#cfa876' },
+    { label: 'Oak',    note: 'Solid, light',    rate: 1.62, chip: '#b98d5c' }
+  ];
+
+  ranges = {
+    w: { label: 'Width', min: 200, max: 600 },
+    h: { label: 'Height', min: 1200, max: 2400 },
+    d: { label: 'Depth', min: 400, max: 1400 }
+  };
+
+  componentDidMount(){
+    if (this.props.mode === 'bright' || this.props.mode === 'dark') this.setState({ mode: this.props.mode });
+    if (this.props.accent && this.accents[this.props.accent]) this.setState({ accentKey: this.props.accent });
+  }
+
+  componentWillUnmount(){ this.release(); }
+
+  release(){
+    if (this._move) window.removeEventListener('pointermove', this._move);
+    if (this._up) window.removeEventListener('pointerup', this._up);
+    this._move = null; this._up = null;
+  }
+
+  dragger(key){
+    const r = this.ranges[key];
+    return (e) => {
+      const el = e.currentTarget;
+      const set = (clientX) => {
+        const box = el.getBoundingClientRect();
+        const t = Math.max(0, Math.min(1, (clientX - box.left) / box.width));
+        const raw = r.min + t * (r.max - r.min);
+        this.setState({ [key]: Math.round(raw / 5) * 5 });
+      };
+      set(e.clientX);
+      this._move = (ev) => set(ev.clientX);
+      this._up = () => this.release();
+      window.addEventListener('pointermove', this._move);
+      window.addEventListener('pointerup', this._up);
+    };
+  }
+
+  renderVals(){
+    const dark = this.state.mode === 'dark';
+    const a = this.accents[this.state.accentKey] || this.accents.terracotta;
+    const sage = this.accents.sage;
+
+    const bg    = dark ? '#2a2320' : a.bg;
+    const face  = dark ? '#3a302b' : 'color-mix(in oklab, ' + bg + ' 72%, white)';
+    const face2 = dark ? '#483c35' : 'color-mix(in oklab, ' + bg + ' 30%, white)';
+    const ink   = dark ? '#f4ece1' : '#201e1d';
+    const muted = dark ? '#b3a496' : '#7d7064';
+    const hi    = dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.85)';
+    const lo    = dark ? 'rgba(0,0,0,0.42)' : 'rgba(140,105,68,0.20)';
+    const drop  = dark ? 'rgba(0,0,0,0.50)' : 'rgba(120,92,58,0.24)';
+    const accDeep = dark ? a.lite : a.deep;
+    const mix = (c, pct, into) => 'color-mix(in oklab, ' + c + ' ' + pct + '%, ' + into + ')';
+
+    const clayOut = '14px 18px 34px ' + drop + ', 3px 5px 10px ' + drop;
+    const clayIn = 'inset 5px 5px 11px ' + hi + ', inset -6px -8px 14px ' + lo;
+    const clayPress = 'inset 7px 8px 15px ' + lo + ', inset -4px -4px 10px ' + hi;
+
+    const rootStyle = {
+      '--bg': bg, '--face': face, '--face2': face2, '--ink': ink, '--muted': muted,
+      '--hi': hi, '--lo': lo, '--drop': drop, '--acc': a.base, '--acc-deep': accDeep,
+      '--logo-filter': dark ? 'invert(1)' : 'none',
+      '--clay-out': clayOut, '--clay-in': clayIn, '--clay-press': clayPress,
+      position: 'relative', minHeight: '100vh', background: bg, color: ink, overflowX: 'hidden',
+      fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif"
+    };
+
+    const panelStyle = {
+      borderRadius: '26px', padding: '26px 28px',
+      background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')',
+      boxShadow: clayOut + ', ' + clayIn
+    };
+    const panelTitle = { fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '19px', lineHeight: 1.1, color: ink, marginBottom: '19px' };
+
+    const modeList = [
+      { key: 'bright', label: 'Bright' },
+      { key: 'dark', label: 'Dark' }
+    ].map(m => {
+      const active = this.state.mode === m.key;
+      return {
+        label: m.label, on: () => this.setState({ mode: m.key }),
+        pillStyle: {
+          font: 'inherit', fontSize: '11.5px', letterSpacing: '0.1em', textTransform: 'uppercase',
+          padding: '8px 15px', borderRadius: '999px', cursor: 'pointer', border: 'none',
+          color: active ? '#fff' : muted,
+          background: active ? 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')' : 'transparent',
+          boxShadow: active ? '3px 4px 9px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.3)' : 'none'
+        }
+      };
+    });
+
+    const accentList = Object.keys(this.accents).map(key => {
+      const ac = this.accents[key];
+      const active = this.state.accentKey === key;
+      return {
+        label: ac.label, on: () => this.setState({ accentKey: key }),
+        swatchStyle: {
+          width: '20px', height: '20px', borderRadius: '50%', padding: 0, border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(150deg, ' + ac.lite + ', ' + ac.base + ')',
+          boxShadow: active
+            ? '0 0 0 3px ' + face + ', 0 0 0 4.5px ' + ac.base + ', 2px 3px 6px ' + drop
+            : '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.45), inset -1px -2px 4px rgba(0,0,0,0.22)',
+          transform: active ? 'scale(1.06)' : 'none', transition: 'transform .15s ease'
+        }
+      };
+    });
+
+    const track = { position: 'relative', height: '22px', borderRadius: '999px', cursor: 'pointer', touchAction: 'none', background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress };
+    const dims = ['w', 'h', 'd'].map(key => {
+      const r = this.ranges[key];
+      const v = this.state[key];
+      const pct = (v - r.min) / (r.max - r.min);
+      return {
+        label: r.label, value: v.toLocaleString('en-US'), min: r.min, max: r.max,
+        down: this.dragger(key),
+        trackStyle: track,
+        fillStyle: { position: 'absolute', left: '3px', top: '3px', bottom: '3px', width: 'calc(' + (pct * 100).toFixed(1) + '% - 6px)', minWidth: '16px', borderRadius: '999px', background: 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')', boxShadow: 'inset 1px 1px 3px rgba(255,255,255,0.3), inset -1px -2px 5px rgba(0,0,0,0.2)' },
+        thumbStyle: { position: 'absolute', top: '50%', left: (pct * 100).toFixed(1) + '%', width: '30px', height: '30px', marginLeft: '-15px', borderRadius: '50%', transform: 'translateY(-50%)', background: 'linear-gradient(150deg, ' + face2 + ', ' + face + ')', boxShadow: '4px 6px 12px ' + drop + ', inset 2px 2px 4px rgba(255,255,255,0.6), inset -2px -3px 6px rgba(0,0,0,0.18)' }
+      };
+    });
+
+    const woods = this.woodDefs.map(w => {
+      const active = this.state.wood === w.label;
+      return {
+        label: w.label, note: w.note, on: () => this.setState({ wood: w.label }),
+        style: {
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px',
+          font: 'inherit', color: ink, cursor: 'pointer', border: 'none', textAlign: 'left',
+          padding: '17px 18px', borderRadius: '20px',
+          background: active
+            ? 'linear-gradient(145deg, ' + mix(a.base, dark ? 20 : 12, face2) + ', ' + mix(a.base, dark ? 34 : 26, face) + ')'
+            : 'linear-gradient(145deg, ' + face + ', ' + face2 + ')',
+          boxShadow: active ? clayOut + ', ' + clayIn : clayPress
+        },
+        chipStyle: {
+          width: '26px', height: '26px', borderRadius: '9px',
+          background: 'linear-gradient(160deg, ' + mix(w.chip, 68, 'white') + ', ' + w.chip + ')',
+          boxShadow: '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.45), inset -1px -2px 4px rgba(0,0,0,0.2)'
+        }
+      };
+    });
+
+    const counts = [1, 2, 4, 6, 12].map(v => {
+      const active = this.state.count === v;
+      return {
+        label: String(v), on: () => this.setState({ count: v }),
+        style: {
+          flex: 1, font: 'inherit', fontSize: '14px', fontWeight: active ? 700 : 500, cursor: 'pointer', border: 'none',
+          padding: '12px 8px', borderRadius: '999px', color: active ? '#fff' : muted,
+          background: active ? 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')' : 'transparent',
+          boxShadow: active ? '4px 5px 11px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.3)' : 'none'
+        }
+      };
+    });
+
+    const sw = (on, toggle) => ({
+      toggle,
+      switchStyle: {
+        width: '62px', height: '34px', flex: 'none', borderRadius: '999px', border: 'none', cursor: 'pointer',
+        padding: '4px', display: 'flex', justifyContent: on ? 'flex-end' : 'flex-start', alignItems: 'center',
+        background: on ? 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')' : 'linear-gradient(145deg, ' + face + ', ' + face2 + ')',
+        boxShadow: clayPress, transition: 'background .2s ease'
+      },
+      knobStyle: {
+        width: '26px', height: '26px', borderRadius: '50%',
+        background: on ? 'linear-gradient(150deg, #fff, ' + mix('#ffffff', 82, a.lite) + ')' : 'linear-gradient(150deg, ' + face2 + ', ' + face + ')',
+        boxShadow: '3px 4px 8px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.6), inset -1px -2px 4px rgba(0,0,0,0.16)'
+      }
+    });
+    const swF = sw(this.state.film, () => this.setState(s => ({ film: !s.film })));
+    const swN = sw(this.state.nest, () => this.setState(s => ({ nest: !s.nest })));
+
+    const wood = this.woodDefs.find(w => w.label === this.state.wood) || this.woodDefs[0];
+    const area = (this.state.w * this.state.h * 2 + this.state.d * this.state.h * 2 + this.state.w * this.state.d) / 1e6;
+    const unitNet = area * 78 * wood.rate * (this.state.film ? 1.14 : 1);
+    const count = this.state.count;
+    const bulk = count >= 12 ? 0.86 : count >= 6 ? 0.93 : 1;
+    const unit = unitNet * bulk;
+    const totalNet = unit * count;
+    const eur = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    const sheets = Math.max(1, Math.ceil(area * count / 3.1));
+    const waste = this.state.nest ? 7 : 19;
+    const minutes = Math.round(area * count * 26);
+
+    const lineStyle = {
+      display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '16px', padding: '13px 16px',
+      background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress
+    };
+    const lines = [
+      { label: 'Wood', value: wood.label + (this.state.film ? ', film-faced' : '') },
+      { label: 'Area', value: area.toFixed(2) + ' m² per unit' },
+      { label: 'Sheets', value: sheets + ' pcs' },
+      { label: 'Milling time', value: Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' m' },
+      { label: 'Volume discount', value: bulk === 1 ? '—' : Math.round((1 - bulk) * 100) + ' %' }
+    ].map(l => ({ label: l.label, value: l.value, style: lineStyle }));
+
+    const raisedPart = (col, extra) => Object.assign({
+      background: 'linear-gradient(160deg, ' + mix(col, 70, 'white') + ', ' + col + ')',
+      boxShadow: '3px 5px 11px ' + drop + ', inset 2px 2px 5px rgba(255,255,255,0.40), inset -2px -3px 7px rgba(0,0,0,0.20)'
+    }, extra);
+
+    const bw = 40 + (this.state.w - 200) / 400 * 46;
+    const bh = 96 + (this.state.h - 1200) / 1200 * 56;
+
+    const nested = Array.from({ length: 12 }).map((_, i) => {
+      const filled = i < Math.round(12 * (1 - waste / 100) * 0.92);
+      return {
+        style: {
+          borderRadius: '8px', minHeight: '26px',
+          background: filled
+            ? 'linear-gradient(160deg, ' + mix(a.base, 68, 'white') + ', ' + a.base + ')'
+            : 'transparent',
+          boxShadow: filled
+            ? '2px 3px 6px ' + drop + ', inset 1px 1px 3px rgba(255,255,255,0.35)'
+            : 'inset 2px 3px 6px ' + lo
+        }
+      };
+    });
+
+    return {
+      rootStyle, panelStyle, panelTitle, modeList, accentList, dims, woods, counts, lines, nested,
+      panelTitleInline: { fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif", fontSize: '19px', lineHeight: 1.1, color: ink },
+      count, waste,
+      total: eur(totalNet), unitPrice: eur(unit),
+      dimLabel: this.state.w + ' × ' + this.state.h + ' × ' + this.state.d + ' mm',
+      toggleFilm: swF.toggle, switchFilm: swF.switchStyle, knobFilm: swF.knobStyle, labelFilm: this.state.film ? 'An' : 'Aus',
+      toggleNest: swN.toggle, switchNest: swN.switchStyle, knobNest: swN.knobStyle, labelNest: this.state.nest ? 'An' : 'Aus',
+
+      backStyle: {
+        display: 'flex', alignItems: 'center', font: 'inherit', fontSize: '13.5px', fontWeight: 600, color: muted,
+        padding: '11px 18px', borderRadius: '16px',
+        background: 'linear-gradient(145deg, ' + face2 + ', ' + face + ')', boxShadow: clayOut + ', ' + clayIn
+      },
+      primaryBtnStyle: {
+        width: '100%', marginTop: '22px', font: 'inherit', fontSize: '16px', fontWeight: 700, color: '#fff',
+        cursor: 'pointer', border: 'none', padding: '16px', borderRadius: '18px',
+        background: 'linear-gradient(150deg, ' + a.lite + ', ' + a.base + ')',
+        boxShadow: '8px 10px 20px ' + drop + ', inset 2px 2px 5px rgba(255,255,255,0.35), inset -3px -4px 9px rgba(0,0,0,0.22)'
+      },
+      segStyle: { display: 'flex', gap: '5px', padding: '5px', borderRadius: '999px', background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress },
+      frameStyle: { height: '340px', borderRadius: '20px', overflow: 'hidden', background: face2, boxShadow: clayPress },
+      liveDot: { width: '8px', height: '8px', borderRadius: '50%', background: sage.base, boxShadow: '1px 2px 4px ' + drop },
+
+      previewStyle: {
+        height: '210px', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress
+      },
+      boxOuter: { position: 'relative', width: bw + 'px', height: bh + 'px' },
+      boxLeft: raisedPart(wood.chip, { position: 'absolute', left: 0, top: 0, bottom: 0, width: '13px', borderRadius: '7px' }),
+      boxRight: raisedPart(wood.chip, { position: 'absolute', right: 0, top: 0, bottom: 0, width: '13px', borderRadius: '7px' }),
+      boxTop: raisedPart(this.state.film ? sage.base : wood.chip, { position: 'absolute', left: '9px', right: '9px', top: 0, height: '13px', borderRadius: '7px' }),
+      boxFloor: raisedPart(this.state.film ? sage.base : wood.chip, { position: 'absolute', left: '9px', right: '9px', bottom: 0, height: '13px', borderRadius: '7px' }),
+
+      sheetStyle: {
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '9px', padding: '14px',
+        borderRadius: '20px', background: 'linear-gradient(145deg, ' + face + ', ' + face2 + ')', boxShadow: clayPress
+      },
+      legendAcc: { width: '12px', height: '12px', borderRadius: '4px', background: a.base, boxShadow: '1px 2px 4px ' + drop },
+      legendIdle: { width: '12px', height: '12px', borderRadius: '4px', background: face, boxShadow: 'inset 1px 2px 4px ' + lo, marginLeft: '9px' }
+    };
+  }
+}
+</script>
+</body>
+</html>
