@@ -160,17 +160,18 @@ export function isWorkspaceApp(v: string): v is WorkspaceApp {
   return WORKSPACE_APPS.some((a) => a.id === v);
 }
 
-function persistKey(company: string) {
-  return `f2f.workspace.${company}`;
+// Stand-in until a per-user config API exists.
+function persistKey(email: string) {
+  return `f2f.workspace.${email || "anon"}`;
 }
 
 function requestsKey(email: string) {
   return `f2f.requests.${email || "anon"}`;
 }
 
-function loadPersist(company: string): Persist | null {
+function loadPersist(email: string): Persist | null {
   try {
-    const raw = localStorage.getItem(persistKey(company));
+    const raw = localStorage.getItem(persistKey(email));
     if (!raw) return null;
     const data = JSON.parse(raw) as Persist;
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) return null;
@@ -348,7 +349,6 @@ function withConcierge(list: WorkspaceNode[]): WorkspaceNode[] {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
-  const company = session?.company ?? "none";
   const email = session?.email ?? "anon";
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const [edges, setEdges] = useState<WorkspaceEdge[]>([]);
@@ -366,7 +366,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
   useEffect(() => {
-    const saved = loadPersist(company) ?? emptyPersist();
+    const saved = loadPersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
       .filter((n) => n.kind !== "request" && (n.kind !== "text" || n.id === CONCIERGE_ID))
@@ -376,7 +376,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPan(saved.pan ?? { x: 0, y: 0 });
     setZoom(saved.zoom ?? 1);
     zTop.current = saved.zTop ?? 10;
-  }, [company]);
+  }, [email]);
 
   useEffect(() => {
     skipEntries.current += 1;
@@ -394,9 +394,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     const data: Persist = { nodes, edges, pan, zoom, zTop: zTop.current };
     try {
-      localStorage.setItem(persistKey(company), JSON.stringify(data));
+      localStorage.setItem(persistKey(email), JSON.stringify(data));
     } catch { /* ignore */ }
-  }, [company, nodes, edges, pan, zoom]);
+  }, [email, nodes, edges, pan, zoom]);
 
   useEffect(() => {
     if (skipEntries.current > 0) {
@@ -726,15 +726,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const nw = Math.max(minW, Math.round(w));
       const nh = Math.max(80, Math.round(h));
       if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
-      const grown = { ...n, w: nw, h: nh };
-      const others = list.filter((o) => o.id !== id && !o.hidden);
-      const overlaps = others.some((o) => hits(
-        { x: grown.x, y: grown.y, w: nw, h: nh },
-        boxOf(o),
-      ));
-      if (!overlaps) return grown;
-      const slot = placeBeside(list, nw, nh, id);
-      return { ...grown, ...slot };
+      return { ...n, w: nw, h: nh };
     }));
   }, []);
 

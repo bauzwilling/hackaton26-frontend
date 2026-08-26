@@ -2,13 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as P
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
 import { useWorkspace, type WorkspaceNode } from "../context/workspace";
-import {
-  capSpeed,
-  spawnVelocity,
-  stepBubbles,
-  viewportToWorld,
-  type BubbleBody,
-} from "./bubbles";
+import { type BubbleBody } from "./bubbles";
 import { NodeBody } from "./NodeBody";
 import { WireLayer } from "./WireLayer";
 
@@ -30,13 +24,8 @@ type DragState = {
   id: string;
   dx: number;
   dy: number;
-  lastX: number;
-  lastY: number;
-  lastT: number;
   bubble: boolean;
 };
-
-const FLUSH_MS = 2000;
 
 export function StudioCanvas() {
   const {
@@ -49,19 +38,14 @@ export function StudioCanvas() {
   const panDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
-  const nodesRef = useRef(nodes);
-  const viewportRef = useRef({ width: 1200, height: 700 });
   const moveRef = useRef(move);
   const bodiesRef = useRef(new Map<string, BubbleBody>());
-  const flushedRef = useRef(new Map<string, { x: number; y: number }>());
   useEffect(() => { panRef.current = pan; }, [pan]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { moveRef.current = move; }, [move]);
   const [panning, setPanning] = useState(false);
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [, setBubbleTick] = useState(0);
-  useEffect(() => { viewportRef.current = viewport; }, [viewport]);
 
   useEffect(() => {
     const el = layer.current;
@@ -95,85 +79,30 @@ export function StudioCanvas() {
   }, [setPan, setZoom]);
 
   useEffect(() => {
-    if (!bubbleMode) return;
-
-    function syncBodies() {
-      const list = nodesRef.current;
-      const bodies = bodiesRef.current;
-      const flushed = flushedRef.current;
-      const live = new Set<string>();
-      for (const n of list) {
-        if (n.hidden) continue;
-        live.add(n.id);
-        let b = bodies.get(n.id);
-        if (!b) {
-          const v = spawnVelocity();
-          b = { id: n.id, x: n.x, y: n.y, vx: v.vx, vy: v.vy, w: n.w, h: n.h, phase: Math.random() * Math.PI * 2 };
-          bodies.set(n.id, b);
-          flushed.set(n.id, { x: n.x, y: n.y });
-        } else {
-          b.w = n.w;
-          b.h = n.h;
-          const f = flushed.get(n.id);
-          if (f && (Math.abs(n.x - f.x) > 0.5 || Math.abs(n.y - f.y) > 0.5)) {
-            b.x = n.x;
-            b.y = n.y;
-            flushed.set(n.id, { x: n.x, y: n.y });
-          }
-        }
-      }
-      for (const id of [...bodies.keys()]) {
-        if (!live.has(id)) {
-          bodies.delete(id);
-          flushed.delete(id);
-        }
-      }
-    }
-
-    function flushBodies() {
-      const write = moveRef.current;
-      const positions = new Map<string, { x: number; y: number }>();
-      for (const b of bodiesRef.current.values()) {
-        write(b.id, b.x, b.y);
-        flushedRef.current.set(b.id, { x: b.x, y: b.y });
-        positions.set(b.id, { x: b.x, y: b.y });
-      }
-      nodesRef.current = nodesRef.current.map((n) => {
-        const p = positions.get(n.id);
-        return p ? { ...n, x: p.x, y: p.y } : n;
-      });
-    }
-
-    syncBodies();
-    let raf = 0;
-    let last = performance.now();
-    let lastFlush = last;
-    const loop = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      syncBodies();
-      const bounds = viewportToWorld(panRef.current, zoomRef.current, viewportRef.current);
-      stepBubbles(
-        [...bodiesRef.current.values()],
-        dt,
-        bounds,
-        drag.current?.bubble ? drag.current.id : null,
-      );
-      if (now - lastFlush > FLUSH_MS) {
-        lastFlush = now;
-        flushBodies();
-      }
-      setBubbleTick((n) => n + 1);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => {
-      cancelAnimationFrame(raf);
-      flushBodies();
+    if (!bubbleMode) {
       bodiesRef.current.clear();
-      flushedRef.current.clear();
-    };
-  }, [bubbleMode]);
+      return;
+    }
+    if (drag.current?.bubble) return;
+    const bodies = bodiesRef.current;
+    const live = new Set<string>();
+    for (const n of nodes) {
+      if (n.hidden) continue;
+      live.add(n.id);
+      const b = bodies.get(n.id);
+      if (!b) {
+        bodies.set(n.id, { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h });
+      } else {
+        b.w = n.w;
+        b.h = n.h;
+        b.x = n.x;
+        b.y = n.y;
+      }
+    }
+    for (const id of [...bodies.keys()]) {
+      if (!live.has(id)) bodies.delete(id);
+    }
+  }, [bubbleMode, nodes]);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.code === "Space" && e.target === e.currentTarget) e.preventDefault();
@@ -209,14 +138,9 @@ export function StudioCanvas() {
     const d = drag.current;
     const x = pt.x - d.dx;
     const y = pt.y - d.dy;
-    const now = performance.now();
-    const dt = Math.max(now - d.lastT, 8) / 1000;
     if (d.bubble) {
       const body = bodiesRef.current.get(d.id);
       if (body) {
-        body.vx = (x - body.x) / dt;
-        body.vy = (y - body.y) / dt;
-        capSpeed(body);
         body.x = x;
         body.y = y;
         setBubbleTick((n) => n + 1);
@@ -224,23 +148,13 @@ export function StudioCanvas() {
     } else {
       move(d.id, x, y);
     }
-    d.lastX = x;
-    d.lastY = y;
-    d.lastT = now;
   }
 
   function endGesture() {
     const d = drag.current;
     if (d?.bubble) {
       const body = bodiesRef.current.get(d.id);
-      if (body) {
-        capSpeed(body);
-        moveRef.current(body.id, body.x, body.y);
-        flushedRef.current.set(body.id, { x: body.x, y: body.y });
-        nodesRef.current = nodesRef.current.map((n) => (
-          n.id === body.id ? { ...n, x: body.x, y: body.y } : n
-        ));
-      }
+      if (body) moveRef.current(body.id, body.x, body.y);
     }
     drag.current = null;
     panDrag.current = null;
@@ -258,9 +172,6 @@ export function StudioCanvas() {
       id: node.id,
       dx: pt.x - x,
       dy: pt.y - y,
-      lastX: x,
-      lastY: y,
-      lastT: performance.now(),
       bubble: !!bubbleMode,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
