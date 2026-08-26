@@ -2,19 +2,23 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Surface } from "../components/kit";
 import { useWorkspace } from "../context/workspace";
 import { CHIPS } from "../lib/catalog";
+import { FILE_ACCEPT } from "../lib/intake";
 
 export function AskMenu({
   at,
   host,
+  world,
   onClose,
 }: {
   at: { x: number; y: number };
   host: { width: number; height: number };
+  world: { x: number; y: number };
   onClose: () => void;
 }) {
-  const { ask, entries } = useWorkspace();
+  const { ask, addNote, ingestFiles, entries } = useWorkspace();
   const [value, setValue] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const W = 420;
   const left = Math.max(12, Math.min(at.x, host.width - W - 12));
   const top = Math.max(12, Math.min(at.y, host.height - 160));
@@ -67,6 +71,40 @@ export function AskMenu({
             ))}
           </div>
         )}
+        <div className="ctx-actions">
+          <input
+            ref={fileInput}
+            type="file"
+            accept={FILE_ACCEPT}
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              if (!files.length) return;
+              ingestFiles(files);
+              onClose();
+            }}
+          />
+          <Surface
+            as="button"
+            type="button"
+            relief="inset"
+            style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+            onClick={() => fileInput.current?.click()}
+          >
+            Attach file
+          </Surface>
+          <Surface
+            as="button"
+            type="button"
+            relief="inset"
+            style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+            onClick={() => { addNote({ x: world.x, y: world.y }); onClose(); }}
+          >
+            Add note
+          </Surface>
+        </div>
       </Surface>
     </>
   );

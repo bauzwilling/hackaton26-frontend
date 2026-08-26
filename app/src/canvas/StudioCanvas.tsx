@@ -22,12 +22,11 @@ function clientToCanvas(
 export function StudioCanvas() {
   const {
     nodes, edges, pan, zoom, setPan, setZoom,
-    focus, move, resize, fit, close, hide,
+    focus, move, fit, close, hide,
   } = useWorkspace();
   const { showWires, showGrid } = useSession();
   const layer = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
-  const size = useRef<{ id: string; ox: number; oy: number; w: number; h: number } | null>(null);
   const panDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
@@ -101,16 +100,10 @@ export function StudioCanvas() {
       const pt = clientToCanvas(el, e.clientX, e.clientY, pan, zoom);
       move(drag.current.id, pt.x - drag.current.dx, pt.y - drag.current.dy);
     }
-    if (size.current && e.buttons) {
-      const pt = clientToCanvas(el, e.clientX, e.clientY, pan, zoom);
-      const s = size.current;
-      resize(s.id, s.w + (pt.x - s.ox), s.h + (pt.y - s.oy));
-    }
   }
 
   function endGesture() {
     drag.current = null;
-    size.current = null;
     panDrag.current = null;
     setPanning(false);
   }
@@ -121,16 +114,6 @@ export function StudioCanvas() {
     const pt = clientToCanvas(el, e.clientX, e.clientY, pan, zoom);
     drag.current = { id: node.id, dx: pt.x - node.x, dy: pt.y - node.y };
     e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  function startResize(node: WorkspaceNode, e: PE<HTMLDivElement>) {
-    const el = layer.current;
-    if (!el) return;
-    e.stopPropagation();
-    const pt = clientToCanvas(el, e.clientX, e.clientY, pan, zoom);
-    size.current = { id: node.id, ox: pt.x, oy: pt.y, w: node.w, h: node.h };
-    e.currentTarget.setPointerCapture(e.pointerId);
-    focus(node.id);
   }
 
   const grid = 34 * zoom;
@@ -166,12 +149,11 @@ export function StudioCanvas() {
             height={n.h}
             kind={n.kind}
             hidden={n.hidden}
-            autoSize={n.autoSize !== false}
+            autoSize
             onFocus={() => focus(n.id)}
             onClose={() => close(n.id)}
             onHide={() => hide(n.id)}
             onDrag={(e) => startDrag(n, e)}
-            onResize={(e) => startResize(n, e)}
             onFit={(w, h) => fit(n.id, w, h)}
           >
             <NodeBody node={n} viewport={viewport} />

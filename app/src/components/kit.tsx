@@ -130,13 +130,12 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, onFocus, onClose, onHide, onDrag, onResize, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, onFocus, onClose, onHide, onDrag, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; hidden?: boolean; autoSize?: boolean;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
-  onResize?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
   children: ReactNode;
 }) {
@@ -173,7 +172,6 @@ export function Window({
         <Surface as="button" type="button" relief="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8 }} title="Close">×</Surface>
       </div>
       <div className="win-body">{children}</div>
-      {onResize && <span className="win-resize" onPointerDown={onResize} />}
     </Surface>
   );
 }
