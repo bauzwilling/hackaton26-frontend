@@ -133,7 +133,8 @@ type Ctx = {
   hide: (id: string) => void;
   show: (id: string) => void;
   tile: (viewport: { width: number; height: number }) => void;
-  clear: () => void;
+  clear: (opts?: { transcript?: boolean }) => void;
+  clearTranscript: () => void;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -772,14 +773,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const clear = useCallback(() => {
-    setNodes(entries.length ? withConcierge([logNode()]) : []);
+  const clearTranscript = useCallback(() => {
+    setEntries([]);
+    setSelectedEntryId(null);
+  }, []);
+
+  const clear = useCallback((opts?: { transcript?: boolean }) => {
+    if (opts?.transcript) {
+      setEntries([]);
+      setSelectedEntryId(null);
+      setNodes([]);
+    } else {
+      setNodes((list) => list.filter((n) => n.kind === "log" || n.id === CONCIERGE_ID));
+    }
     setEdges([]);
     setOverviewOpen(false);
     setPan({ x: 0, y: 0 });
     setZoom(1);
     zTop.current = 10;
-  }, [entries.length]);
+  }, []);
 
   const wireEdges = useMemo(
     () => buildWires(nodes, entries, selectedEntryId),
@@ -814,7 +826,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     show,
     tile,
     clear,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear]);
+    clearTranscript,
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

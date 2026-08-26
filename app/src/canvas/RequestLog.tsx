@@ -3,7 +3,7 @@ import { Surface } from "../components/kit";
 import { entryIsLive, useWorkspace, type RequestEntry } from "../context/workspace";
 
 export function RequestLog({ viewport }: { viewport: { width: number; height: number } }) {
-  const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry } = useWorkspace();
+  const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry, clearTranscript } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
@@ -34,6 +34,11 @@ export function RequestLog({ viewport }: { viewport: { width: number; height: nu
 
   return (
     <div className="request-log">
+      <div className="panel-clear">
+        <Surface as="button" type="button" relief="inset" style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12 }} onClick={clearTranscript} disabled={entries.length === 0}>
+          Clear
+        </Surface>
+      </div>
       <div className="request-log-list" ref={listRef}>
         {entries.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 13 }}>Asks in this session land here.</p>}
         {entries.map((e) => {

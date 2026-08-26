@@ -7,7 +7,7 @@ function replyOf(entry: RequestEntry) {
 }
 
 export function ConciergeChat() {
-  const { entries, selectedEntryId, setSelectedEntryId, confirmIntake } = useWorkspace();
+  const { entries, selectedEntryId, setSelectedEntryId, confirmIntake, clearTranscript } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,6 +17,11 @@ export function ConciergeChat() {
 
   return (
     <div className="concierge-chat" ref={listRef} onWheel={(e) => e.stopPropagation()}>
+      <div className="panel-clear">
+        <Surface as="button" type="button" relief="inset" style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12 }} onClick={clearTranscript} disabled={entries.length === 0}>
+          Clear
+        </Surface>
+      </div>
       {entries.length === 0 && (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>Ask anything or drop a file — replies land here.</p>
       )}
