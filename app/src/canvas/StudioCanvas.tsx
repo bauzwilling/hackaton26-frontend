@@ -319,7 +319,7 @@ export function StudioCanvas() {
               height={n.h}
               kind={n.kind}
               hidden={n.hidden}
-              autoSize
+              autoSize={n.autoSize !== false}
               enter={conciergeEnter && n.id === CONCIERGE_ID}
               flash={flashIds.includes(n.id)}
               flashKey={flashKey}

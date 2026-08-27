@@ -149,9 +149,14 @@ const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
 const APP_W = 960;
+const IFRAME_H = 720;
 const NOTE_W = 240;
 const NOTE_H = 160;
 const FLASH_MS = 700;
+
+function isIframeApp(app?: WorkspaceApp): boolean {
+  return app === "boxouts" || app === "simpleparts";
+}
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
@@ -330,12 +335,15 @@ function logNode(): WorkspaceNode {
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
+  const iframe = isIframeApp(n.appId);
   return {
     ...n,
     title: n.kind === "app" && label ? label : n.title,
-    autoSize: true,
-    w: Math.max(n.w || minW, minW),
-    h: Math.max(n.h || 80, 80),
+    autoSize: iframe ? false : true,
+    w: iframe ? Math.max(n.w || APP_W, APP_W) : Math.max(n.w || minW, minW),
+    h: iframe
+      ? (n.autoSize === false ? Math.max(n.h || IFRAME_H, 80) : IFRAME_H)
+      : Math.max(n.h || 80, 80),
   };
 }
 
@@ -499,7 +507,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (current) {
         return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
       }
-      const slot = placeBeside(base, APP_W, EST_H.app);
+      const iframe = isIframeApp(app);
+      const appH = iframe ? IFRAME_H : EST_H.app;
+      const slot = placeBeside(base, APP_W, appH);
       const node: WorkspaceNode = {
         id,
         kind: "app",
@@ -512,9 +522,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         y: slot.y,
         z,
         w: APP_W,
-        h: 1,
+        h: iframe ? IFRAME_H : 1,
         hidden: false,
-        autoSize: true,
+        autoSize: !iframe,
       };
       return [...base, node];
     });
