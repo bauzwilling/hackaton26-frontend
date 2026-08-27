@@ -5,6 +5,8 @@
  * sessionStart — refresh the local clone of the plans repo.
  * --git-pre-commit — run from .githooks/pre-commit, review the staged diff
  * against master-plan/ and msd-* READMEs, then exit 0 or 1.
+ * --git-post-commit — run from .githooks/post-commit, append the verdict to
+ * commit-verifications.md now that the commit has an id and a message.
  */
 
 import { execFileSync } from "node:child_process";
@@ -18,9 +20,19 @@ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_MODEL = "claude-sonnet-4-5";
 const MAX_PLANS_CHARS = 90_000;
 const MAX_DIFF_CHARS = 80_000;
+const REGISTER_FILE = "commit-verifications.md";
+// The register describes the commit before it, so reviewing it is pure noise.
+const REVIEW_PATHSPEC = ["--", ".", `:(exclude)${REGISTER_FILE}`];
+const VERDICT_FILE = "plan-check-verdict.json";
+// A verdict older than this belongs to a commit that never completed.
+const VERDICT_MAX_AGE_MS = 10 * 60 * 1000;
 const GIT_MODE = process.argv.includes("--git-pre-commit");
+const POST_COMMIT_MODE = process.argv.includes("--git-post-commit");
+
+let repoRootForVerdict = process.cwd();
 
 function reply(payload) {
+  if (POST_COMMIT_MODE) return;
   if (GIT_MODE) {
     replyGit(payload);
     return;
@@ -36,6 +48,7 @@ function replyGit(payload) {
   const message = payload.agent_message || payload.user_message || "";
 
   if (payload.permission === "deny") {
+    clearVerdict(repoRootForVerdict);
     process.stderr.write(
       `\n${message || "This commit conflicts with hackaton26-plans."}\n\n` +
         "Commit aborted. Fix the diff, or re-run with --no-verify to override.\n\n",
@@ -45,9 +58,12 @@ function replyGit(payload) {
   }
 
   if (message) {
+    writeVerdict(repoRootForVerdict, "UNVERIFIED", payload.user_message || message);
     process.stderr.write(`\n[check-plans] WARNING: ${message}\n\n`);
     return;
   }
+
+  writeVerdict(repoRootForVerdict, "PASSED", "");
   process.stderr.write("[check-plans] commit matches hackaton26-plans\n");
 }
 
@@ -72,6 +88,46 @@ function git(args, cwd, options = {}) {
     },
     ...options,
   });
+}
+
+function verdictPath(repoRoot) {
+  let gitDir;
+  try {
+    gitDir = git(["rev-parse", "--absolute-git-dir"], repoRoot).trim();
+  } catch {
+    gitDir = path.join(repoRoot, ".git");
+  }
+  return path.join(gitDir, VERDICT_FILE);
+}
+
+function writeVerdict(repoRoot, status, note) {
+  try {
+    fs.writeFileSync(
+      verdictPath(repoRoot),
+      jsonDump({ status, note: String(note || ""), at: Date.now() }),
+    );
+  } catch (error) {
+    log(`could not record the verdict: ${error.message || error}`);
+  }
+}
+
+function readVerdict(repoRoot) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(verdictPath(repoRoot), "utf8"));
+    if (!parsed || typeof parsed.at !== "number") return null;
+    if (Date.now() - parsed.at > VERDICT_MAX_AGE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearVerdict(repoRoot) {
+  try {
+    fs.rmSync(verdictPath(repoRoot), { force: true });
+  } catch {
+    // nothing to clear
+  }
 }
 
 function readStdin() {
@@ -237,7 +293,7 @@ function syncPlans(repoRoot) {
 function collectCommitDiff(repoRoot, command) {
   let diff = "";
   try {
-    diff = git(["diff", "--cached", "--full-index"], repoRoot);
+    diff = git(["diff", "--cached", "--full-index", ...REVIEW_PATHSPEC], repoRoot);
   } catch {
     diff = "";
   }
@@ -245,7 +301,7 @@ function collectCommitDiff(repoRoot, command) {
   const usesAll = /(?:\s|^)(?:-a|--all)(?:\s|$)/.test(command);
   if (!diff.trim() && usesAll) {
     try {
-      diff = git(["diff", "HEAD", "--full-index"], repoRoot);
+      diff = git(["diff", "HEAD", "--full-index", ...REVIEW_PATHSPEC], repoRoot);
     } catch {
       diff = "";
     }
@@ -253,21 +309,21 @@ function collectCommitDiff(repoRoot, command) {
 
   let stat = "";
   try {
-    stat = git(["diff", "--cached", "--stat"], repoRoot);
+    stat = git(["diff", "--cached", "--stat", ...REVIEW_PATHSPEC], repoRoot);
   } catch {
     stat = "";
   }
 
   let files = "";
   try {
-    files = git(["diff", "--cached", "--name-only"], repoRoot);
+    files = git(["diff", "--cached", "--name-only", ...REVIEW_PATHSPEC], repoRoot);
   } catch {
     files = "";
   }
 
   if (!files.trim() && usesAll) {
     try {
-      files = git(["diff", "HEAD", "--name-only"], repoRoot);
+      files = git(["diff", "HEAD", "--name-only", ...REVIEW_PATHSPEC], repoRoot);
     } catch {
       files = "";
     }
@@ -396,6 +452,77 @@ function formatViolations(violations) {
     .join("\n");
 }
 
+const REGISTER_HEADER = [
+  "# Commit verifications",
+  "",
+  "Appended automatically by the git hooks in `.githooks/`. Each row is the result of",
+  "checking that commit against hackaton26-plans. See \"Commit checks\" in the README.",
+  "",
+  "| Commit | Message | Checked (UTC) | Result |",
+  "| --- | --- | --- | --- |",
+  "",
+].join("\n");
+
+function escapeCell(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/\|/g, "\\|")
+    .trim();
+}
+
+function shortReason(text) {
+  const flat = String(text || "").replace(/\s+/g, " ").trim();
+  const stop = flat.indexOf(". ");
+  const first = stop === -1 ? flat : flat.slice(0, stop + 1);
+  return first.length > 90 ? `${first.slice(0, 87)}...` : first;
+}
+
+function utcStamp() {
+  return new Date().toISOString().slice(0, 16).replace("T", " ");
+}
+
+/**
+ * Runs after the commit exists, which is the first moment its id and message
+ * are known. Never throws: a broken register must not disturb a landed commit.
+ */
+function handlePostCommit(repoRoot) {
+  const verdict = readVerdict(repoRoot);
+  clearVerdict(repoRoot);
+
+  let id = "";
+  let subject = "";
+  try {
+    const line = git(["log", "-1", "--format=%h%x09%s"], repoRoot).trim();
+    const tab = line.indexOf("\t");
+    id = tab === -1 ? line : line.slice(0, tab);
+    subject = tab === -1 ? "" : line.slice(tab + 1);
+  } catch (error) {
+    log(`could not read the new commit: ${error.message || error}`);
+    return;
+  }
+  if (!id) return;
+
+  let result;
+  if (!verdict) {
+    result = "BYPASSED - committed with --no-verify";
+  } else if (verdict.status === "UNVERIFIED") {
+    result = `UNVERIFIED - ${shortReason(verdict.note)}`;
+  } else {
+    result = "PASSED";
+  }
+
+  const file = path.join(repoRoot, REGISTER_FILE);
+  try {
+    if (!fs.existsSync(file)) fs.writeFileSync(file, REGISTER_HEADER);
+    fs.appendFileSync(
+      file,
+      `| \`${id}\` | ${escapeCell(subject)} | ${utcStamp()} | ${escapeCell(result)} |\n`,
+    );
+  } catch (error) {
+    log(`could not write ${REGISTER_FILE}: ${error.message || error}`);
+  }
+}
+
 async function handleSessionStart(repoRoot) {
   try {
     syncPlans(repoRoot);
@@ -512,10 +639,16 @@ async function handleCommit(input, repoRoot) {
 }
 
 async function main() {
+  if (POST_COMMIT_MODE) {
+    handlePostCommit(resolveRepoRoot({}));
+    return;
+  }
+
   const input = GIT_MODE
     ? { hook_event_name: "beforeShellExecution", command: "git commit" }
     : parseHookInput(readStdin());
   const repoRoot = resolveRepoRoot(input);
+  repoRootForVerdict = repoRoot;
   const event = String(input.hook_event_name || "");
 
   if (event === "sessionStart" || (!input.command && input.session_id)) {

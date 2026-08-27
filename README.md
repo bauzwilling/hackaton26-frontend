@@ -49,3 +49,5 @@ From `app/`: `npm run dev`, `npm run build`, `npm run preview`.
 A `pre-commit` hook reviews every commit against [hackaton26-plans](https://github.com/bauzwilling/hackaton26-plans). `npm install` in `app/` points git at `.githooks/`; to enable it by hand, run `git config core.hooksPath .githooks`.
 
 The review needs `ANTHROPIC_API_KEY` in the repo-root `.env`. If the key is missing or the review cannot finish, the commit still goes through with a warning — only an actual plan violation blocks it. Use `git commit --no-verify` to skip the check deliberately.
+
+Every commit that lands gets a row in [commit-verifications.md](commit-verifications.md): `PASSED`, `UNVERIFIED` when the review could not run, or `BYPASSED` after `--no-verify`. The row is written just after the commit it describes, so it travels with the next one.
