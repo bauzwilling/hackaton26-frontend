@@ -148,8 +148,8 @@ export const CONCIERGE_ID = "concierge";
 const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
-const APP_W = 960;
-const IFRAME_H = 720;
+const APP_W = 1280;
+const IFRAME_H = 860;
 const NOTE_W = 240;
 const NOTE_H = 160;
 const FLASH_MS = 700;
@@ -341,9 +341,7 @@ function normalizeNode(n: WorkspaceNode): WorkspaceNode {
     title: n.kind === "app" && label ? label : n.title,
     autoSize: iframe ? false : true,
     w: iframe ? Math.max(n.w || APP_W, APP_W) : Math.max(n.w || minW, minW),
-    h: iframe
-      ? (n.autoSize === false ? Math.max(n.h || IFRAME_H, 80) : IFRAME_H)
-      : Math.max(n.h || 80, 80),
+    h: iframe ? Math.max(n.h || IFRAME_H, IFRAME_H) : Math.max(n.h || 80, 80),
   };
 }
 
