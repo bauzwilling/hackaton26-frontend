@@ -25,6 +25,9 @@ lerna-debug.log*
 .env
 .env.*
 
+# cursor hook cache (cloned plans repo)
+.cursor/hooks/.cache/
+
 # editor
 .vscode/*
 !.vscode/extensions.json

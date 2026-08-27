@@ -9,27 +9,29 @@ export const OVERRIDE_KEY = 'f2f.roleOverrides';
 
 /* Neither company nor role is chosen at sign-in.
  * Company comes from the email domain; role comes from provisioning:
- * DataB grants admin, and a company admin grants member / operator. */
+ * DataB grants operator, and a company operator grants user / operator. */
 export const DOMAINS = {
+  'datab.example': 'D',
   'frischeis.example': 'A',
   'strabag.example': 'B',
   'peri.example': 'C'
 };
 
 export const DIRECTORY = [
-  { email: 'lena@frischeis.example',   name: 'Lena Frischeis', role: 'admin',    by: 'DataB' },
+  { email: 'maria@datab.example',  name: 'Maria Sanchez',  role: 'operator', by: 'DataB' },
+  { email: 'lena@frischeis.example',   name: 'Lena Frischeis', role: 'operator', by: 'DataB' },
   { email: 'tobias@frischeis.example', name: 'Tobias Reiter',  role: 'operator', by: 'lena@frischeis.example' },
   { email: 'marie@frischeis.example',  name: 'Marie Gruber',   role: 'operator', by: 'lena@frischeis.example' },
-  { email: 'jonas@frischeis.example',  name: 'Jonas Weber',    role: 'member',   by: 'lena@frischeis.example' },
-  { email: 'klaus@strabag.example',    name: 'Klaus Berger',   role: 'admin',    by: 'DataB' },
+  { email: 'jonas@frischeis.example',  name: 'Jonas Weber',    role: 'user',     by: 'lena@frischeis.example' },
+  { email: 'klaus@strabag.example',    name: 'Klaus Berger',   role: 'operator', by: 'DataB' },
   { email: 'sandra@strabag.example',   name: 'Sandra Hofer',   role: 'operator', by: 'klaus@strabag.example' },
-  { email: 'peter@strabag.example',    name: 'Peter Mayr',     role: 'member',   by: 'klaus@strabag.example' },
-  { email: 'iris@peri.example',        name: 'Iris de Vries',  role: 'admin',    by: 'DataB' },
-  { email: 'ruben@peri.example',       name: 'Ruben Bakker',   role: 'member',   by: 'iris@peri.example' }
+  { email: 'peter@strabag.example',    name: 'Peter Mayr',     role: 'user',     by: 'klaus@strabag.example' },
+  { email: 'iris@peri.example',        name: 'Iris de Vries',  role: 'operator', by: 'DataB' },
+  { email: 'ruben@peri.example',       name: 'Ruben Bakker',   role: 'user',     by: 'iris@peri.example' }
 ];
 
-/* Only DataB may grant admin; admins may grant these. */
-export const ADMIN_ASSIGNABLE = ['member', 'operator'];
+/* Operators may grant these. */
+export const OPERATOR_ASSIGNABLE = ['user', 'operator'];
 
 export function companyOf(email){
   const domain = String(email || '').trim().toLowerCase().split('@')[1];
@@ -46,17 +48,16 @@ export function loadOverrides(){
   catch (e) { return {}; }
 }
 
-/* Admin grants are never overridable — DataB owns them. */
 export function effectiveRole(user, overrides){
   if (!user) return null;
   const o = overrides || loadOverrides();
-  return (user.role !== 'admin' && o[user.email]) ? o[user.email] : user.role;
+  return o[user.email] || user.role;
 }
 
 export function assignRole(email, role, overrides){
   const user = findUser(email);
-  if (!user || user.role === 'admin') return overrides || loadOverrides();
-  if (ADMIN_ASSIGNABLE.indexOf(role) === -1) return overrides || loadOverrides();
+  if (!user) return overrides || loadOverrides();
+  if (OPERATOR_ASSIGNABLE.indexOf(role) === -1) return overrides || loadOverrides();
   const next = Object.assign({}, overrides || loadOverrides(), { [email]: role });
   try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(next)); } catch (e) {}
   return next;
@@ -64,26 +65,31 @@ export function assignRole(email, role, overrides){
 
 /* Roles, weakest first. `grants` are permission keys. */
 export const ROLES = {
-  member: {
-    label: 'Member',
+  user: {
+    label: 'User',
     blurb: 'Reads company data, places orders. No machine access.',
     grants: ['overview', 'worklists.read', 'orders.create']
   },
   operator: {
     label: 'Operator',
-    blurb: 'Runs the floor: validates files, drives machines.',
-    grants: ['overview', 'worklists.read', 'worklists.write', 'orders.create', 'validation', 'machines.read', 'machines.control']
-  },
-  admin: {
-    label: 'Admin',
-    blurb: 'Everything an operator can do, plus users, apps and billing.',
-    grants: ['overview', 'worklists.read', 'worklists.write', 'orders.create', 'validation', 'machines.read', 'machines.control', 'users', 'apps.manage', 'billing']
+    blurb: 'Runs the floor and the company: machines, users, apps and billing.',
+    grants: ['overview', 'worklists.read', 'worklists.write', 'orders.create', 'validation', 'machines.read', 'machines.control', 'orbit', 'users', 'apps.manage', 'billing']
   }
 };
 
 /* Companies. `apps` gates which product tiles/links are reachable.
  * `machineSlugs` matches the slug prefix of machines the company owns. */
 export const COMPANIES = {
+  D: {
+    id: 'D',
+    name: 'DataB',
+    short: 'DataB',
+    domain: 'datab.example',
+    plan: 'All tools',
+    apps: ['boxouts', 'simpleparts', 'plyworks', 'nesting'],
+    machineSlugs: ['at-datab', 'at-frischeis', 'de-strabag', 'nl-peri', 'ch-peri'],
+    seats: 99
+  },
   A: {
     id: 'A',
     name: 'Frischeis Holzwerk',
@@ -159,7 +165,7 @@ export function signIn(email, password){
   const company = companyOf(addr);
   if (!company) return { error: 'That domain is not registered with DataB. Ask your administrator to onboard it.' };
   const user = findUser(addr);
-  if (!user) return { error: 'No account for this address at ' + COMPANIES[company].name + '. Ask your company admin for an invite.' };
+  if (!user) return { error: 'No account for this address at ' + COMPANIES[company].name + '. Ask your company operator for an invite.' };
   const session = { email: user.email, name: user.name, company, role: effectiveRole(user), by: user.by, since: Date.now() };
   saveSession(session);
   return { session };

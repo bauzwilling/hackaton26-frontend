@@ -32,6 +32,7 @@ export const DEFAULT_TEMPLATES: RequestTemplate[] = [
   },
 ];
 
+// WAITING DATABASE: saved request templates on the user profile
 function key(email: string) {
   return `f2f.templates.${email || "anon"}`;
 }

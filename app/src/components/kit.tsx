@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link } from "react-router-dom";
-import { COMPANIES, type Session } from "../lib/auth";
+import { COMPANIES, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, useSession, type AccentId } from "../context/session";
 
 export type Relief = "raised" | "inset" | "accent" | "ghost";
@@ -276,5 +276,5 @@ export function Chrome({
 }
 
 function ROLES_LABEL(session: Session) {
-  return `${session.role} · ${COMPANIES[session.company].name}`;
+  return `${ROLES[session.role].label} · ${COMPANIES[session.company].name}`;
 }

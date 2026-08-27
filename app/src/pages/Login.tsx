@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Brand, Surface } from "../components/kit";
 import { useSession } from "../context/session";
+// WAITING DATABASE: dummy directory for sign-in; look is not applied on this page
 import { APP_LABELS, COMPANIES, DIRECTORY, companyOf, signIn, type CompanyId } from "../lib/auth";
 
 const COMPANY_ORDER = Object.keys(COMPANIES) as CompanyId[];

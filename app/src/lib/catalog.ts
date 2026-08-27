@@ -1,3 +1,4 @@
+/* WAITING DATABASE: catalog fixtures (machines, projects, materials) until product APIs exist. */
 export const WOODS = [
   { id: "Pine", note: "Solid, oiled", rate: 1, chip: "#d8b184" },
   { id: "Spruce", note: "Solid, rough", rate: 0.88, chip: "#e2c9a4" },

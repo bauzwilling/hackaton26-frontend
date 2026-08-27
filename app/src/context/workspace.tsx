@@ -161,11 +161,12 @@ export function isWorkspaceApp(v: string): v is WorkspaceApp {
   return WORKSPACE_APPS.some((a) => a.id === v);
 }
 
-// Stand-in until a per-user config API exists.
+// WAITING DATABASE: canvas layout on the user profile
 function persistKey(email: string) {
   return `f2f.workspace.${email || "anon"}`;
 }
 
+// WAITING DATABASE: request log on the user profile
 function requestsKey(email: string) {
   return `f2f.requests.${email || "anon"}`;
 }
@@ -284,9 +285,9 @@ function denyCopy(session: Session | null, app: WorkspaceApp) {
   }
   const body =
     app === "orbit"
-      ? "CNC Orbit is only available to operators and admins."
+      ? "CNC Orbit is only available to operators."
       : app === "admin"
-        ? "The Admin console is only available to admins."
+        ? "The Admin console is only available to operators."
         : `You do not have permission to open ${label}.`;
   return { title: `${label} — no access`, body };
 }
