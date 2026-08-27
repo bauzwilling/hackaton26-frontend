@@ -1,0 +1,41 @@
+---
+description: Flag every structuring-model stand-in with WAITING MODEL so it is easy to find and wire later
+alwaysApply: true
+---
+
+# Waiting on our own model
+
+Anything the product understands from **user text or a user upload** must eventually be decided by our own structuring model, reached only through the Platform BFF. The UI never calls an AI provider. Anthropic is a temporary stand-in, not a target.
+
+Whenever the UI (or the local bridge) decides something that model will decide — which app a message or file belongs to, what a file contains, what to say back, what to suggest next — mark it:
+
+```
+// WAITING MODEL: <what our structuring model should decide>
+```
+
+Use that exact token (`WAITING MODEL`) so a later grep finds every site.
+
+```typescript
+// ❌ BAD — reads as real logic, invisible when the model lands
+if (/boxout|door/i.test(stem)) return "boxouts";
+
+// ✅ GOOD
+// WAITING MODEL: the model picks the app from inspector facts, not the file name
+if (/boxout|door/i.test(stem)) return "boxouts";
+```
+
+- A hand-written heuristic counts as a model stand-in even though no model runs: keyword matching, format-to-app tables and canned replies are exactly what the token is for.
+- Deterministic facts (extension, MIME type, size, object counts) belong to the BFF file inspector, not the model. Do not tag pure format detection.
+- Keep the note to one line: what is faked and what our model decides instead.
+
+## Which token
+
+| Token | Swap it marks |
+| --- | --- |
+| `WAITING MODEL` | the brain: who decides (Anthropic or a heuristic today, our structuring model later) |
+| `WAITING BFF` | the transport: who we call and in what shape |
+| `WAITING DATABASE` | the store: where state lives |
+
+They are separate axes. A site that needs two swaps carries both tokens, one per line. Do not invent a fourth marker.
+
+Full contracts, the swap table and the cutover checklist live in [docs/model-integration.md](../../docs/model-integration.md). Read it before changing how chat or file intake behaves.

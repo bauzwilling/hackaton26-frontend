@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as PE } from "react";
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
-import { useWorkspace, type WorkspaceNode } from "../context/workspace";
+import { CONCIERGE_ID, useWorkspace, type WorkspaceNode } from "../context/workspace";
 import {
   capSpeed,
   spawnVelocity,
@@ -40,9 +40,11 @@ const FLUSH_MS = 2000;
 export function StudioCanvas() {
   const {
     nodes, edges, pan, zoom, setPan, setZoom,
-    focus, move, fit, close, hide,
+    focus, move, fit, close, hide, flashIds, flashKey,
   } = useWorkspace();
   const { showWires, showGrid, bubbleMode } = useSession();
+  const [conciergeEnter, setConciergeEnter] = useState(false);
+  const hadConcierge = useRef<boolean | null>(null);
   const layer = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState | null>(null);
   const panDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
@@ -56,9 +58,19 @@ export function StudioCanvas() {
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { moveRef.current = move; }, [move]);
+
   const [panning, setPanning] = useState(false);
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [, setBubbleTick] = useState(0);
+
+  // Play the enter animation only when the concierge appears mid-session, not on reload.
+  useEffect(() => {
+    const has = nodes.some((n) => n.id === CONCIERGE_ID);
+    const prev = hadConcierge.current;
+    hadConcierge.current = has;
+    if (prev === null || prev === has) return;
+    setConciergeEnter(has);
+  }, [nodes]);
 
   useEffect(() => {
     const el = layer.current;
@@ -307,7 +319,10 @@ export function StudioCanvas() {
               height={n.h}
               kind={n.kind}
               hidden={n.hidden}
-              autoSize
+              autoSize={n.autoSize !== false}
+              enter={conciergeEnter && n.id === CONCIERGE_ID}
+              flash={flashIds.includes(n.id)}
+              flashKey={flashKey}
               tilt={bubbleMode ? b?.tilt : undefined}
               onFocus={() => focus(n.id)}
               onClose={() => close(n.id)}

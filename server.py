@@ -1,4 +1,16 @@
-"""Local FastAPI bridge from the Studio chatbox to Claude."""
+"""Local FastAPI bridge from the Studio chatbox to Claude.
+
+WAITING BFF: temporary. The master plan is that the UI talks only to the Platform
+BFF and never to an AI provider.
+WAITING MODEL: our own structuring model replaces Claude behind that BFF.
+
+Neither exists yet, so this process stands in for both and keeps the Studio usable.
+When they land, delete this bridge (and llm.py) rather than porting it, and point
+app/src/lib/concierge.ts at the real chat endpoints. Nothing else in the UI knows
+this exists: it is reached only through the Vite proxy rule for /api.
+
+See docs/model-integration.md.
+"""
 
 from typing import List, Optional
 

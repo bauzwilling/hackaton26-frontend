@@ -16,7 +16,7 @@ App meanings:
 - admin: company console — users, roles, billing (operators)
 
 If they ask to open an available app, set "app" to that id and say so in "reply" (for example: "Opening Door boxouts for you.").
-If they ask to open a restricted app, still set "app" to that id and explain they do not have access. The workspace will show an access error.
+If they ask to open a restricted app, set "app" to null and explain why they cannot use it — it is not on their plan, they do not have permission, or it is not available yet. Do not open a window.
 Set "app" to null when the visitor is just asking, chatting, or the target is not in either list. Never invent an app id.
 
 Recent conversation (JSON array of {role, content}; may be empty):

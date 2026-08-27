@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
-import { askConcierge } from "../lib/concierge";
+import { askConcierge, type ConciergeResult } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
+import { matchApp } from "../lib/routing";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
@@ -26,6 +27,8 @@ export type WorkspaceNode = {
   h: number;
   hidden: boolean;
   autoSize?: boolean;
+  /** Concierge only: keep me stacked under the request log until the user drags me off. */
+  railed?: boolean;
 };
 
 export type WorkspaceEdge = { from: string; to: string; hot?: boolean };
@@ -82,9 +85,8 @@ function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEnt
 
   const projects = appBy("projects");
   if (projects) {
-    for (const id of JOB_APPS) {
-      const job = appBy(id);
-      if (job) add(job.id, projects.id);
+    for (const n of apps) {
+      if (n.appId && JOB_APPS.includes(n.appId)) add(n.id, projects.id);
     }
   }
 
@@ -135,6 +137,8 @@ type Ctx = {
   tile: (viewport: { width: number; height: number }) => void;
   clear: (opts?: { transcript?: boolean }) => void;
   clearTranscript: () => void;
+  flashIds: string[];
+  flashKey: number;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -145,16 +149,22 @@ const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
 const APP_W = 960;
+const IFRAME_H = 720;
 const NOTE_W = 240;
 const NOTE_H = 160;
+const FLASH_MS = 700;
 
-export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string }[] = [
-  { id: "boxouts", label: "Boxouts", licensed: "boxouts" },
+function isIframeApp(app?: WorkspaceApp): boolean {
+  return app === "boxouts" || app === "simpleparts";
+}
+
+export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
+  { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
-  { id: "admin", label: "Admin console", perm: "users" },
+  { id: "admin", label: "Admin console", perm: "users", ready: false },
 ];
 
 export function isWorkspaceApp(v: string): v is WorkspaceApp {
@@ -264,17 +274,27 @@ function allowed(session: Session | null, app: WorkspaceApp) {
   return true;
 }
 
+/** License and role are not enough — an unbuilt app still must not open a window. */
+function openable(session: Session | null, app: WorkspaceApp) {
+  const meta = WORKSPACE_APPS.find((a) => a.id === app);
+  if (!meta || meta.ready === false) return false;
+  return allowed(session, app);
+}
+
 function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => allowed(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => openable(session, a.id)).map((a) => a.id);
 }
 
 function restrictedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => !allowed(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => !openable(session, a.id)).map((a) => a.id);
 }
 
 function denyCopy(session: Session | null, app: WorkspaceApp) {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   const label = meta?.label ?? app;
+  if (meta?.ready === false) {
+    return { title: `${label} — not available`, body: `${label} is not available yet.` };
+  }
   if (meta?.licensed && !hasApp(session, meta.licensed)) {
     return {
       title: `${label} — not licensed`,
@@ -314,13 +334,17 @@ function logNode(): WorkspaceNode {
 
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
-  return { ...n, autoSize: true, w: Math.max(n.w || minW, minW), h: Math.max(n.h || 80, 80) };
-}
-
-function withLog(list: WorkspaceNode[]): WorkspaceNode[] {
-  if (list.some((n) => n.kind === "log")) return list;
-  const slot = placeBeside(list, LOG_W, EST_H.log);
-  return [{ ...logNode(), ...slot }, ...list.filter((n) => n.kind !== "request")];
+  const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
+  const iframe = isIframeApp(n.appId);
+  return {
+    ...n,
+    title: n.kind === "app" && label ? label : n.title,
+    autoSize: iframe ? false : true,
+    w: iframe ? Math.max(n.w || APP_W, APP_W) : Math.max(n.w || minW, minW),
+    h: iframe
+      ? (n.autoSize === false ? Math.max(n.h || IFRAME_H, 80) : IFRAME_H)
+      : Math.max(n.h || 80, 80),
+  };
 }
 
 function conciergeNode(): WorkspaceNode {
@@ -337,16 +361,54 @@ function conciergeNode(): WorkspaceNode {
     h: EST_H.text,
     hidden: false,
     autoSize: true,
+    railed: true,
   };
 }
 
-function withConcierge(list: WorkspaceNode[]): WorkspaceNode[] {
-  const base = withLog(list);
-  if (base.some((n) => n.id === CONCIERGE_ID)) {
-    return base.map((n) => (n.id === CONCIERGE_ID ? { ...n, hidden: false } : n));
+/** Hugs the log's measured height; before the first fit, h is still the estimate. */
+function railY(log: WorkspaceNode) {
+  return log.y + log.h + GAP;
+}
+
+/** Pull the concierge back under the log after either one is resized or the log is moved. */
+function restack(list: WorkspaceNode[]): WorkspaceNode[] {
+  const log = list.find((n) => n.kind === "log");
+  const concierge = list.find((n) => n.id === CONCIERGE_ID);
+  if (!log || !concierge || !concierge.railed) return list;
+  const y = railY(log);
+  if (concierge.x === log.x && concierge.y === y) return list;
+  return list.map((n) => (n.id === CONCIERGE_ID ? { ...n, x: log.x, y } : n));
+}
+
+/**
+ * The log and the concierge are one unit: log on top, concierge (which carries the
+ * composer) directly beneath it. Everything that puts something on the board goes
+ * through here, so the composer always has a home.
+ */
+function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
+  const base = list.filter((n) => n.kind !== "request");
+  const log = base.find((n) => n.kind === "log");
+  const concierge = base.find((n) => n.id === CONCIERGE_ID);
+
+  if (log && concierge) {
+    return restack(base.map((n) => (
+      n.id === log.id || n.id === CONCIERGE_ID ? { ...n, hidden: false } : n
+    )));
   }
-  const slot = placeBeside(base, RAIL_W, EST_H.text);
-  return [...base, { ...conciergeNode(), ...slot }];
+
+  if (log) {
+    return [...base.map((n) => (n.id === log.id ? { ...n, hidden: false } : n)), {
+      ...conciergeNode(),
+      x: log.x,
+      y: railY(log),
+    }];
+  }
+
+  const others = base.filter((n) => n.id !== CONCIERGE_ID);
+  const slot = placeBeside(others, RAIL_W, EST_H.log + GAP + EST_H.text);
+  const nextLog = { ...logNode(), x: slot.x, y: slot.y };
+  const nextConcierge = { ...(concierge ?? conciergeNode()), hidden: false, railed: true, x: slot.x, y: railY(nextLog) };
+  return [nextLog, ...others, nextConcierge];
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -359,19 +421,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [flashIds, setFlashIds] = useState<string[]>([]);
+  const [flashKey, setFlashKey] = useState(0);
   const zTop = useRef(10);
+  const flashTimer = useRef<number | null>(null);
   const skipSave = useRef(0);
   const skipEntries = useRef(0);
   const nodesRef = useRef<WorkspaceNode[]>([]);
   const entriesRef = useRef<RequestEntry[]>([]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { entriesRef.current = entries; }, [entries]);
+  useEffect(() => () => {
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+  }, []);
 
   useEffect(() => {
     const saved = loadPersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
-      .filter((n) => n.kind !== "request" && (n.kind !== "text" || n.id === CONCIERGE_ID))
+      .filter((n) => n.kind !== "request" && n.kind !== "denied" && (n.kind !== "text" || n.id === CONCIERGE_ID))
+      .filter((n) => {
+        if (n.kind !== "app" || !n.appId) return true;
+        const meta = WORKSPACE_APPS.find((a) => a.id === n.appId);
+        return meta?.ready !== false;
+      })
       .map(normalizeNode);
     setNodes(cleaned);
     setEdges(saved.edges);
@@ -385,7 +458,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const loaded = loadEntries(email);
     setEntries(loaded);
     if (loaded.length) {
-      setNodes((list) => withConcierge(list));
+      setNodes((list) => withRail(list));
     }
   }, [email]);
 
@@ -421,48 +494,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => {
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
-    if (!meta) return null;
+    if (!meta || !openable(session, app)) return null;
 
-    if (!allowed(session, app)) {
-      const id = uid("d");
-      zTop.current += 1;
-      const copy = denyCopy(session, app);
-      const denied: WorkspaceNode = {
-        id,
-        kind: "denied",
-        title: copy.title,
-        code: `LIC-${Math.floor(1000 + Math.random() * 9000)}`,
-        appId: app,
-        query: opts?.query,
-        parentId: opts?.parentId,
-        body: copy.body,
-        x: RAIL_X,
-        y: 20,
-        z: zTop.current,
-        w: RAIL_W,
-        h: 1,
-        hidden: false,
-        autoSize: true,
-      };
-      setNodes((list) => {
-        const base = withLog(list);
-        const slot = placeBeside(base, RAIL_W, EST_H.denied);
-        return [...base, { ...denied, ...slot }];
-      });
-      return id;
-    }
-
-    const found = nodesRef.current.find((n) => n.kind === "app" && n.appId === app);
+    const reuse = !JOB_APPS.includes(app);
+    const found = reuse ? nodesRef.current.find((n) => n.kind === "app" && n.appId === app) : undefined;
     const id = found?.id ?? uid("a");
     zTop.current += 1;
     const z = zTop.current;
     setNodes((list) => {
-      const base = withLog(list);
-      const current = base.find((n) => n.kind === "app" && n.appId === app);
+      const base = withRail(list);
+      const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
       if (current) {
-        return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
+        return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
       }
-      const slot = placeBeside(base, APP_W, EST_H.app);
+      const iframe = isIframeApp(app);
+      const appH = iframe ? IFRAME_H : EST_H.app;
+      const slot = placeBeside(base, APP_W, appH);
       const node: WorkspaceNode = {
         id,
         kind: "app",
@@ -475,9 +522,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         y: slot.y,
         z,
         w: APP_W,
-        h: 1,
+        h: iframe ? IFRAME_H : 1,
         hidden: false,
-        autoSize: true,
+        autoSize: !iframe,
       };
       return [...base, node];
     });
@@ -487,7 +534,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
     const z = zTop.current;
-    setNodes((list) => withConcierge(list).map((n) => (
+    setNodes((list) => withRail(list).map((n) => (
       n.id === CONCIERGE_ID ? { ...n, z, hidden: false, parentId: n.parentId ?? LOG_ID } : n
     )));
     return CONCIERGE_ID;
@@ -522,26 +569,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSelectedEntryId(entryId);
 
     void (async () => {
-      try {
-        const result = await askConcierge(q, history, apps, restricted);
+      /** Applies a reply plus its routing decision, whoever made that decision. */
+      const settle = (result: ConciergeResult) => {
         const appId = result.app && isWorkspaceApp(result.app) ? result.app : undefined;
         const targetIds: string[] = [conciergeId];
         let status: RequestEntry["result"] = "text";
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
 
-        if (appId) {
-          const ok = allowed(session, appId);
-          status = ok ? "app" : "denied";
+        if (appId && openable(session, appId)) {
+          // WAITING BFF: the reply opens a window directly. The master plan is a
+          // SuggestedAction the user accepts, which the BFF validates before anything
+          // runs. Replace this block, not the transport, when actions arrive.
+          status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
           const appTarget = openApp(appId, { parentId: conciergeId, query: q });
           if (appTarget) targetIds.push(appTarget);
+        } else if (appId) {
+          // Unavailable: no window. The concierge reply is the whole answer.
+          routeWhy = result.reply;
         }
 
         setEntries((list) => list.map((e) => (e.id === entryId ? {
           ...e,
-          appId,
+          appId: status === "app" ? appId : undefined,
           result: status,
           routeLabel,
           routeWhy,
@@ -549,13 +601,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           targetIds,
           pending: false,
         } : e)));
+      };
+
+      try {
+        settle(await askConcierge(q, history, apps, restricted));
       } catch {
-        setEntries((list) => list.map((e) => (e.id === entryId ? {
-          ...e,
-          reply: "I couldn’t reach the assistant. Try again in a moment.",
-          routeWhy: "The assistant could not reply",
-          pending: false,
-        } : e)));
+        // No assistant reachable: fall back to a local name match so the board stays usable.
+        const guess = matchApp(q);
+        const named = guess && isWorkspaceApp(guess) ? guess : null;
+        const appId = named && openable(session, named) ? named : null;
+        settle({
+          app: appId,
+          reply: appId
+            ? `Opening ${appLabel(appId)} for you.`
+            : named
+              ? denyCopy(session, named).body
+              : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+        });
       }
     })();
   }, [openApp, ensureConcierge, session]);
@@ -566,6 +628,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const conciergeId = ensureConcierge();
 
     for (const file of list) {
+      // WAITING MODEL: the UI decides the job from the file here. The model does that,
+      // after the file is uploaded as an artifact and inspected by the BFF.
       const verdict = classifyFile(file);
       const query = verdict.fileName;
       const targetIds: string[] = [conciergeId];
@@ -574,14 +638,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       let routeLabel = "Concierge";
       let routeWhy = "Answered on the canvas";
       let confirmApps: WorkspaceApp[] | undefined;
+      let reply = verdict.message;
 
       if (verdict.kind === "route") {
-        appId = verdict.appId;
-        const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
-        if (appTarget) targetIds.push(appTarget);
-        result = allowed(session, verdict.appId) ? "app" : "denied";
-        routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
-        routeWhy = verdict.message;
+        if (openable(session, verdict.appId)) {
+          appId = verdict.appId;
+          const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
+          if (appTarget) targetIds.push(appTarget);
+          result = "app";
+          routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
+          routeWhy = verdict.message;
+        } else {
+          reply = denyCopy(session, verdict.appId).body;
+          routeWhy = reply;
+        }
       } else if (verdict.kind === "confirm") {
         routeLabel = "Confirm";
         routeWhy = "Need a confirmation before opening an app";
@@ -599,7 +669,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         targetIds,
         appId,
         result,
-        reply: verdict.message,
+        reply,
         confirmApps,
       };
       setEntries((prev) => [...prev, entry]);
@@ -612,11 +682,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const entry = entriesRef.current.find((e) => e.id === entryId);
     if (!entry) return;
     const query = entry.query;
+    const conciergeId = ensureConcierge();
+    if (!openable(session, app)) {
+      const copy = denyCopy(session, app);
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? {
+        ...e,
+        result: "text",
+        routeLabel: "Concierge",
+        routeWhy: copy.body,
+        reply: copy.body,
+        confirmApps: undefined,
+      } : e)));
+      return;
+    }
     const message = openingMessage(app, query);
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
-    const conciergeId = ensureConcierge();
     const appTarget = openApp(app, { parentId: conciergeId, query });
-    const result: RequestEntry["result"] = allowed(session, app) ? "app" : "denied";
 
     setEntries((prev) => prev.map((e) => {
       if (e.id !== entryId) return e;
@@ -626,7 +707,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return {
         ...e,
         appId: app,
-        result,
+        result: "app",
         routeLabel: meta?.label ?? e.routeLabel,
         routeWhy: message,
         reply: message,
@@ -659,6 +740,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
       y: viewport.height / 2 - (minY + bh / 2) * nextZoom,
     });
+    const flash = live
+      .filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log")
+      .map((n) => n.id);
+    if (!flash.length) return;
+    setFlashKey((k) => k + 1);
+    setFlashIds(flash);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashIds([]), FLASH_MS);
   }, []);
 
   const restoreEntry = useCallback((entryId: string, viewport?: { width: number; height: number }) => {
@@ -666,21 +755,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!entry) return;
     const conciergeId = ensureConcierge();
     const targetIds: string[] = [conciergeId];
-    if (entry.appId && entry.result !== "text") {
+    if (entry.appId && entry.result === "app") {
       const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
       if (appTarget) targetIds.push(appTarget);
     }
-    const appTarget = targetIds.find((id) => id !== conciergeId);
-    setEntries((list) => list.map((e) => {
-      if (e.id === entryId) return { ...e, targetIds };
-      if (entry.result === "app" && e.result === "app" && e.appId && e.appId === entry.appId && appTarget) {
-        const next: string[] = e.targetIds.filter((id) => id === CONCIERGE_ID);
-        if (!next.includes(CONCIERGE_ID)) next.unshift(conciergeId);
-        if (!next.includes(appTarget)) next.push(appTarget);
-        return { ...e, targetIds: next };
-      }
-      return e;
-    }));
+    setEntries((list) => list.map((e) => (e.id === entryId ? { ...e, targetIds } : e)));
     setSelectedEntryId(entryId);
     if (viewport) {
       window.setTimeout(() => focusTargets(targetIds, viewport), 0);
@@ -688,7 +767,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [entries, openApp, ensureConcierge, focusTargets]);
 
   const move = useCallback((id: string, x: number, y: number) => {
-    setNodes((list) => list.map((n) => (n.id === id ? { ...n, x, y } : n)));
+    setNodes((list) => restack(list.map((n) => {
+      if (n.id !== id) return n;
+      return n.id === CONCIERGE_ID ? { ...n, x, y, railed: false } : { ...n, x, y };
+    })));
   }, []);
 
   const addNote = useCallback((opts?: { x?: number; y?: number }) => {
@@ -722,14 +804,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fit = useCallback((id: string, w: number, h: number) => {
-    setNodes((list) => list.map((n) => {
+    setNodes((list) => restack(list.map((n) => {
       if (n.id !== id || n.autoSize === false) return n;
       const minW = n.kind === "note" ? 140 : 240;
       const nw = Math.max(minW, Math.round(w));
       const nh = Math.max(80, Math.round(h));
       if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
       return { ...n, w: nw, h: nh };
-    }));
+    })));
   }, []);
 
   const close = useCallback((id: string) => {
@@ -769,7 +851,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
       return list.map((n) => {
         const p = placed.get(n.id);
-        return p ? { ...n, x: p.x, y: p.y } : n;
+        if (!p) return n;
+        return n.id === CONCIERGE_ID ? { ...n, x: p.x, y: p.y, railed: false } : { ...n, x: p.x, y: p.y };
       });
     });
   }, []);
@@ -791,6 +874,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setOverviewOpen(false);
     setPan({ x: 0, y: 0 });
     setZoom(1);
+    setFlashIds([]);
     zTop.current = 10;
   }, []);
 
@@ -828,7 +912,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     tile,
     clear,
     clearTranscript,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript]);
+    flashIds,
+    flashKey,
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
@@ -840,10 +926,32 @@ export function useWorkspace() {
 }
 
 export function appLabel(app: WorkspaceApp) {
+  if (app === "boxouts") return "Door Box Out";
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";
   return APP_LABELS[app as AppId] ?? app;
+}
+
+/**
+ * Did this ask successfully open an app? The request log records only those.
+ * Plain answers and refusals ("no access", unsupported file) belong in the
+ * concierge transcript, not in the record of what is on the board.
+ */
+export function entryOpenedApp(entry: RequestEntry) {
+  return entry.result === "app" && entry.targetIds.some((id) => id !== CONCIERGE_ID);
+}
+
+/** Name of the window this ask put on the board — never the user's phrasing. */
+export function entryWindowName(entry: RequestEntry, nodes: WorkspaceNode[]) {
+  const id = entry.targetIds.find((tid) => tid !== CONCIERGE_ID);
+  const node = id ? nodes.find((n) => n.id === id) : undefined;
+  const label = entry.appId
+    ? appLabel(entry.appId)
+    : node?.appId
+      ? appLabel(node.appId)
+      : (node?.title || entry.routeLabel);
+  return node?.code ? `${label} · ${node.code}` : label;
 }
 
 export function entryIsLive(entry: RequestEntry, nodes: WorkspaceNode[]) {

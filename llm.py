@@ -1,4 +1,11 @@
-"""Anthropic Claude helper for the File → Factory concierge."""
+"""Anthropic Claude helper for the File → Factory concierge.
+
+WAITING MODEL: Claude reads the user's text here. Our own structuring model replaces it.
+WAITING BFF: this helper stands in for the BFF that will own routing. Keep the model call
+confined to this module so swapping the provider stays a one-file change.
+
+See docs/model-integration.md.
+"""
 
 import json
 import re
@@ -46,14 +53,14 @@ def call_claude_json(client: Anthropic, prompt: str) -> Dict[str, Any]:
     return json.loads(response_text)
 
 
-def _normalize_app(raw: Any, available_apps: List[str], restricted_apps: List[str] | None = None) -> Optional[str]:
+def _normalize_app(raw: Any, available_apps: List[str]) -> Optional[str]:
     if raw is None:
         return None
     app = str(raw).strip().lower()
     if not app or app in ("null", "none"):
         return None
-    known = {a for a in list(available_apps) + list(restricted_apps or []) if a in KNOWN_APPS}
-    return app if app in known else None
+    allowed = {a for a in available_apps if a in KNOWN_APPS}
+    return app if app in allowed else None
 
 
 def route_message(
@@ -82,4 +89,4 @@ def route_message(
     reply = str(data.get("reply") or "").strip()
     if not reply:
         raise ValueError("Claude returned an empty reply")
-    return {"reply": reply, "app": _normalize_app(data.get("app"), apps, restricted)}
+    return {"reply": reply, "app": _normalize_app(data.get("app"), apps)}

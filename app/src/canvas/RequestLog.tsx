@@ -1,16 +1,30 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Surface } from "../components/kit";
-import { entryIsLive, useWorkspace, type RequestEntry } from "../context/workspace";
+import { CONCIERGE_ID, entryIsLive, entryOpenedApp, entryWindowName, useWorkspace, type RequestEntry } from "../context/workspace";
+
+function uniqueWindows(rows: RequestEntry[]) {
+  const seen = new Set<string>();
+  const unique: RequestEntry[] = [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const e = rows[i];
+    const key = e.targetIds.filter((id) => id !== CONCIERGE_ID).join("|") || e.appId || e.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(e);
+  }
+  return unique.reverse();
+}
 
 export function RequestLog({ viewport }: { viewport: { width: number; height: number } }) {
-  const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry, clearTranscript } = useWorkspace();
+  const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const opened = useMemo(() => uniqueWindows(entries.filter(entryOpenedApp)), [entries]);
 
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries.length]);
+  }, [opened.length]);
 
   function onRowClick(entry: RequestEntry) {
     setSelectedEntryId(entry.id);
@@ -29,19 +43,14 @@ export function RequestLog({ viewport }: { viewport: { width: number; height: nu
     setMenu({ id: entry.id, x, y });
   }
 
-  const menuEntry = menu ? entries.find((e) => e.id === menu.id) : null;
+  const menuEntry = menu ? opened.find((e) => e.id === menu.id) : null;
   const menuDeleted = menuEntry ? !entryIsLive(menuEntry, nodes) : false;
 
   return (
     <div className="request-log">
-      <div className="panel-clear">
-        <Surface as="button" type="button" relief="inset" style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12 }} onClick={clearTranscript} disabled={entries.length === 0}>
-          Clear
-        </Surface>
-      </div>
       <div className="request-log-list" ref={listRef}>
-        {entries.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 13 }}>Asks in this session land here.</p>}
-        {entries.map((e) => {
+        {opened.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 13 }}>Windows you open land here.</p>}
+        {opened.map((e) => {
           const live = entryIsLive(e, nodes);
           return (
             <button
@@ -51,10 +60,8 @@ export function RequestLog({ viewport }: { viewport: { width: number; height: nu
               onClick={() => onRowClick(e)}
               onContextMenu={(ev) => onRowContext(ev, e)}
             >
-              <span className="request-row-query">{e.query}</span>
-              <span className="request-row-meta">
-                {live ? `Routed to ${e.routeLabel}` : "Deleted"}
-              </span>
+              <span className="request-row-query">{entryWindowName(e, nodes)}</span>
+              {!live && <span className="request-row-meta">Deleted</span>}
             </button>
           );
         })}
