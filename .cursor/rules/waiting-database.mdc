@@ -1,0 +1,29 @@
+---
+description: Flag every database stand-in with WAITING DATABASE so it is easy to find and wire later
+alwaysApply: true
+---
+
+# Waiting on the database
+
+There is no user/company database yet. Fixtures and `localStorage` stand in.
+
+Whenever you persist, look up, or decide something that would normally hit a database (users, profiles, roles, companies, sessions, workspace, templates, requests, billing), mark it:
+
+```
+// WAITING DATABASE: <what the real API/table should own>
+```
+
+Use that exact token (`WAITING DATABASE`) so a later grep finds every site.
+
+```typescript
+// ❌ BAD — silent fixture, easy to miss when wiring the API
+localStorage.setItem("f2f.appearance", JSON.stringify(look));
+
+// ✅ GOOD
+// WAITING DATABASE: user.appearance — replace with the profile API
+localStorage.setItem(`f2f.profile.${email}`, JSON.stringify(profile));
+```
+
+- Do not invent a second marker. Do not put stand-ins in unmarked helpers.
+- Keep the note to one line: the resource and what replaces it.
+- Login stays product-default (theme/accent/UI). Per-user prefs belong on that user's profile, never on a global key.

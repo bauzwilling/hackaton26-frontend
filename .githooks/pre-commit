@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node .cursor/hooks/check-plans.mjs --git-pre-commit

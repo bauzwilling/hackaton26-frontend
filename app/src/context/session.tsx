@@ -1,8 +1,15 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { clearSession, loadSession, type Session } from "../lib/auth";
+import {
+  DEFAULT_APPEARANCE,
+  loadProfile,
+  saveProfileAppearance,
+  type AccentId,
+  type Appearance,
+  type Theme,
+} from "../lib/profile";
 
-export type Theme = "bright" | "dark";
-export type AccentId = "yellow" | "blue" | "red" | "green" | "purple" | "grey";
+export type { AccentId, Appearance, Theme };
 
 export const ACCENTS: Record<AccentId, { label: string; acc: string; lite: string; deep: string; dark: string }> = {
   yellow: { label: "Yellow", acc: "#f9ab00", lite: "#fdd663", deep: "#ea8600", dark: "#fdd663" },
@@ -12,41 +19,6 @@ export const ACCENTS: Record<AccentId, { label: string; acc: string; lite: strin
   purple: { label: "Purple", acc: "#a142f4", lite: "#c58af9", deep: "#5b1d8f", dark: "#c58af9" },
   grey: { label: "Graphite", acc: "#5f6368", lite: "#9aa0a6", deep: "#202124", dark: "#9aa0a6" },
 };
-
-const APPEARANCE_KEY = "f2f.appearance";
-
-type Appearance = {
-  theme: Theme;
-  accent: AccentId;
-  showWires: boolean;
-  showGrid: boolean;
-  bubbleMode: boolean;
-};
-
-const DEFAULT_APPEARANCE: Appearance = {
-  theme: "bright",
-  accent: "yellow",
-  showWires: false,
-  showGrid: true,
-  bubbleMode: false,
-};
-
-function loadAppearance(): Appearance {
-  try {
-    const raw = localStorage.getItem(APPEARANCE_KEY);
-    if (!raw) return DEFAULT_APPEARANCE;
-    const data = JSON.parse(raw) as Partial<Appearance>;
-    return {
-      theme: data.theme === "dark" ? "dark" : "bright",
-      accent: data.accent && data.accent in ACCENTS ? data.accent : "yellow",
-      showWires: data.showWires === true,
-      showGrid: data.showGrid !== false,
-      bubbleMode: data.bubbleMode === true,
-    };
-  } catch {
-    return DEFAULT_APPEARANCE;
-  }
-}
 
 type Ctx = {
   session: Session | null;
@@ -83,32 +55,46 @@ function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean) {
   }
 }
 
+function lookFor(session: Session | null): Appearance {
+  // WAITING DATABASE: login is product-default; signed-in look comes from the user profile
+  return session ? loadProfile(session.email).appearance : DEFAULT_APPEARANCE;
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(() => loadSession());
+  const [session, setSessionState] = useState<Session | null>(() => loadSession());
   const [look, setLook] = useState<Appearance>(() => {
-    const a = loadAppearance();
+    const a = lookFor(loadSession());
     applyLook(a.theme, a.accent, a.bubbleMode);
     return a;
   });
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const { theme, accent, showWires, showGrid, bubbleMode } = look;
 
-  function patch(partial: Partial<Appearance>) {
-    setLook((prev) => ({ ...prev, ...partial }));
-  }
+  const adoptSession = useCallback((s: Session | null) => {
+    setSessionState(s);
+    const next = lookFor(s);
+    applyLook(next.theme, next.accent, next.bubbleMode);
+    setLook(next);
+  }, []);
+
+  const patch = useCallback((partial: Partial<Appearance>) => {
+    setLook((prev) => {
+      const next = { ...prev, ...partial };
+      const email = sessionRef.current?.email;
+      // WAITING DATABASE: persist look on the signed-in user's profile
+      if (email) saveProfileAppearance(email, next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     applyLook(theme, accent, bubbleMode);
   }, [theme, accent, bubbleMode]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(APPEARANCE_KEY, JSON.stringify(look));
-    } catch { /* ignore */ }
-  }, [look]);
-
   const value = useMemo<Ctx>(() => ({
     session,
-    setSession,
+    setSession: adoptSession,
     theme,
     setTheme: (t) => patch({ theme: t }),
     accent,
@@ -119,8 +105,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setShowGrid: (v) => patch({ showGrid: v }),
     bubbleMode,
     setBubbleMode: (v) => patch({ bubbleMode: v }),
-    signOut: () => { clearSession(); setSession(null); },
-  }), [session, theme, accent, showWires, showGrid, bubbleMode]);
+    signOut: () => { clearSession(); adoptSession(null); },
+  }), [session, adoptSession, patch, theme, accent, showWires, showGrid, bubbleMode]);
 
   return <SessionCtx.Provider value={value}>{children}</SessionCtx.Provider>;
 }
