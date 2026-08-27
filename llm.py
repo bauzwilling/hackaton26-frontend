@@ -1,4 +1,11 @@
-"""Anthropic Claude helper for the File → Factory concierge."""
+"""Anthropic Claude helper for the File → Factory concierge.
+
+WAITING MODEL: Claude reads the user's text here. Our own structuring model replaces it.
+WAITING BFF: this helper stands in for the BFF that will own routing. Keep the model call
+confined to this module so swapping the provider stays a one-file change.
+
+See docs/model-integration.md.
+"""
 
 import json
 import re

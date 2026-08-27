@@ -3,36 +3,26 @@ import { useSearchParams } from "react-router-dom";
 import { AskMenu } from "../canvas/AskMenu";
 import { Overview } from "../canvas/Overview";
 import { StudioCanvas } from "../canvas/StudioCanvas";
+import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { isWorkspaceApp, useWorkspace } from "../context/workspace";
+import { CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor } from "../lib/catalog";
 import { can } from "../lib/auth";
-import { FILE_ACCEPT } from "../lib/intake";
 
 function isFileDrag(e: DragEvent) {
   return Array.from(e.dataTransfer?.types ?? []).includes("Files");
 }
 
-function ClipIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </svg>
-  );
-}
-
 export function StudioPage() {
   const { session } = useSession();
   const { nodes, ask, openApp, addNote, ingestFiles, pan, zoom } = useWorkspace();
-  const [query, setQuery] = useState("");
   const [params, setParams] = useSearchParams();
   const [ctx, setCtx] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [dropping, setDropping] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
 
@@ -71,10 +61,11 @@ export function StudioPage() {
   }, []);
 
   const empty = nodes.length === 0;
+  const conciergeUp = nodes.some((n) => n.id === CONCIERGE_ID && !n.hidden);
 
   function onContext(e: MouseEvent<HTMLDivElement>) {
     const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .windows-fab")) return;
+    if (t.closest("input, textarea, .overview, .request-log, .windows-fab, .composer")) return;
     e.preventDefault();
     const box = e.currentTarget.getBoundingClientRect();
     setHost({ width: box.width, height: box.height });
@@ -119,12 +110,6 @@ export function StudioPage() {
     if (files.length) ingestFiles(files);
   }
 
-  function onPicked(list: FileList | null) {
-    const files = Array.from(list ?? []);
-    if (files.length) ingestFiles(files);
-    if (fileInput.current) fileInput.current.value = "";
-  }
-
   return (
     <div
       className={`studio${dropping ? " is-dropping" : ""}`}
@@ -136,21 +121,28 @@ export function StudioPage() {
       onDrop={onDrop}
     >
       <StudioCanvas />
-      {empty && (
-        <div className="empty-hero">
-          <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
-          <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-click anywhere to ask or add a note. Drag the canvas to look around.</p>
-          <div className="chips">
-            {chips.map((c) => (
-              <Surface key={c} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => ask(c)}>
-                {c}
+      {!conciergeUp && (
+        empty ? (
+          <div className="hero-chat">
+            <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
+            <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-click anywhere to ask or add a note. Drag the canvas to look around.</p>
+            <Composer variant="hero" autoFocus />
+            <div className="chips">
+              {chips.map((c) => (
+                <Surface key={c} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => ask(c)}>
+                  {c}
+                </Surface>
+              ))}
+              <Surface as="button" type="button" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => addNote()}>
+                Add note
               </Surface>
-            ))}
-            <Surface as="button" type="button" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => addNote()}>
-              Add note
-            </Surface>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="hero-chat is-bare">
+            <Composer variant="hero" />
+          </div>
+        )
       )}
       {dropping && (
         <div className="drop-overlay">
@@ -160,47 +152,6 @@ export function StudioPage() {
           </Surface>
         </div>
       )}
-      <Surface className="dock">
-        <input
-          ref={fileInput}
-          type="file"
-          accept={FILE_ACCEPT}
-          multiple
-          hidden
-          onChange={(e) => onPicked(e.target.files)}
-        />
-        <Surface
-          as="button"
-          type="button"
-          relief="inset"
-          className="dock-attach"
-          aria-label="Attach a file"
-          onClick={() => fileInput.current?.click()}
-        >
-          <ClipIcon />
-        </Surface>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              ask(query);
-              setQuery("");
-            }
-          }}
-          placeholder="Describe a part, drop a file, or name an app…"
-        />
-        <Surface
-          as="button"
-          type="button"
-          relief="accent"
-          style={{ padding: "10px 16px", borderRadius: 16 }}
-          onClick={() => { ask(query); setQuery(""); }}
-        >
-          Send
-        </Surface>
-      </Surface>
       <Overview viewport={viewport} />
       {ctx && <AskMenu at={ctx} host={host} world={ctx.world} onClose={() => setCtx(null)} />}
     </div>

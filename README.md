@@ -4,7 +4,21 @@ Manufacturing-as-a-service workspace. The live product is a React + TypeScript +
 
 ## Run
 
-The Studio chatbox talks to Claude through a local Python API. Put `ANTHROPIC_API_KEY` in a `.env` file at the repo root, then run both processes:
+The Studio chatbox talks to Claude through a local Python API. Put `ANTHROPIC_API_KEY` in a `.env` file at the repo root, then run both processes — the app needs both, and without the API the concierge falls back to matching app names on its own.
+
+That bridge is temporary: the UI will talk to the Platform BFF, and our own structuring model will replace Claude. Everything to rewire carries a token in a comment, so a grep finds each site:
+
+| Token | Swap it marks |
+| --- | --- |
+| `WAITING MODEL` | who decides — Claude or a heuristic today, our structuring model later ([docs/model-integration.md](docs/model-integration.md)) |
+| `WAITING BFF` | who we call and in what shape |
+| `WAITING DATABASE` | where state lives — fixtures and `localStorage` today |
+
+```bash
+grep -rn "WAITING MODEL" .
+grep -rn "WAITING BFF" .
+grep -rn "WAITING DATABASE" .
+```
 
 ```bash
 pip install -r requirements.txt
@@ -34,6 +48,7 @@ server.py            Local FastAPI bridge to Claude
 llm.py               Claude concierge helper
 prompts/             Concierge system prompt
 docs/
+  model-integration.md  How chat and file intake move onto our own model
   mockups/           Earlier HTML / Claude Design screens
   assets/            Logos and stills from those screens
 ```

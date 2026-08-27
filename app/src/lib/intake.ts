@@ -1,3 +1,10 @@
+/*
+ * Fake file understanding, front to back. See docs/model-integration.md.
+ *
+ * The real path is upload -> Artifact -> BFF file inspector -> our structuring model,
+ * which answers with a message and suggested actions. Nothing here survives that.
+ */
+
 /** Job apps the fake (and later real) structuring step can route into. */
 export type IntakeApp = "boxouts" | "simpleparts" | "plyworks";
 
@@ -12,6 +19,7 @@ export type IntakeResult =
   | { kind: "confirm"; fileName: string; format: IntakeFormat; confirmApps: IntakeApp[]; message: string }
   | { kind: "reject"; fileName: string; format: string | null; message: string };
 
+// WAITING BFF: format detection is inspector work — the BFF returns detectedType and facts
 const MIME_TO_FORMAT: Record<string, IntakeFormat> = {
   "text/csv": "csv",
   "application/csv": "csv",
@@ -41,6 +49,7 @@ function formatOf(file: File): IntakeFormat | null {
   return MIME_TO_FORMAT[(file.type || "").toLowerCase()] ?? null;
 }
 
+// WAITING MODEL: the model picks the job from inspector facts, never from the file name
 function keywordApp(fileName: string): IntakeApp | null {
   const stem = fileName.replace(/\.[^.]+$/, "");
   if (/boxout|box[\s_-]?out|\bbox(es)?\b|\bdoor/i.test(stem)) return "boxouts";
@@ -49,12 +58,14 @@ function keywordApp(fileName: string): IntakeApp | null {
   return null;
 }
 
+// WAITING MODEL: a format says nothing about the job; the model proposes it
 function defaultApp(format: IntakeFormat): IntakeApp | null {
   if (format === "csv" || format === "jpg" || format === "png") return "boxouts";
   if (format === "dxf" || format === "dwg") return "simpleparts";
   return null;
 }
 
+// WAITING MODEL: canned copy stands in for the model's message about the file
 export function openingMessage(app: IntakeApp, fileName: string, format?: IntakeFormat | null) {
   if (app === "boxouts") {
     if (format === "csv") {
@@ -74,9 +85,11 @@ export function openingMessage(app: IntakeApp, fileName: string, format?: Intake
   return `Opening that application for you.`;
 }
 
+// WAITING MODEL: an ambiguous verdict stands in for several suggested actions
 const CONFIRM_MESSAGE = "I can see a drawing, but I’m not sure which job it is. Should I open Door boxouts, Simple Parts, or Plyworks?";
 
-/** Stub for the data-structuring LLM. Swap this for an API call later. */
+// WAITING MODEL: the whole verdict — our structuring model reads the file, this guesses
+// WAITING BFF: it should be a reply to an uploaded artifact, not a synchronous local call
 export function classifyFile(file: File): IntakeResult {
   const fileName = file.name?.trim() || "untitled";
   const format = formatOf(file);

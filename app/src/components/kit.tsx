@@ -130,10 +130,10 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, enter, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
-  kind?: string; hidden?: boolean; autoSize?: boolean; tilt?: number;
+  kind?: string; hidden?: boolean; autoSize?: boolean; tilt?: number; enter?: boolean;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
@@ -159,7 +159,7 @@ export function Window({
   return (
     <Surface
       ref={ref}
-      className={`win${kind ? ` win-${kind}` : ""}${fit ? " win-autosize" : ""}`}
+      className={`win${kind ? ` win-${kind}` : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}`}
       style={{
         left: x,
         top: y,
@@ -174,7 +174,7 @@ export function Window({
         onFocus();
         if (!onGrab || e.button !== 0) return;
         const t = e.target as HTMLElement;
-        if (t.closest("button, input, textarea, a, select")) return;
+        if (t.closest("button, input, textarea, a, select, .composer")) return;
         onGrab(e);
       }}
     >

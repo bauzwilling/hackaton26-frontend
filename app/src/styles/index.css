@@ -211,7 +211,9 @@ button.sf:disabled:active { transform: none; }
 .win-body { padding: 16px 18px 18px; overflow: auto; flex: 1; min-height: 0; }
 .win-autosize { height: auto; min-height: 0; }
 .win-autosize .win-body { overflow: visible; flex: none; height: auto; min-height: 0; }
-.win-request, .win-denied, .win-text { width: 300px; }
+.win-request, .win-denied { width: 300px; }
+/* Matches the log width so the two line up as one rail. */
+.win-text { width: 340px; }
 .win-note {
   min-width: 140px;
   background: linear-gradient(145deg, var(--acc-lite), var(--acc));
@@ -244,7 +246,8 @@ html[data-theme="dark"] .win-note {
 .note-body::placeholder { color: color-mix(in oklab, currentColor 45%, transparent); }
 .win-log .win-body { display: flex; flex-direction: column; overflow: visible; }
 .win-log .request-log { flex: none; min-height: 0; max-height: none; height: auto; }
-.win-log .request-log-list { flex: none; min-height: 0; }
+/* Capped so the log keeps a fixed footprint and the whole rail fits a short viewport. */
+.win-log .request-log-list { flex: none; min-height: 0; max-height: min(180px, 22vh); overflow: auto; }
 .win-body .page { max-width: none; margin: 0; padding: 0 0 12px; }
 .win-body .hero { max-width: none; margin: 0 0 16px; }
 .win-body .hero h1 { font-size: 22px; }
@@ -406,20 +409,35 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   to { transform: none; opacity: 1; }
 }
 
-.dock {
-  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
-  width: min(720px, calc(100% - 40px));
+@keyframes f2f-win-enter {
+  from { transform: translateY(14px) scale(.96); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+/* No fill mode: bubble mode's inline tilt transform must win again once this ends. */
+.win-enter { animation: f2f-win-enter 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .win-enter { animation: none; }
+}
+
+.composer {
   display: flex; gap: 10px; align-items: center;
-  padding: 10px 12px; border-radius: 24px; z-index: 40;
+  padding: 10px 12px; border-radius: 24px;
 }
-.dock input[type="text"] {
-  flex: 1; border: none; background: transparent; outline: none; font-size: 15px;
+.composer input[type="text"] {
+  flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 15px;
 }
-.dock input[type="file"] { display: none; }
-.dock-attach {
+.composer-attach {
   width: 44px; height: 44px; border-radius: 50%; flex: none;
   display: grid; place-items: center; color: var(--muted);
 }
+.composer-send { padding: 10px 16px; border-radius: 16px; flex: none; }
+.composer-hero { width: 100%; text-align: left; }
+.composer-panel {
+  flex: none; margin-top: 12px; padding: 6px 8px; border-radius: 20px;
+}
+.composer-panel input[type="text"] { font-size: 13.5px; }
+.composer-panel .composer-attach { width: 34px; height: 34px; }
+.composer-panel .composer-send { padding: 8px 12px; border-radius: 14px; font-size: 13px; }
 .drop-overlay {
   position: absolute; inset: 0; z-index: 80;
   display: grid; place-items: center;
@@ -432,7 +450,11 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .drop-overlay-title {
   margin: 0 0 8px; font-size: 22px; font-weight: 600; color: var(--acc-deep);
 }
-.concierge-chat { display: flex; flex-direction: column; gap: 12px; }
+.concierge { display: flex; flex-direction: column; min-height: 0; }
+.concierge-scroll {
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: min(420px, 34vh); overflow: auto;
+}
 .chat-turn { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
 .chat-bubble {
   padding: 10px 12px; border-radius: 16px; font-size: 13.5px; line-height: 1.45;
@@ -458,11 +480,14 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
 
-.empty-hero {
+.hero-chat {
   position: absolute; left: 50%; top: 28%; transform: translateX(-50%);
-  text-align: center; width: min(720px, 92%); z-index: 2; pointer-events: none;
+  text-align: center; width: min(720px, 92%); z-index: 40; pointer-events: none;
 }
-.empty-hero .chips, .empty-hero button { pointer-events: auto; }
+.hero-chat .chips, .hero-chat button, .hero-chat .composer { pointer-events: auto; }
+.hero-chat .composer { margin-top: 22px; }
+.hero-chat.is-bare { top: auto; bottom: 22px; }
+.hero-chat.is-bare .composer { margin-top: 0; }
 
 .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 32px 16px; }
 .login-card { width: min(440px, 100%); padding: 28px; }
