@@ -6,7 +6,7 @@ import { StudioCanvas } from "../canvas/StudioCanvas";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
+import { appLabel, CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor } from "../lib/catalog";
 import { can } from "../lib/auth";
 
@@ -29,11 +29,11 @@ export function StudioPage() {
   useEffect(() => {
     const app = params.get("app");
     if (!app || !isWorkspaceApp(app)) return;
-    openApp(app);
+    if (!openApp(app)) ask(`Open ${appLabel(app)}`);
     const next = new URLSearchParams(params);
     next.delete("app");
     setParams(next, { replace: true });
-  }, [params, openApp, setParams]);
+  }, [params, openApp, ask, setParams]);
 
   useEffect(() => {
     const el = root.current;

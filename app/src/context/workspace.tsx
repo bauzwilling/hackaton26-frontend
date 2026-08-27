@@ -151,13 +151,13 @@ const APP_W = 960;
 const NOTE_W = 240;
 const NOTE_H = 160;
 
-export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string }[] = [
+export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
-  { id: "admin", label: "Admin console", perm: "users" },
+  { id: "admin", label: "Admin console", perm: "users", ready: false },
 ];
 
 export function isWorkspaceApp(v: string): v is WorkspaceApp {
@@ -267,17 +267,27 @@ function allowed(session: Session | null, app: WorkspaceApp) {
   return true;
 }
 
+/** License and role are not enough — an unbuilt app still must not open a window. */
+function openable(session: Session | null, app: WorkspaceApp) {
+  const meta = WORKSPACE_APPS.find((a) => a.id === app);
+  if (!meta || meta.ready === false) return false;
+  return allowed(session, app);
+}
+
 function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => allowed(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => openable(session, a.id)).map((a) => a.id);
 }
 
 function restrictedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => !allowed(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => !openable(session, a.id)).map((a) => a.id);
 }
 
 function denyCopy(session: Session | null, app: WorkspaceApp) {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   const label = meta?.label ?? app;
+  if (meta?.ready === false) {
+    return { title: `${label} — not available`, body: `${label} is not available yet.` };
+  }
   if (meta?.licensed && !hasApp(session, meta.licensed)) {
     return {
       title: `${label} — not licensed`,
@@ -413,7 +423,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const saved = loadPersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
-      .filter((n) => n.kind !== "request" && (n.kind !== "text" || n.id === CONCIERGE_ID))
+      .filter((n) => n.kind !== "request" && n.kind !== "denied" && (n.kind !== "text" || n.id === CONCIERGE_ID))
+      .filter((n) => {
+        if (n.kind !== "app" || !n.appId) return true;
+        const meta = WORKSPACE_APPS.find((a) => a.id === n.appId);
+        return meta?.ready !== false;
+      })
       .map(normalizeNode);
     setNodes(cleaned);
     setEdges(saved.edges);
@@ -463,36 +478,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => {
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
-    if (!meta) return null;
-
-    if (!allowed(session, app)) {
-      const id = uid("d");
-      zTop.current += 1;
-      const copy = denyCopy(session, app);
-      const denied: WorkspaceNode = {
-        id,
-        kind: "denied",
-        title: copy.title,
-        code: `LIC-${Math.floor(1000 + Math.random() * 9000)}`,
-        appId: app,
-        query: opts?.query,
-        parentId: opts?.parentId,
-        body: copy.body,
-        x: RAIL_X,
-        y: 20,
-        z: zTop.current,
-        w: RAIL_W,
-        h: 1,
-        hidden: false,
-        autoSize: true,
-      };
-      setNodes((list) => {
-        const base = withRail(list);
-        const slot = placeBeside(base, RAIL_W, EST_H.denied);
-        return [...base, { ...denied, ...slot }];
-      });
-      return id;
-    }
+    if (!meta || !openable(session, app)) return null;
 
     const found = nodesRef.current.find((n) => n.kind === "app" && n.appId === app);
     const id = found?.id ?? uid("a");
@@ -572,21 +558,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
 
-        if (appId) {
+        if (appId && openable(session, appId)) {
           // WAITING BFF: the reply opens a window directly. The master plan is a
           // SuggestedAction the user accepts, which the BFF validates before anything
           // runs. Replace this block, not the transport, when actions arrive.
-          const ok = allowed(session, appId);
-          status = ok ? "app" : "denied";
+          status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
           const appTarget = openApp(appId, { parentId: conciergeId, query: q });
           if (appTarget) targetIds.push(appTarget);
+        } else if (appId) {
+          // Unavailable: no window. The concierge reply is the whole answer.
+          routeWhy = result.reply;
         }
 
         setEntries((list) => list.map((e) => (e.id === entryId ? {
           ...e,
-          appId,
+          appId: status === "app" ? appId : undefined,
           result: status,
           routeLabel,
           routeWhy,
@@ -601,12 +589,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       } catch {
         // No assistant reachable: fall back to a local name match so the board stays usable.
         const guess = matchApp(q);
-        const appId = guess && isWorkspaceApp(guess) ? guess : null;
+        const named = guess && isWorkspaceApp(guess) ? guess : null;
+        const appId = named && openable(session, named) ? named : null;
         settle({
           app: appId,
           reply: appId
             ? `Opening ${appLabel(appId)} for you.`
-            : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+            : named
+              ? denyCopy(session, named).body
+              : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
         });
       }
     })();
@@ -628,14 +619,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       let routeLabel = "Concierge";
       let routeWhy = "Answered on the canvas";
       let confirmApps: WorkspaceApp[] | undefined;
+      let reply = verdict.message;
 
       if (verdict.kind === "route") {
-        appId = verdict.appId;
-        const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
-        if (appTarget) targetIds.push(appTarget);
-        result = allowed(session, verdict.appId) ? "app" : "denied";
-        routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
-        routeWhy = verdict.message;
+        if (openable(session, verdict.appId)) {
+          appId = verdict.appId;
+          const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
+          if (appTarget) targetIds.push(appTarget);
+          result = "app";
+          routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
+          routeWhy = verdict.message;
+        } else {
+          reply = denyCopy(session, verdict.appId).body;
+          routeWhy = reply;
+        }
       } else if (verdict.kind === "confirm") {
         routeLabel = "Confirm";
         routeWhy = "Need a confirmation before opening an app";
@@ -653,7 +650,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         targetIds,
         appId,
         result,
-        reply: verdict.message,
+        reply,
         confirmApps,
       };
       setEntries((prev) => [...prev, entry]);
@@ -666,11 +663,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const entry = entriesRef.current.find((e) => e.id === entryId);
     if (!entry) return;
     const query = entry.query;
+    const conciergeId = ensureConcierge();
+    if (!openable(session, app)) {
+      const copy = denyCopy(session, app);
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? {
+        ...e,
+        result: "text",
+        routeLabel: "Concierge",
+        routeWhy: copy.body,
+        reply: copy.body,
+        confirmApps: undefined,
+      } : e)));
+      return;
+    }
     const message = openingMessage(app, query);
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
-    const conciergeId = ensureConcierge();
     const appTarget = openApp(app, { parentId: conciergeId, query });
-    const result: RequestEntry["result"] = allowed(session, app) ? "app" : "denied";
 
     setEntries((prev) => prev.map((e) => {
       if (e.id !== entryId) return e;
@@ -680,7 +688,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return {
         ...e,
         appId: app,
-        result,
+        result: "app",
         routeLabel: meta?.label ?? e.routeLabel,
         routeWhy: message,
         reply: message,
@@ -720,7 +728,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!entry) return;
     const conciergeId = ensureConcierge();
     const targetIds: string[] = [conciergeId];
-    if (entry.appId && entry.result !== "text") {
+    if (entry.appId && entry.result === "app") {
       const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
       if (appTarget) targetIds.push(appTarget);
     }
