@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Surface } from "../components/kit";
-import { entryIsLive, entryOpenedWindow, useWorkspace, type RequestEntry } from "../context/workspace";
+import { CONCIERGE_ID, entryIsLive, entryOpenedWindow, entryWindowName, useWorkspace, type RequestEntry } from "../context/workspace";
+
+function uniqueWindows(rows: RequestEntry[]) {
+  const seen = new Set<string>();
+  const unique: RequestEntry[] = [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const e = rows[i];
+    const key = e.targetIds.filter((id) => id !== CONCIERGE_ID).join("|") || e.appId || e.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(e);
+  }
+  return unique.reverse();
+}
 
 export function RequestLog({ viewport }: { viewport: { width: number; height: number } }) {
   const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const opened = useMemo(() => entries.filter(entryOpenedWindow), [entries]);
+  const opened = useMemo(() => uniqueWindows(entries.filter(entryOpenedWindow)), [entries]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -47,10 +60,8 @@ export function RequestLog({ viewport }: { viewport: { width: number; height: nu
               onClick={() => onRowClick(e)}
               onContextMenu={(ev) => onRowContext(ev, e)}
             >
-              <span className="request-row-query">{e.query}</span>
-              <span className="request-row-meta">
-                {live ? `Routed to ${e.routeLabel}` : "Deleted"}
-              </span>
+              <span className="request-row-query">{entryWindowName(e, nodes)}</span>
+              {!live && <span className="request-row-meta">Deleted</span>}
             </button>
           );
         })}

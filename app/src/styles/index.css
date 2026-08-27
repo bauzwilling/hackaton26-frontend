@@ -345,7 +345,7 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 }
 .request-row.is-selected { box-shadow: 0 0 0 2px var(--acc), var(--clay-press); }
 .request-row.is-deleted { opacity: 0.42; filter: grayscale(0.6); }
-.request-row-query { font-size: 13.5px; line-height: 1.4; font-weight: 500; }
+.request-row-query { font-size: 13.5px; line-height: 1.4; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .request-row-meta { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .request-log-foot { display: flex; flex-wrap: wrap; gap: 8px; }
 .request-log-name { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }

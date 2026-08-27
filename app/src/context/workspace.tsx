@@ -152,7 +152,7 @@ const NOTE_W = 240;
 const NOTE_H = 160;
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string }[] = [
-  { id: "boxouts", label: "Boxouts", licensed: "boxouts" },
+  { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
@@ -317,7 +317,14 @@ function logNode(): WorkspaceNode {
 
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
-  return { ...n, autoSize: true, w: Math.max(n.w || minW, minW), h: Math.max(n.h || 80, 80) };
+  const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
+  return {
+    ...n,
+    title: n.kind === "app" && label ? label : n.title,
+    autoSize: true,
+    w: Math.max(n.w || minW, minW),
+    h: Math.max(n.h || 80, 80),
+  };
 }
 
 function conciergeNode(): WorkspaceNode {
@@ -495,7 +502,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const base = withRail(list);
       const current = base.find((n) => n.kind === "app" && n.appId === app);
       if (current) {
-        return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
+        return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
       }
       const slot = placeBeside(base, APP_W, EST_H.app);
       const node: WorkspaceNode = {
@@ -891,6 +898,7 @@ export function useWorkspace() {
 }
 
 export function appLabel(app: WorkspaceApp) {
+  if (app === "boxouts") return "Door Box Out";
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";
@@ -903,6 +911,15 @@ export function appLabel(app: WorkspaceApp) {
  */
 export function entryOpenedWindow(entry: RequestEntry) {
   return entry.targetIds.some((id) => id !== CONCIERGE_ID);
+}
+
+/** Name of the window this ask put on the board — never the user's phrasing. */
+export function entryWindowName(entry: RequestEntry, nodes: WorkspaceNode[]) {
+  if (entry.appId) return appLabel(entry.appId);
+  const id = entry.targetIds.find((tid) => tid !== CONCIERGE_ID);
+  const node = id ? nodes.find((n) => n.id === id) : undefined;
+  if (node?.appId) return appLabel(node.appId);
+  return node?.title || entry.routeLabel;
 }
 
 export function entryIsLive(entry: RequestEntry, nodes: WorkspaceNode[]) {
