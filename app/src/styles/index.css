@@ -415,8 +415,22 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 }
 /* No fill mode: bubble mode's inline tilt transform must win again once this ends. */
 .win-enter { animation: f2f-win-enter 200ms ease-out; }
+@keyframes f2f-win-flash {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.win-flash-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  background: color-mix(in oklab, var(--acc) 42%, transparent);
+  animation: f2f-win-flash 700ms ease-out forwards;
+}
 @media (prefers-reduced-motion: reduce) {
   .win-enter { animation: none; }
+  .win-flash-overlay { animation: none; }
 }
 
 .composer {

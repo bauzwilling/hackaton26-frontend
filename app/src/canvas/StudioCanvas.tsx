@@ -40,7 +40,7 @@ const FLUSH_MS = 2000;
 export function StudioCanvas() {
   const {
     nodes, edges, pan, zoom, setPan, setZoom,
-    focus, move, fit, close, hide,
+    focus, move, fit, close, hide, flashIds, flashKey,
   } = useWorkspace();
   const { showWires, showGrid, bubbleMode } = useSession();
   const [conciergeEnter, setConciergeEnter] = useState(false);
@@ -321,6 +321,8 @@ export function StudioCanvas() {
               hidden={n.hidden}
               autoSize
               enter={conciergeEnter && n.id === CONCIERGE_ID}
+              flash={flashIds.includes(n.id)}
+              flashKey={flashKey}
               tilt={bubbleMode ? b?.tilt : undefined}
               onFocus={() => focus(n.id)}
               onClose={() => close(n.id)}

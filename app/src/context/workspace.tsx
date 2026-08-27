@@ -85,9 +85,8 @@ function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEnt
 
   const projects = appBy("projects");
   if (projects) {
-    for (const id of JOB_APPS) {
-      const job = appBy(id);
-      if (job) add(job.id, projects.id);
+    for (const n of apps) {
+      if (n.appId && JOB_APPS.includes(n.appId)) add(n.id, projects.id);
     }
   }
 
@@ -138,6 +137,8 @@ type Ctx = {
   tile: (viewport: { width: number; height: number }) => void;
   clear: (opts?: { transcript?: boolean }) => void;
   clearTranscript: () => void;
+  flashIds: string[];
+  flashKey: number;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -150,6 +151,7 @@ const LOG_W = 340;
 const APP_W = 960;
 const NOTE_W = 240;
 const NOTE_H = 160;
+const FLASH_MS = 700;
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
@@ -411,13 +413,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [flashIds, setFlashIds] = useState<string[]>([]);
+  const [flashKey, setFlashKey] = useState(0);
   const zTop = useRef(10);
+  const flashTimer = useRef<number | null>(null);
   const skipSave = useRef(0);
   const skipEntries = useRef(0);
   const nodesRef = useRef<WorkspaceNode[]>([]);
   const entriesRef = useRef<RequestEntry[]>([]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { entriesRef.current = entries; }, [entries]);
+  useEffect(() => () => {
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+  }, []);
 
   useEffect(() => {
     const saved = loadPersist(email) ?? emptyPersist();
@@ -480,13 +488,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
     if (!meta || !openable(session, app)) return null;
 
-    const found = nodesRef.current.find((n) => n.kind === "app" && n.appId === app);
+    const reuse = !JOB_APPS.includes(app);
+    const found = reuse ? nodesRef.current.find((n) => n.kind === "app" && n.appId === app) : undefined;
     const id = found?.id ?? uid("a");
     zTop.current += 1;
     const z = zTop.current;
     setNodes((list) => {
       const base = withRail(list);
-      const current = base.find((n) => n.kind === "app" && n.appId === app);
+      const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
       if (current) {
         return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
       }
@@ -721,6 +730,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
       y: viewport.height / 2 - (minY + bh / 2) * nextZoom,
     });
+    const flash = live
+      .filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log")
+      .map((n) => n.id);
+    if (!flash.length) return;
+    setFlashKey((k) => k + 1);
+    setFlashIds(flash);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashIds([]), FLASH_MS);
   }, []);
 
   const restoreEntry = useCallback((entryId: string, viewport?: { width: number; height: number }) => {
@@ -732,17 +749,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
       if (appTarget) targetIds.push(appTarget);
     }
-    const appTarget = targetIds.find((id) => id !== conciergeId);
-    setEntries((list) => list.map((e) => {
-      if (e.id === entryId) return { ...e, targetIds };
-      if (entry.result === "app" && e.result === "app" && e.appId && e.appId === entry.appId && appTarget) {
-        const next: string[] = e.targetIds.filter((id) => id === CONCIERGE_ID);
-        if (!next.includes(CONCIERGE_ID)) next.unshift(conciergeId);
-        if (!next.includes(appTarget)) next.push(appTarget);
-        return { ...e, targetIds: next };
-      }
-      return e;
-    }));
+    setEntries((list) => list.map((e) => (e.id === entryId ? { ...e, targetIds } : e)));
     setSelectedEntryId(entryId);
     if (viewport) {
       window.setTimeout(() => focusTargets(targetIds, viewport), 0);
@@ -857,6 +864,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setOverviewOpen(false);
     setPan({ x: 0, y: 0 });
     setZoom(1);
+    setFlashIds([]);
     zTop.current = 10;
   }, []);
 
@@ -894,7 +902,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     tile,
     clear,
     clearTranscript,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript]);
+    flashIds,
+    flashKey,
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
@@ -924,11 +934,14 @@ export function entryOpenedApp(entry: RequestEntry) {
 
 /** Name of the window this ask put on the board — never the user's phrasing. */
 export function entryWindowName(entry: RequestEntry, nodes: WorkspaceNode[]) {
-  if (entry.appId) return appLabel(entry.appId);
   const id = entry.targetIds.find((tid) => tid !== CONCIERGE_ID);
   const node = id ? nodes.find((n) => n.id === id) : undefined;
-  if (node?.appId) return appLabel(node.appId);
-  return node?.title || entry.routeLabel;
+  const label = entry.appId
+    ? appLabel(entry.appId)
+    : node?.appId
+      ? appLabel(node.appId)
+      : (node?.title || entry.routeLabel);
+  return node?.code ? `${label} · ${node.code}` : label;
 }
 
 export function entryIsLive(entry: RequestEntry, nodes: WorkspaceNode[]) {
