@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Surface } from "../components/kit";
-import { CONCIERGE_ID, entryIsLive, entryOpenedWindow, entryWindowName, useWorkspace, type RequestEntry } from "../context/workspace";
+import { CONCIERGE_ID, entryIsLive, entryOpenedApp, entryWindowName, useWorkspace, type RequestEntry } from "../context/workspace";
 
 function uniqueWindows(rows: RequestEntry[]) {
   const seen = new Set<string>();
@@ -19,7 +19,7 @@ export function RequestLog({ viewport }: { viewport: { width: number; height: nu
   const { entries, nodes, selectedEntryId, setSelectedEntryId, focusTargets, restoreEntry } = useWorkspace();
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const opened = useMemo(() => uniqueWindows(entries.filter(entryOpenedWindow)), [entries]);
+  const opened = useMemo(() => uniqueWindows(entries.filter(entryOpenedApp)), [entries]);
 
   useEffect(() => {
     const el = listRef.current;

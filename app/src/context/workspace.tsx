@@ -906,11 +906,12 @@ export function appLabel(app: WorkspaceApp) {
 }
 
 /**
- * Did this ask put a window on the board? The request log records those; plain
- * questions and answers stay in the concierge transcript.
+ * Did this ask successfully open an app? The request log records only those.
+ * Plain answers and refusals ("no access", unsupported file) belong in the
+ * concierge transcript, not in the record of what is on the board.
  */
-export function entryOpenedWindow(entry: RequestEntry) {
-  return entry.targetIds.some((id) => id !== CONCIERGE_ID);
+export function entryOpenedApp(entry: RequestEntry) {
+  return entry.result === "app" && entry.targetIds.some((id) => id !== CONCIERGE_ID);
 }
 
 /** Name of the window this ask put on the board — never the user's phrasing. */
