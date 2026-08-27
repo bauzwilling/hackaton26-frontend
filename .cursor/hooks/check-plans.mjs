@@ -3,8 +3,8 @@
  * Cursor hook: keep hackaton26-frontend aligned with hackaton26-plans.
  *
  * sessionStart — refresh the local clone of the plans repo.
- * beforeShellExecution (git commit) — review the staged diff against
- * master-plan/ and msd-* READMEs, then allow or deny the commit.
+ * --git-pre-commit — run from .githooks/pre-commit, review the staged diff
+ * against master-plan/ and msd-* READMEs, then exit 0 or 1.
  */
 
 import { execFileSync } from "node:child_process";
@@ -18,10 +18,37 @@ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_MODEL = "claude-sonnet-4-5";
 const MAX_PLANS_CHARS = 90_000;
 const MAX_DIFF_CHARS = 80_000;
+const GIT_MODE = process.argv.includes("--git-pre-commit");
 
 function reply(payload) {
+  if (GIT_MODE) {
+    replyGit(payload);
+    return;
+  }
   process.stdout.write(jsonDump(payload));
-  process.exit(0);
+}
+
+/**
+ * Git speaks exit codes, not permissions. Only an explicit deny blocks the
+ * commit, so a missing API key or a flaky network cannot lock the repo.
+ */
+function replyGit(payload) {
+  const message = payload.agent_message || payload.user_message || "";
+
+  if (payload.permission === "deny") {
+    process.stderr.write(
+      `\n${message || "This commit conflicts with hackaton26-plans."}\n\n` +
+        "Commit aborted. Fix the diff, or re-run with --no-verify to override.\n\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  if (message) {
+    process.stderr.write(`\n[check-plans] WARNING: ${message}\n\n`);
+    return;
+  }
+  process.stderr.write("[check-plans] commit matches hackaton26-plans\n");
 }
 
 function jsonDump(value) {
@@ -385,6 +412,7 @@ async function handleSessionStart(repoRoot) {
         "Git commits in this repo are checked against those plans before they land.",
       ].join("\n"),
     });
+    return;
   } catch (error) {
     log(`sessionStart plan sync failed: ${error.message || error}`);
     reply({});
@@ -395,6 +423,7 @@ async function handleCommit(input, repoRoot) {
   const command = String(input.command || "");
   if (!isGitCommit(command)) {
     allow();
+    return;
   }
 
   let plansRoot;
@@ -405,15 +434,18 @@ async function handleCommit(input, repoRoot) {
       "Could not refresh hackaton26-plans. Review this commit against master-plan and msd-* before continuing.",
       `Plan sync failed (${error.message || error}). Fetch https://github.com/bauzwilling/hackaton26-plans and re-check that this commit does not add out-of-scope features or incorrect wiring.`,
     );
+    return;
   }
 
   const { diff, stat, files } = collectCommitDiff(repoRoot, command);
   if (!diff && files.length === 0) {
     allow();
+    return;
   }
 
   if (onlyHookBootstrap(files)) {
     allow();
+    return;
   }
 
   const plans = collectPlanMarkdown(plansRoot);
@@ -422,6 +454,7 @@ async function handleCommit(input, repoRoot) {
       "hackaton26-plans clone has no master-plan or msd-* markdown. Review this commit manually.",
       "The plan cache was empty after sync. Confirm master-plan and msd-* READMEs are present, then retry the commit.",
     );
+    return;
   }
 
   loadDotEnv(repoRoot);
@@ -431,6 +464,7 @@ async function handleCommit(input, repoRoot) {
       "ANTHROPIC_API_KEY is missing, so this commit was not auto-checked against hackaton26-plans. Confirm it stays in scope, then approve.",
       "Set ANTHROPIC_API_KEY in the repo-root .env so commits can be checked against master-plan and msd-* READMEs. Until then, do not introduce out-of-scope features or wiring that those plans forbid.",
     );
+    return;
   }
 
   let branch = "";
@@ -461,6 +495,7 @@ async function handleCommit(input, repoRoot) {
       "Plan check could not finish. Review this commit against hackaton26-plans before continuing.",
       `Commit review failed (${error.message || error}). Re-read master-plan and msd-* and make sure this diff does not add out-of-scope features or incorrect wiring.`,
     );
+    return;
   }
 
   if (review && review.compliant === false) {
@@ -470,13 +505,16 @@ async function handleCommit(input, repoRoot) {
       `Commit blocked: it conflicts with hackaton26-plans. ${summary}`,
       `Commit blocked by the plan-alignment hook.\n${summary}\n${details}\nFix the diff so it matches master-plan and the relevant msd-* READMEs, then commit again.`,
     );
+    return;
   }
 
   allow();
 }
 
 async function main() {
-  const input = parseHookInput(readStdin());
+  const input = GIT_MODE
+    ? { hook_event_name: "beforeShellExecution", command: "git commit" }
+    : parseHookInput(readStdin());
   const repoRoot = resolveRepoRoot(input);
   const event = String(input.hook_event_name || "");
 

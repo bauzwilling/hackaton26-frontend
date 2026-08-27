@@ -6,13 +6,6 @@
         "command": "node .cursor/hooks/check-plans.mjs",
         "timeout": 60
       }
-    ],
-    "beforeShellExecution": [
-      {
-        "command": "node .cursor/hooks/check-plans.mjs",
-        "matcher": "git commit",
-        "timeout": 120
-      }
     ]
   }
 }
