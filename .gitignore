@@ -28,6 +28,9 @@ lerna-debug.log*
 # cursor hook cache (cloned plans repo)
 .cursor/hooks/.cache/
 
+# local plan-check log
+commit-verifications.md
+
 # editor
 .vscode/*
 !.vscode/extensions.json

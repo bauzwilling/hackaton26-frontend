@@ -20,9 +20,8 @@ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_MODEL = "claude-sonnet-4-5";
 const MAX_PLANS_CHARS = 90_000;
 const MAX_DIFF_CHARS = 80_000;
+// Gitignored, so it never reaches the staged diff the review reads.
 const REGISTER_FILE = "commit-verifications.md";
-// The register describes the commit before it, so reviewing it is pure noise.
-const REVIEW_PATHSPEC = ["--", ".", `:(exclude)${REGISTER_FILE}`];
 const VERDICT_FILE = "plan-check-verdict.json";
 // A verdict older than this belongs to a commit that never completed.
 const VERDICT_MAX_AGE_MS = 10 * 60 * 1000;
@@ -293,7 +292,7 @@ function syncPlans(repoRoot) {
 function collectCommitDiff(repoRoot, command) {
   let diff = "";
   try {
-    diff = git(["diff", "--cached", "--full-index", ...REVIEW_PATHSPEC], repoRoot);
+    diff = git(["diff", "--cached", "--full-index"], repoRoot);
   } catch {
     diff = "";
   }
@@ -301,7 +300,7 @@ function collectCommitDiff(repoRoot, command) {
   const usesAll = /(?:\s|^)(?:-a|--all)(?:\s|$)/.test(command);
   if (!diff.trim() && usesAll) {
     try {
-      diff = git(["diff", "HEAD", "--full-index", ...REVIEW_PATHSPEC], repoRoot);
+      diff = git(["diff", "HEAD", "--full-index"], repoRoot);
     } catch {
       diff = "";
     }
@@ -309,21 +308,21 @@ function collectCommitDiff(repoRoot, command) {
 
   let stat = "";
   try {
-    stat = git(["diff", "--cached", "--stat", ...REVIEW_PATHSPEC], repoRoot);
+    stat = git(["diff", "--cached", "--stat"], repoRoot);
   } catch {
     stat = "";
   }
 
   let files = "";
   try {
-    files = git(["diff", "--cached", "--name-only", ...REVIEW_PATHSPEC], repoRoot);
+    files = git(["diff", "--cached", "--name-only"], repoRoot);
   } catch {
     files = "";
   }
 
   if (!files.trim() && usesAll) {
     try {
-      files = git(["diff", "HEAD", "--name-only", ...REVIEW_PATHSPEC], repoRoot);
+      files = git(["diff", "HEAD", "--name-only"], repoRoot);
     } catch {
       files = "";
     }
