@@ -31,25 +31,11 @@ export async function askConcierge(
   apps: string[],
   restricted: string[] = [],
 ): Promise<ConciergeResult> {
-  // #region agent log
-  fetch('http://127.0.0.1:7448/ingest/c73e0b22-e355-4118-9fbd-33d77a7f4f9c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'765102'},body:JSON.stringify({sessionId:'765102',runId:'verify',hypothesisId:'A',location:'concierge.ts:askConcierge',message:'chat fetch start',data:{msgLen:message.length,historyLen:history.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-  let res: Response;
-  try {
-    res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history, apps, restricted }),
-    });
-  } catch (err) {
-    // #region agent log
-    fetch('http://127.0.0.1:7448/ingest/c73e0b22-e355-4118-9fbd-33d77a7f4f9c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'765102'},body:JSON.stringify({sessionId:'765102',runId:'verify',hypothesisId:'A',location:'concierge.ts:askConcierge',message:'chat fetch threw',data:{err:String(err)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    throw err;
-  }
-  // #region agent log
-  fetch('http://127.0.0.1:7448/ingest/c73e0b22-e355-4118-9fbd-33d77a7f4f9c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'765102'},body:JSON.stringify({sessionId:'765102',runId:'verify',hypothesisId:'A',location:'concierge.ts:askConcierge',message:'chat fetch response',data:{ok:res.ok,status:res.status},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history, apps, restricted }),
+  });
   if (!res.ok) {
     throw new Error(`Concierge request failed (${res.status})`);
   }
