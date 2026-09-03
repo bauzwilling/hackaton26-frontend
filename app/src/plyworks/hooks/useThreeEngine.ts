@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { ThreeEngine } from "../lib/ThreeEngine";
+import type { Board } from "../types";
 import type { ConfiguratorStore } from "./useConfiguratorState";
 
 /**
@@ -31,8 +32,8 @@ export function useThreeEngine(store: ConfiguratorStore) {
     storeRef.current.resizeBoard(id, field, value);
   }, []);
 
-  const onLog = useCallback((msg: string) => {
-    storeRef.current.dispatch({ type: "LOG", msg });
+  const onCommit = useCallback((msg: string, beforeBoards: Board[]) => {
+    storeRef.current.commit(msg, beforeBoards);
   }, []);
 
   // Create engine on mount
@@ -40,7 +41,7 @@ export function useThreeEngine(store: ConfiguratorStore) {
     const el = containerRef.current;
     if (!el) return;
 
-    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onLog });
+    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onCommit });
     engineRef.current = engine;
 
     const onResize = () => engine.resize();
@@ -54,7 +55,7 @@ export function useThreeEngine(store: ConfiguratorStore) {
       engine.dispose();
       engineRef.current = null;
     };
-  }, [onSelect, onMoveBoard, onResizeBoard, onLog]);
+  }, [onSelect, onMoveBoard, onResizeBoard, onCommit]);
 
   // Rebuild scene on state change
   useEffect(() => {

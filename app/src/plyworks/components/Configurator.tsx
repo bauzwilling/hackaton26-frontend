@@ -1,3 +1,4 @@
+import { type KeyboardEvent, type PointerEvent } from "react";
 import { useConfiguratorState } from "../hooks/useConfiguratorState";
 import { useThreeEngine } from "../hooks/useThreeEngine";
 import { Toolbar } from "./Toolbar";
@@ -22,12 +23,34 @@ export function Configurator() {
   const store = useConfiguratorState();
   const { containerRef, resetView } = useThreeEngine(store);
 
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest("input, textarea")) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      store.undo();
+    }
+  }
+
+  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest("input, textarea, button")) return;
+    e.currentTarget.focus();
+  }
+
   return (
-    <div className="pw">
+    <div
+      className="pw"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <div ref={containerRef} className="pw-canvas" />
       <Toolbar store={store} onResetView={resetView} />
       <SelectionPanel store={store} />
-      <MaterialPicker store={store} />
+      {store.mode === "real" && <MaterialPicker store={store} />}
       <HistoryLog store={store} />
     </div>
   );

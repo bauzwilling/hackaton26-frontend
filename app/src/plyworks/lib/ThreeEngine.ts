@@ -17,13 +17,13 @@
 import * as THREE from "three";
 import type { Board, Material, RenderMode } from "../types";
 import { MATERIALS, THICKNESS as T } from "../types";
-import { crossOverlap, contactSnap } from "./geometry";
+import { bbox, crossOverlap, contactSnap } from "./geometry";
 
 export interface EngineCallbacks {
   onSelect: (id: number | null) => void;
   onMoveBoard: (id: number, axis: "x" | "y" | "z", value: number) => void;
   onResizeBoard: (id: number, field: "w" | "h" | "d", value: number) => void;
-  onLog: (msg: string) => void;
+  onCommit: (msg: string, beforeBoards: Board[]) => void;
 }
 
 export class ThreeEngine {
@@ -245,6 +245,121 @@ export class ThreeEngine {
     return tex;
   }
 
+  private makeDimLabel(text: string, fill = "#201e1d"): THREE.Sprite {
+    const cv = document.createElement("canvas");
+    cv.width = 256;
+    cv.height = 64;
+    const g = cv.getContext("2d")!;
+    g.fillStyle = fill;
+    const r = 12;
+    g.beginPath();
+    g.moveTo(r, 0);
+    g.lineTo(cv.width - r, 0);
+    g.quadraticCurveTo(cv.width, 0, cv.width, r);
+    g.lineTo(cv.width, cv.height - r);
+    g.quadraticCurveTo(cv.width, cv.height, cv.width - r, cv.height);
+    g.lineTo(r, cv.height);
+    g.quadraticCurveTo(0, cv.height, 0, cv.height - r);
+    g.lineTo(0, r);
+    g.quadraticCurveTo(0, 0, r, 0);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#fffdf8";
+    g.font = "600 28px Figtree, system-ui, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(text, cv.width / 2, cv.height / 2 + 1);
+    const tex = new THREE.CanvasTexture(cv);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const spr = new THREE.Sprite(mat);
+    spr.scale.set(0.32, 0.08, 1);
+    spr.renderOrder = 20;
+    spr.userData.dim = true;
+    return spr;
+  }
+
+  private addDimSpan(a: THREE.Vector3, b: THREE.Vector3, text: string, color = "#201e1d") {
+    const lineMat = new THREE.LineBasicMaterial({ color, depthTest: false });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), lineMat);
+    line.renderOrder = 20;
+    line.userData.dim = true;
+    this.group.add(line);
+
+    const dir = b.clone().sub(a);
+    const len = dir.length();
+    if (len < 1e-6) return;
+    dir.divideScalar(len);
+    const tick = 0.028;
+    const ortho = Math.abs(dir.x) > 0.9
+      ? new THREE.Vector3(0, 0, tick)
+      : Math.abs(dir.y) > 0.9
+        ? new THREE.Vector3(tick, 0, 0)
+        : new THREE.Vector3(0, tick, 0);
+    for (const p of [a, b]) {
+      const tline = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([p.clone().add(ortho), p.clone().sub(ortho)]),
+        lineMat
+      );
+      tline.renderOrder = 20;
+      tline.userData.dim = true;
+      this.group.add(tline);
+    }
+
+    const spr = this.makeDimLabel(`${text} mm`, color);
+    spr.position.copy(a).add(b).multiplyScalar(0.5);
+    this.group.add(spr);
+  }
+
+  private addDims(boards: Board[], selId: number | null) {
+    if (!boards.length) return;
+    const bb = bbox(boards);
+    const x0 = bb.x0 / 1000, x1 = bb.x1 / 1000;
+    const y0 = bb.y0 / 1000, y1 = bb.y1 / 1000;
+    const z0 = bb.z0 / 1000, z1 = bb.z1 / 1000;
+    const gap = 0.09;
+    this.addDimSpan(
+      new THREE.Vector3(x0, y0, z1 + gap),
+      new THREE.Vector3(x1, y0, z1 + gap),
+      `${Math.round(bb.x1 - bb.x0)}`
+    );
+    this.addDimSpan(
+      new THREE.Vector3(x0 - gap, y0, z1),
+      new THREE.Vector3(x0 - gap, y1, z1),
+      `${Math.round(bb.y1 - bb.y0)}`
+    );
+    this.addDimSpan(
+      new THREE.Vector3(x1 + gap, y0, z0),
+      new THREE.Vector3(x1 + gap, y0, z1),
+      `${Math.round(bb.z1 - bb.z0)}`
+    );
+
+    const sel = boards.find((b) => b.id === selId);
+    if (!sel) return;
+    const sx0 = (sel.x - sel.w / 2) / 1000, sx1 = (sel.x + sel.w / 2) / 1000;
+    const sy0 = (sel.y - sel.h / 2) / 1000, sy1 = (sel.y + sel.h / 2) / 1000;
+    const sz0 = (sel.z - sel.d / 2) / 1000, sz1 = (sel.z + sel.d / 2) / 1000;
+    const g = 0.045;
+    const accent = "#c67139";
+    this.addDimSpan(
+      new THREE.Vector3(sx0, sy1 + g, sz1),
+      new THREE.Vector3(sx1, sy1 + g, sz1),
+      `${Math.round(sel.w)}`,
+      accent
+    );
+    this.addDimSpan(
+      new THREE.Vector3(sx0 - g, sy0, sz1),
+      new THREE.Vector3(sx0 - g, sy1, sz1),
+      `${Math.round(sel.h)}`,
+      accent
+    );
+    this.addDimSpan(
+      new THREE.Vector3(sx1, sy0, sz0 - g),
+      new THREE.Vector3(sx1, sy0, sz1 - g),
+      `${Math.round(sel.d)}`,
+      accent
+    );
+  }
+
   private applyMode(
     boards: Board[],
     selId: number | null,
@@ -259,6 +374,11 @@ export class ThreeEngine {
     while (this.group.children.length) {
       const c = this.group.children.pop()!;
       if ((c as THREE.Mesh).geometry) (c as THREE.Mesh).geometry.dispose();
+      if (c instanceof THREE.Sprite) {
+        const m = c.material;
+        m.map?.dispose();
+        m.dispose();
+      }
     }
 
     // Build board meshes
@@ -374,8 +494,7 @@ export class ThreeEngine {
     this.renderer.toneMapping = comic ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = comic ? 1 : 0.95;
 
-    // TODO: dimension labels (addDims) — port when wiring up the dim overlay
-    void showDims;
+    if (showDims) this.addDims(boards, selId);
 
     this.draw();
   }
@@ -444,7 +563,7 @@ export class ThreeEngine {
         dom.style.cursor = "ns-resize";
         return;
       }
-      const pan = e.button === 1 || e.shiftKey || e.metaKey;
+      const pan = e.button === 1 || e.button === 2 || e.shiftKey || e.metaKey;
       down = {
         x: e.clientX, y: e.clientY,
         t: this.orbit.theta, p: this.orbit.phi,
@@ -452,6 +571,11 @@ export class ThreeEngine {
       };
       dom.style.cursor = pan ? "move" : "grabbing";
       if (pan) e.preventDefault();
+    });
+
+    dom.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
     });
 
     dom.addEventListener("pointermove", (e) => {
@@ -485,7 +609,7 @@ export class ThreeEngine {
         dom.style.cursor = "grab";
         return;
       }
-      if (down && down.moved < 5) this.pick(e);
+      if (down && down.moved < 5 && e.button === 0) this.pick(e);
       down = null;
       dom.style.cursor = "grab";
     });
@@ -577,9 +701,11 @@ export class ThreeEngine {
   private finishDrag() {
     const d0 = this.drag;
     this.drag = null;
+    if (!d0) return;
+    const start = d0.start;
     // Contact snap on release for moves
-    if (d0?.mv) {
-      const now = this.lastBoards.find((x) => x.id === d0.start.id);
+    if (d0.mv) {
+      const now = this.lastBoards.find((x) => x.id === start.id);
       if (now) {
         const p = contactSnap(this.lastBoards, now, d0.mv.ax, now[d0.mv.ax]);
         if (p !== null && p !== now[d0.mv.ax]) {
@@ -587,5 +713,16 @@ export class ThreeEngine {
         }
       }
     }
+    const now = this.lastBoards.find((x) => x.id === start.id);
+    if (!now) return;
+    const changed =
+      now.x !== start.x || now.y !== start.y || now.z !== start.z ||
+      now.w !== start.w || now.h !== start.h || now.d !== start.d;
+    if (!changed) return;
+    const before = this.lastBoards.map((b) => (b.id === start.id ? { ...start } : { ...b }));
+    const msg = d0.mv
+      ? `↔ ${start.name}`
+      : `⤢ ${start.name} · ${d0.h!.dim.toUpperCase()} ${Math.round(now[d0.h!.dim])}`;
+    this.cb.onCommit(msg, before);
   }
 }

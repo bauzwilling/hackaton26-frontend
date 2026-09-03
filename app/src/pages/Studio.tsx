@@ -16,7 +16,7 @@ function isFileDrag(e: DragEvent) {
 
 export function StudioPage() {
   const { session } = useSession();
-  const { nodes, ask, openApp, addNote, ingestFiles, pan, zoom } = useWorkspace();
+  const { nodes, ask, openApp, announceOpen, addNote, ingestFiles, pan, zoom } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [ctx, setCtx] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
@@ -29,11 +29,13 @@ export function StudioPage() {
   useEffect(() => {
     const app = params.get("app");
     if (!app || !isWorkspaceApp(app)) return;
-    if (!openApp(app)) ask(`Open ${appLabel(app)}`);
+    const id = openApp(app);
+    if (!id) ask(`Open ${appLabel(app)}`);
+    else announceOpen(app, id);
     const next = new URLSearchParams(params);
     next.delete("app");
     setParams(next, { replace: true });
-  }, [params, openApp, ask, setParams]);
+  }, [params, openApp, announceOpen, ask, setParams]);
 
   useEffect(() => {
     const el = root.current;
@@ -65,7 +67,7 @@ export function StudioPage() {
 
   function onContext(e: MouseEvent<HTMLDivElement>) {
     const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .windows-fab, .composer")) return;
+    if (t.closest("input, textarea, .overview, .request-log, .windows-fab, .composer, .win-app")) return;
     e.preventDefault();
     const box = e.currentTarget.getBoundingClientRect();
     setHost({ width: box.width, height: box.height });
@@ -125,7 +127,7 @@ export function StudioPage() {
         empty ? (
           <div className="hero-chat">
             <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
-            <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-click anywhere to ask or add a note. Drag the canvas to look around.</p>
+            <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-drag to pan, right-click to ask or add a note.</p>
             <Composer variant="hero" autoFocus />
             <div className="chips">
               {chips.map((c) => (

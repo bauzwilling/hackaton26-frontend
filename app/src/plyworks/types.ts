@@ -58,6 +58,11 @@ export interface LogEntry {
   id: number;
   time: string;
   msg: string;
+  snapshot: {
+    boards: Board[];
+    selId: number | null;
+    mat: string;
+  };
 }
 
 // ── Bounding box ──

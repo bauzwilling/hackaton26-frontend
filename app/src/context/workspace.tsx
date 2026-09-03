@@ -3,6 +3,7 @@ import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "..
 import { askConcierge, type ConciergeResult } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchApp } from "../lib/routing";
+import { plyworksOpening } from "../lib/catalog";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
@@ -121,6 +122,7 @@ type Ctx = {
   setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setZoom: (z: number | ((prev: number) => number)) => void;
   openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => string | null;
+  announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
   ask: (query: string) => void;
@@ -154,8 +156,8 @@ const NOTE_W = 240;
 const NOTE_H = 160;
 const FLASH_MS = 700;
 
-function isIframeApp(app?: WorkspaceApp): boolean {
-  return app === "boxouts" || app === "simpleparts";
+function isFixedSizeApp(app?: WorkspaceApp): boolean {
+  return app === "boxouts" || app === "simpleparts" || app === "plyworks";
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
@@ -335,7 +337,7 @@ function logNode(): WorkspaceNode {
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
-  const iframe = isIframeApp(n.appId);
+  const iframe = isFixedSizeApp(n.appId);
   return {
     ...n,
     title: n.kind === "app" && label ? label : n.title,
@@ -505,7 +507,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (current) {
         return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
       }
-      const iframe = isIframeApp(app);
+      const iframe = isFixedSizeApp(app);
       const appH = iframe ? IFRAME_H : EST_H.app;
       const slot = placeBeside(base, APP_W, appH);
       const node: WorkspaceNode = {
@@ -537,6 +539,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     )));
     return CONCIERGE_ID;
   }, []);
+
+  const announceOpen = useCallback((app: WorkspaceApp, appTarget: string | null) => {
+    if (app !== "plyworks") return;
+    const conciergeId = ensureConcierge();
+    const entryId = uid("e");
+    const targetIds = appTarget ? [conciergeId, appTarget] : [conciergeId];
+    const reply = plyworksOpening(`Opening ${appLabel(app)} for you.`);
+    setEntries((list) => [...list, {
+      id: entryId,
+      at: Date.now(),
+      query: `Open ${appLabel(app)}`,
+      routeLabel: appLabel(app),
+      routeWhy: reply,
+      targetIds,
+      appId: app,
+      result: "app",
+      reply,
+    }]);
+    setSelectedEntryId(entryId);
+  }, [ensureConcierge]);
 
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
@@ -611,7 +633,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         settle({
           app: appId,
           reply: appId
-            ? `Opening ${appLabel(appId)} for you.`
+            ? appId === "plyworks"
+              ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
+              : `Opening ${appLabel(appId)} for you.`
             : named
               ? denyCopy(session, named).body
               : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
@@ -894,6 +918,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPan,
     setZoom,
     openApp,
+    announceOpen,
     addNote,
     setNodeBody,
     ask,
@@ -912,7 +937,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

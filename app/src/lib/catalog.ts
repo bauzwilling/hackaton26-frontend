@@ -46,6 +46,13 @@ export function chipsFor(includeOrbit: boolean) {
   return includeOrbit ? CHIPS : CHIPS.filter((c) => c !== ORBIT_CHIP);
 }
 
+export const PLYWORKS_INTRO =
+  "Plyworks is a plywood furniture configurator. Start from an 18 mm cabinet, add or move panels, preview realistic wood, then download STEP, DXF, or STL for manufacture.";
+
+export function plyworksOpening(prefix: string) {
+  return `${prefix} ${PLYWORKS_INTRO}`;
+}
+
 export function quoteBox(w: number, h: number, d: number, count: number, rate: number, film: boolean, nest: boolean) {
   const area = (w * h * 2 + d * h * 2 + w * d) / 1e6;
   const bulk = count >= 12 ? 0.86 : count >= 6 ? 0.93 : 1;

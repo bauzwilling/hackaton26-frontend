@@ -12,9 +12,16 @@ export function HistoryLog({ store }: Props) {
 
   return (
     <div className="pw-log">
-      <button type="button" onClick={() => setOpen(!open)} className="pw-log-trigger">
-        {String(t(lang, "log"))} ({store.logs.length})
-      </button>
+      <div className="pw-log-bar">
+        <button type="button" onClick={() => setOpen(!open)} className="pw-log-trigger">
+          {String(t(lang, "log"))} ({store.logs.length})
+        </button>
+        {store.logs.length > 0 && (
+          <button type="button" onClick={store.undo} className="pw-btn">
+            {String(t(lang, "undo"))}
+          </button>
+        )}
+      </div>
 
       {open && (
         <div className="pw-log-panel">
@@ -23,10 +30,16 @@ export function HistoryLog({ store }: Props) {
           ) : (
             <div className="pw-log-list">
               {store.logs.map((entry) => (
-                <div key={entry.id} className="pw-log-entry">
+                <button
+                  type="button"
+                  key={entry.id}
+                  className="pw-log-entry"
+                  title={String(t(lang, "undoTo"))}
+                  onClick={() => store.undoTo(entry.id)}
+                >
                   <span className="pw-log-time">{entry.time}</span>
                   <span>{entry.msg}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}

@@ -42,18 +42,6 @@ export function Toolbar({ store, onResetView }: Props) {
         <Btn onClick={() => exportSTL(store.boards)}>STL</Btn>
       </ToolGroup>
 
-      <ToolGroup label={String(t(lang, "language"))}>
-        {(["en", "de", "es"] as const).map((code) => (
-          <Btn
-            key={code}
-            onClick={() => store.setLang(code)}
-            active={store.lang === code}
-          >
-            {code.toUpperCase()}
-          </Btn>
-        ))}
-      </ToolGroup>
-
       <span className="pw-count">
         {store.boards.length} {String(t(lang, "parts"))}
       </span>

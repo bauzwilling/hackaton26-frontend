@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as PE } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ME, type PointerEvent as PE } from "react";
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
 import { CONCIERGE_ID, useWorkspace, type WorkspaceNode } from "../context/workspace";
@@ -48,6 +48,7 @@ export function StudioCanvas() {
   const layer = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState | null>(null);
   const panDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const panMoved = useRef(false);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
   const nodesRef = useRef(nodes);
@@ -188,17 +189,25 @@ export function StudioCanvas() {
   }
 
   function beginPan(e: PE<HTMLDivElement>) {
+    panMoved.current = false;
     panDrag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     e.currentTarget.setPointerCapture(e.pointerId);
     setPanning(true);
   }
 
+  function skipBoardPan(t: HTMLElement) {
+    return !!t.closest("input, textarea, select, button, a, .composer, .overview, .windows-fab, .ctx-ask, .ctx-backdrop, .win-app, .request-log");
+  }
+
+  function onAuxPointerDownCapture(e: PE<HTMLDivElement>) {
+    if (e.button !== 1 && e.button !== 2) return;
+    if (skipBoardPan(e.target as HTMLElement)) return;
+    e.preventDefault();
+    beginPan(e);
+  }
+
   function onPointerDown(e: PE<HTMLDivElement>) {
-    if (e.button === 1) {
-      e.preventDefault();
-      beginPan(e);
-      return;
-    }
+    if (e.button === 1 || e.button === 2) return;
     if (e.button !== 0) return;
     const t = e.target as HTMLElement;
     if (t.closest(".win, .overview, .ctx-ask, .ctx-backdrop, .request-log")) return;
@@ -209,6 +218,7 @@ export function StudioCanvas() {
     const el = layer.current;
     if (panDrag.current && e.buttons) {
       const d = panDrag.current;
+      if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 5) panMoved.current = true;
       setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
       return;
     }
@@ -257,6 +267,13 @@ export function StudioCanvas() {
     setPanning(false);
   }
 
+  function onContextMenu(e: ME<HTMLDivElement>) {
+    if (!panMoved.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panMoved.current = false;
+  }
+
   function startDrag(node: WorkspaceNode, e: PE<HTMLDivElement>) {
     const el = layer.current;
     if (!el || e.button !== 0) return;
@@ -284,7 +301,9 @@ export function StudioCanvas() {
       ref={layer}
       tabIndex={0}
       onKeyDown={onKeyDown}
+      onPointerDownCapture={onAuxPointerDownCapture}
       onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
       onPointerMove={onMove}
       onPointerUp={endGesture}
       onLostPointerCapture={endGesture}

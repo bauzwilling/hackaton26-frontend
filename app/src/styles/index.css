@@ -209,7 +209,8 @@ button.sf:disabled:active { transform: none; }
 .win-bar:active { cursor: grabbing; }
 .win-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--acc); flex: none; }
 .win-body { padding: 16px 18px 18px; overflow: auto; flex: 1; min-height: 0; }
-.win-app:has(.embedded-app) .win-body {
+.win-app:has(.embedded-app) .win-body,
+.win-app:has(.pw) .win-body {
   padding: 0;
   overflow: hidden;
   display: flex;

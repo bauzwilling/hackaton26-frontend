@@ -5,6 +5,8 @@
  * which answers with a message and suggested actions. Nothing here survives that.
  */
 
+import { plyworksOpening } from "./catalog";
+
 /** Job apps the fake (and later real) structuring step can route into. */
 export type IntakeApp = "boxouts" | "simpleparts" | "plyworks";
 
@@ -80,7 +82,7 @@ export function openingMessage(app: IntakeApp, fileName: string, format?: Intake
     return "This looks like a part drawing. Opening Simple Parts for you.";
   }
   if (app === "plyworks") {
-    return "This looks like a panel or furniture job. Opening Plyworks for you.";
+    return plyworksOpening("This looks like a panel or furniture job. Opening Plyworks for you.");
   }
   return `Opening that application for you.`;
 }

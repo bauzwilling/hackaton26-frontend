@@ -14,6 +14,27 @@ function timestamp(): string {
   });
 }
 
+type Snapshot = LogEntry["snapshot"];
+
+function snapshotOf(state: FullState): Snapshot {
+  return {
+    boards: state.boards.map((b) => ({ ...b })),
+    selId: state.selId,
+    mat: state.mat,
+  };
+}
+
+function withChange(state: FullState, msg: string, patch: Partial<FullState>): FullState {
+  return {
+    ...state,
+    ...patch,
+    logs: [
+      { id: Date.now() + Math.random(), time: timestamp(), msg, snapshot: snapshotOf(state) },
+      ...state.logs,
+    ].slice(0, 120),
+  };
+}
+
 // ── Actions ──
 
 type Action =
@@ -29,7 +50,9 @@ type Action =
   | { type: "SET_MATERIAL"; mat: string }
   | { type: "SET_LANG"; lang: "en" | "de" | "es" }
   | { type: "TOGGLE_DIMS" }
-  | { type: "LOG"; msg: string };
+  | { type: "COMMIT"; msg: string; boards: Board[] }
+  | { type: "UNDO" }
+  | { type: "UNDO_TO"; id: number };
 
 interface FullState extends ConfiguratorState {
   logs: LogEntry[];
@@ -55,13 +78,6 @@ const INITIAL_STATE: FullState = {
   logs: [],
 };
 
-function addLog(state: FullState, msg: string): LogEntry[] {
-  return [
-    { id: Date.now() + Math.random(), time: timestamp(), msg },
-    ...state.logs,
-  ].slice(0, 120);
-}
-
 function reducer(state: FullState, action: Action): FullState {
   switch (action.type) {
     case "SET_BOARDS":
@@ -72,45 +88,41 @@ function reducer(state: FullState, action: Action): FullState {
 
     case "ADD_BOARD": {
       const b = createBoard(state.boards, action.kind);
-      return {
-        ...state,
+      return withChange(state, `+ ${boardName(state.lang, b.name)} · ${b.w}×${b.h}×${b.d}`, {
         boards: [...state.boards, b],
         selId: b.id,
-        logs: addLog(state, `+ ${boardName(state.lang, b.name)} · ${b.w}×${b.h}×${b.d}`),
-      };
+      });
     }
 
     case "DELETE_SELECTED": {
       const b = state.boards.find((x) => x.id === state.selId);
-      return {
-        ...state,
+      if (!b) return { ...state, boards: state.boards.filter((x) => x.id !== state.selId), selId: null };
+      return withChange(state, `− ${boardName(state.lang, b.name)}`, {
         boards: state.boards.filter((x) => x.id !== state.selId),
         selId: null,
-        logs: b ? addLog(state, `− ${boardName(state.lang, b.name)}`) : state.logs,
-      };
+      });
     }
 
     case "ROTATE": {
       const b = state.boards.find((x) => x.id === state.selId);
       if (!b) return state;
       const patch = rotateBoard(b, action.axis);
-      return {
-        ...state,
+      return withChange(state, `⟳ ${boardName(state.lang, b.name)} · ${action.axis.toUpperCase()} 90°`, {
         boards: state.boards.map((x) =>
           x.id === state.selId ? { ...x, ...patch } : x
         ),
-        logs: addLog(state, `⟳ ${boardName(state.lang, b.name)} · ${action.axis.toUpperCase()} 90°`),
-      };
+      });
     }
 
     case "SET_DIM": {
       const v = Math.max(THICKNESS, Math.round(action.value || 0));
-      return {
-        ...state,
+      const cur = state.boards.find((x) => x.id === state.selId);
+      if (!cur || cur[action.field] === v) return state;
+      return withChange(state, `▭ ${boardName(state.lang, cur.name)} · ${action.field.toUpperCase()} ${v}`, {
         boards: state.boards.map((x) =>
           x.id === state.selId ? { ...x, [action.field]: v } : x
         ),
-      };
+      });
     }
 
     case "MOVE_BOARD":
@@ -133,11 +145,8 @@ function reducer(state: FullState, action: Action): FullState {
       return { ...state, mode: action.mode };
 
     case "SET_MATERIAL":
-      return {
-        ...state,
-        mat: action.mat,
-        logs: addLog(state, `◧ ${action.mat}`),
-      };
+      if (state.mat === action.mat) return state;
+      return withChange(state, `◧ ${action.mat}`, { mat: action.mat });
 
     case "SET_LANG":
       return { ...state, lang: action.lang };
@@ -145,8 +154,48 @@ function reducer(state: FullState, action: Action): FullState {
     case "TOGGLE_DIMS":
       return { ...state, dims: !state.dims };
 
-    case "LOG":
-      return { ...state, logs: addLog(state, action.msg) };
+    case "COMMIT":
+      return {
+        ...state,
+        logs: [
+          {
+            id: Date.now() + Math.random(),
+            time: timestamp(),
+            msg: action.msg,
+            snapshot: {
+              boards: action.boards.map((b) => ({ ...b })),
+              selId: state.selId,
+              mat: state.mat,
+            },
+          },
+          ...state.logs,
+        ].slice(0, 120),
+      };
+
+    case "UNDO": {
+      const latest = state.logs[0];
+      if (!latest) return state;
+      return {
+        ...state,
+        boards: latest.snapshot.boards,
+        selId: latest.snapshot.selId,
+        mat: latest.snapshot.mat,
+        logs: state.logs.slice(1),
+      };
+    }
+
+    case "UNDO_TO": {
+      const idx = state.logs.findIndex((e) => e.id === action.id);
+      if (idx < 0) return state;
+      const entry = state.logs[idx];
+      return {
+        ...state,
+        boards: entry.snapshot.boards,
+        selId: entry.snapshot.selId,
+        mat: entry.snapshot.mat,
+        logs: state.logs.slice(idx + 1),
+      };
+    }
 
     default:
       return state;
@@ -182,6 +231,11 @@ export function useConfiguratorState() {
       dispatch({ type: "RESIZE_BOARD", id, field, value }),
     []
   );
+  const commit = useCallback((msg: string, beforeBoards: Board[]) => {
+    dispatch({ type: "COMMIT", msg, boards: beforeBoards });
+  }, []);
+  const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
+  const undoTo = useCallback((id: number) => dispatch({ type: "UNDO_TO", id }), []);
 
   return {
     ...state,
@@ -200,6 +254,9 @@ export function useConfiguratorState() {
     setBoards,
     moveBoard,
     resizeBoard,
+    commit,
+    undo,
+    undoTo,
   };
 }
 
