@@ -358,7 +358,7 @@ export function StudioCanvas() {
               flash={flashIds.includes(n.id)}
               flashKey={flashKey}
               selected={activeId === n.id}
-              viewport={n.appId === "plyworks"}
+              viewport={false}
               tilt={bubbleMode ? b?.tilt : undefined}
               onFocus={() => { setActiveId(n.id); focus(n.id); }}
               onClose={() => close(n.id)}

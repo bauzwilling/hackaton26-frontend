@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Segment, Surface } from "../components/kit";
 import { PROJECTS } from "../lib/catalog";
-import { Configurator } from "../plyworks";
 
 export function ProjectsPage() {
   const [filter, setFilter] = useState("All");
@@ -30,6 +29,4 @@ export function ProjectsPage() {
   );
 }
 
-export function PlyworksPage() {
-  return <Configurator />;
-}
+export { PlyworksPage } from "./Plyworks";

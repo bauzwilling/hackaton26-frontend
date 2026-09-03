@@ -1,5 +1,1 @@
-import { Configurator } from "./components/Configurator";
-
-export function PlyworksPage() {
-  return <Configurator />;
-}
+export { PlyworksPage } from "../pages/Plyworks";

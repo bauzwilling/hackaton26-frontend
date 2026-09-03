@@ -7,7 +7,7 @@ import { plyworksOpening } from "../lib/catalog";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit" | "admin";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-nesting" | "projects" | "orbit" | "admin";
 
 export type WorkspaceNode = {
   id: string;
@@ -157,13 +157,14 @@ const NOTE_H = 160;
 const FLASH_MS = 700;
 
 function isFixedSizeApp(app?: WorkspaceApp): boolean {
-  return app === "boxouts" || app === "simpleparts" || app === "plyworks";
+  return app === "boxouts" || app === "simpleparts" || app === "plyworks" || app === "plyworks-nesting";
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
+  { id: "plyworks-nesting", label: "Plyworks nesting", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
   { id: "admin", label: "Admin console", perm: "users", ready: false },
@@ -284,7 +285,7 @@ function openable(session: Session | null, app: WorkspaceApp) {
 }
 
 function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => openable(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => a.id !== "plyworks-nesting" && openable(session, a.id)).map((a) => a.id);
 }
 
 function restrictedApps(session: Session | null): WorkspaceApp[] {
@@ -530,6 +531,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
     return id;
   }, [session]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== "plyworks-nesting" || typeof data.jobId !== "string") return;
+      const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
+      openApp("plyworks-nesting", { parentId: parent?.id, query: data.jobId });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [openApp]);
 
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
