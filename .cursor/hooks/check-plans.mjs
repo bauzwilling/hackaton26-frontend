@@ -371,12 +371,13 @@ This frontend is Unified UI only. It may talk to a Platform BFF. It must not gro
 ## Review rules
 
 FAIL (compliant=false) if the DIFF introduces any of:
-- Out-of-scope features (examples: Plyworks as Phase-1 product work, billing, Nexus auth, rewriting Door Box-Out / Simple Parts / Worklist, UI calling those systems or Rhino Compute or the AI provider directly, browser-owned workflow execution, global CurrentJob state, treating { reply, app } as the real product contract)
+- Out-of-scope features (examples: billing, Nexus auth, rewriting Door Box-Out / Simple Parts / Worklist, UI calling those systems or Rhino Compute or the AI provider directly, browser-owned workflow execution, global CurrentJob state, treating { reply, app } as the real product contract)
 - Incorrect wiring vs the plans (UI → legacy systems, AI executes manufacturing, skipping BFF SuggestedAction accept, polling adapters, exposing GH/Worklist/Rhino IDs as platform IDs, Design/Mill/Produce file bounce in the browser)
 - New behavior that contradicts named feature interactions in msd-* READMEs
 
 ALLOW (compliant=true) if:
-- The diff only changes look/layout/copy while staying within a named window (Studio canvas, Concierge, Boxouts/Design, Simple Parts/Mill, Orbit/Produce)
+- The diff only changes look/layout/copy while staying within a named window (Studio canvas, Concierge, Boxouts/Design, Plyworks/Design, Simple Parts/Mill, Orbit/Produce)
+- The diff adds or refactors the native Plyworks Design window (design.plyworks / msd-plyworks-app): in-window Three.js geometry and export, without a GH adapter or a second mill/produce pipeline
 - The diff keeps or refactors mocks that the plans already list under "Fake / not fixed" or named deviations (dummy login, local quotes, open-app concierge, localStorage workspace) WITHOUT treating them as the lasting contract
 - The BFF does not exist yet, so continuing to use local mocks is fine as long as the diff does not cement the wrong architecture
 - Docs, comments, tests, or this hook itself
