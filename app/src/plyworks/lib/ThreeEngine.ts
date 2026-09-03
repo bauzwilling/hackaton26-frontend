@@ -60,6 +60,8 @@ export class ThreeEngine {
     sy: number;
   } | null = null;
 
+  private unbindPointer: (() => void) | null = null;
+
   constructor(container: HTMLElement, callbacks: EngineCallbacks) {
     this.cb = callbacks;
 
@@ -189,6 +191,8 @@ export class ThreeEngine {
   dispose() {
     this.stopped = true;
     cancelAnimationFrame(this.animId);
+    this.unbindPointer?.();
+    this.unbindPointer = null;
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
@@ -550,12 +554,20 @@ export class ThreeEngine {
     };
   }
 
+  /** Inside Studio, only the selected window owns zoom/pan. Standalone has no `.win`. */
+  private viewportSelected(el: HTMLElement) {
+    const win = el.closest(".win");
+    return !win || win.classList.contains("is-selected");
+  }
+
   private bindPointer(dom: HTMLElement) {
     let down: {
       x: number; y: number; t: number; p: number; moved: number; pan: boolean; tgt: THREE.Vector3;
     } | null = null;
+    const root = (dom.parentElement?.closest(".pw") as HTMLElement | null) ?? dom;
 
-    dom.addEventListener("pointerdown", (e) => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!this.viewportSelected(dom)) return;
       dom.setPointerCapture(e.pointerId);
       const grab = this.pickHandle(e);
       if (grab) {
@@ -571,20 +583,24 @@ export class ThreeEngine {
       };
       dom.style.cursor = pan ? "move" : "grabbing";
       if (pan) e.preventDefault();
-    });
+    };
 
-    dom.addEventListener("contextmenu", (e) => {
+    const onContextMenu = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-    });
+    };
 
-    dom.addEventListener("pointermove", (e) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (this.drag) {
         this.handleDrag(e);
         return;
       }
       if (!down) {
-        dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
+        if (this.viewportSelected(dom)) {
+          dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
+        } else {
+          dom.style.cursor = "default";
+        }
         return;
       }
       down.moved = Math.max(down.moved, Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y));
@@ -601,9 +617,9 @@ export class ThreeEngine {
       }
       this.orbit.theta = down.t - (e.clientX - down.x) * 0.008;
       this.orbit.phi = Math.min(1.6, Math.max(0.22, down.p - (e.clientY - down.y) * 0.006));
-    });
+    };
 
-    dom.addEventListener("pointerup", (e) => {
+    const onPointerUp = (e: PointerEvent) => {
       if (this.drag) {
         this.finishDrag();
         dom.style.cursor = "grab";
@@ -612,12 +628,29 @@ export class ThreeEngine {
       if (down && down.moved < 5 && e.button === 0) this.pick(e);
       down = null;
       dom.style.cursor = "grab";
-    });
+    };
 
-    dom.addEventListener("wheel", (e) => {
+    const onWheel = (e: WheelEvent) => {
+      if (!this.viewportSelected(dom)) return;
+      if ((e.target as HTMLElement).closest("input, textarea")) return;
       e.preventDefault();
+      e.stopPropagation();
       this.orbit.r = Math.min(8, Math.max(1.4, this.orbit.r * (1 + Math.sign(e.deltaY) * 0.09)));
-    }, { passive: false });
+    };
+
+    dom.addEventListener("pointerdown", onPointerDown);
+    dom.addEventListener("contextmenu", onContextMenu);
+    dom.addEventListener("pointermove", onPointerMove);
+    dom.addEventListener("pointerup", onPointerUp);
+    root.addEventListener("wheel", onWheel, { passive: false });
+
+    this.unbindPointer = () => {
+      dom.removeEventListener("pointerdown", onPointerDown);
+      dom.removeEventListener("contextmenu", onContextMenu);
+      dom.removeEventListener("pointermove", onPointerMove);
+      dom.removeEventListener("pointerup", onPointerUp);
+      root.removeEventListener("wheel", onWheel);
+    };
   }
 
   private handleDrag(e: PointerEvent) {
