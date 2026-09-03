@@ -67,7 +67,7 @@ export function StudioPage() {
 
   function onContext(e: MouseEvent<HTMLDivElement>) {
     const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .windows-fab, .composer, .win-app")) return;
+    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app")) return;
     e.preventDefault();
     const box = e.currentTarget.getBoundingClientRect();
     setHost({ width: box.width, height: box.height });
@@ -126,16 +126,19 @@ export function StudioPage() {
       {!conciergeUp && (
         empty ? (
           <div className="hero-chat">
-            <h1 className="hero" style={{ color: "var(--acc-deep)", fontSize: "clamp(28px, 4vw, 56px)", margin: 0 }}>Make everything. Manufacturable.</h1>
-            <p className="muted" style={{ marginTop: 14 }}>Drop a design or just describe it. Right-drag to pan, right-click to ask or add a note.</p>
+            <p className="hero-kicker">The largest factory in the world</p>
+            <h1 className="hero-title">From file to factory.</h1>
+            <p className="hero-lead">
+              Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.
+            </p>
             <Composer variant="hero" autoFocus />
             <div className="chips">
               {chips.map((c) => (
-                <Surface key={c} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => ask(c)}>
+                <Surface key={c} as="button" type="button" className="chip" onClick={() => ask(c)}>
                   {c}
                 </Surface>
               ))}
-              <Surface as="button" type="button" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => addNote()}>
+              <Surface as="button" type="button" className="chip" onClick={() => addNote()}>
                 Add note
               </Surface>
             </div>
@@ -146,6 +149,9 @@ export function StudioPage() {
           </div>
         )
       )}
+      <p className="studio-hint">
+        Right-click anywhere to ask · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
+      </p>
       {dropping && (
         <div className="drop-overlay">
           <Surface className="drop-overlay-card">

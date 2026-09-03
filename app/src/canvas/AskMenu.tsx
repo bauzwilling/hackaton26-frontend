@@ -71,7 +71,7 @@ export function AskMenu({
         {suggestions.length > 0 && (
           <div className="ctx-chips">
             {suggestions.map((s) => (
-              <Surface key={s} as="button" type="button" relief="inset" style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }} onClick={() => submit(s)}>
+              <Surface key={s} as="button" type="button" className="chip" onClick={() => submit(s)}>
                 {s}
               </Surface>
             ))}
@@ -95,8 +95,7 @@ export function AskMenu({
           <Surface
             as="button"
             type="button"
-            relief="inset"
-            style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+            className="chip"
             onClick={() => fileInput.current?.click()}
           >
             Attach file
@@ -104,8 +103,7 @@ export function AskMenu({
           <Surface
             as="button"
             type="button"
-            relief="inset"
-            style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+            className="chip"
             onClick={() => { addNote({ x: world.x, y: world.y }); onClose(); }}
           >
             Add note

@@ -35,8 +35,12 @@ export const PROJECTS = [
 
 export const CHIPS = [
   "Make a boxout 300×2000×1000 — 5×",
-  "Open Simple Parts",
+  "Configure a door boxout",
+  "How does plate nesting work?",
   "What can you manufacture?",
+  "What does it cost?",
+  "Where do I order?",
+  "Open Simple Parts",
   "Open CNC Orbit",
 ];
 

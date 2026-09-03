@@ -12,7 +12,7 @@ import {
 export type { AccentId, Appearance, Theme };
 
 export const ACCENTS: Record<AccentId, { label: string; acc: string; lite: string; deep: string; dark: string }> = {
-  yellow: { label: "Yellow", acc: "#f9ab00", lite: "#fdd663", deep: "#ea8600", dark: "#fdd663" },
+  yellow: { label: "Orange", acc: "#e07a22", lite: "#f4b57a", deep: "#c45f10", dark: "#f0a45a" },
   blue: { label: "Blue", acc: "#1a73e8", lite: "#8ab4f8", deep: "#0f3d82", dark: "#8ab4f8" },
   red: { label: "Red", acc: "#ea4335", lite: "#f28b82", deep: "#a01a17", dark: "#f28b82" },
   green: { label: "Green", acc: "#34a853", lite: "#81c995", deep: "#12602a", dark: "#81c995" },

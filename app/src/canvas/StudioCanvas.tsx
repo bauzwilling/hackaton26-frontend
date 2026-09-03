@@ -204,7 +204,7 @@ export function StudioCanvas() {
   }
 
   function skipBoardPan(t: HTMLElement) {
-    if (t.closest("input, textarea, select, button, a, .composer, .overview, .windows-fab, .ctx-ask, .ctx-backdrop, .request-log")) return true;
+    if (t.closest("input, textarea, select, button, a, .composer, .overview, .ctx-ask, .ctx-backdrop, .request-log")) return true;
     const win = t.closest(".win-app");
     if (!win) return false;
     if (win.classList.contains("win-viewport")) return win.classList.contains("is-selected");

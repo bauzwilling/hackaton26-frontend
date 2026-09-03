@@ -65,23 +65,14 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
 
   return (
     <>
-      <Surface
-        as="button"
-        type="button"
-        className="windows-fab"
-        active={overviewOpen}
-        onClick={() => setOverviewOpen(!overviewOpen)}
-      >
-        Windows
-      </Surface>
       {overviewOpen && (
         <Surface className="overview">
           <div className="overview-head">
             <span>Open windows</span>
-            <Surface as="button" type="button" relief="inset" style={{ marginLeft: "auto", padding: "7px 12px", borderRadius: 999, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase" }} onClick={() => tile(viewport)}>
+            <Surface as="button" type="button" relief="ghost" className="overview-tool" style={{ marginLeft: "auto" }} onClick={() => tile(viewport)}>
               Arrange
             </Surface>
-            <Surface as="button" type="button" relief="ghost" style={{ width: 28, height: 28, borderRadius: 8 }} onClick={() => setOverviewOpen(false)}>
+            <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => setOverviewOpen(false)}>
               ×
             </Surface>
           </div>
@@ -89,36 +80,36 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
             <div className="overview-clear-prompt">
               <p>Also clear the request log and concierge?</p>
               <div className="overview-tools" style={{ padding: 0 }}>
-                <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { setConfirmClear(false); clear(); }}>
+                <Surface as="button" type="button" className="chip" onClick={() => { setConfirmClear(false); clear(); }}>
                   Keep them
                 </Surface>
-                <Surface as="button" type="button" relief="accent" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { setConfirmClear(false); clear({ transcript: true }); }}>
+                <Surface as="button" type="button" relief="accent" className="overview-tool" onClick={() => { setConfirmClear(false); clear({ transcript: true }); }}>
                   Clear those too
                 </Surface>
-                <Surface as="button" type="button" relief="ghost" style={{ padding: "7px 10px", fontSize: 12 }} onClick={() => setConfirmClear(false)}>
+                <Surface as="button" type="button" relief="ghost" className="overview-tool" onClick={() => setConfirmClear(false)}>
                   Cancel
                 </Surface>
               </div>
             </div>
           ) : (
             <div className="overview-tools">
-              <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={onClearBoard}>
+              <Surface as="button" type="button" className="chip" onClick={onClearBoard}>
                 Clear board
               </Surface>
-              <Surface as="button" type="button" relief="inset" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => { addNote(); setOverviewOpen(false); }}>
+              <Surface as="button" type="button" className="chip" onClick={() => { addNote(); setOverviewOpen(false); }}>
                 Add note
               </Surface>
-              <Surface as="button" type="button" active={tplPanel !== "closed"} style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }} onClick={() => setTplPanel((p) => (p === "closed" ? "menu" : "closed"))}>
+              <Surface as="button" type="button" className="chip" active={tplPanel !== "closed"} onClick={() => setTplPanel((p) => (p === "closed" ? "menu" : "closed"))}>
                 Templates
               </Surface>
             </div>
           )}
           {tplPanel === "menu" && (
             <div className="overview-tpl-actions">
-              <Surface as="button" type="button" relief="inset" style={{ padding: "8px 12px", borderRadius: 14, fontSize: 13, textAlign: "left" }} onClick={() => setTplPanel("save")}>
+              <Surface as="button" type="button" className="chip" style={{ textAlign: "left", borderRadius: 12 }} onClick={() => setTplPanel("save")}>
                 Save current view as template
               </Surface>
-              <Surface as="button" type="button" relief="inset" style={{ padding: "8px 12px", borderRadius: 14, fontSize: 13, textAlign: "left" }} onClick={() => setTplPanel("open")}>
+              <Surface as="button" type="button" className="chip" style={{ textAlign: "left", borderRadius: 12 }} onClick={() => setTplPanel("open")}>
                 Open template
               </Surface>
             </div>
@@ -126,8 +117,8 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
           {tplPanel === "save" && (
             <form className="overview-tpl-save" onSubmit={(e) => { e.preventDefault(); saveCurrentView(); }}>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name" autoFocus />
-              <Surface as="button" type="submit" relief="accent" style={{ padding: "7px 12px", borderRadius: 999, fontSize: 12 }}>Save</Surface>
-              <Surface as="button" type="button" relief="ghost" style={{ padding: "7px 10px", fontSize: 12 }} onClick={() => setTplPanel("menu")}>Back</Surface>
+              <Surface as="button" type="submit" relief="accent" className="overview-tool">Save</Surface>
+              <Surface as="button" type="button" relief="ghost" className="overview-tool" onClick={() => setTplPanel("menu")}>Back</Surface>
             </form>
           )}
           {tplPanel === "open" && (
@@ -146,11 +137,11 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
                 {saved.map((t) => (
                   <li key={t.id}>
                     <button type="button" className="request-tpl-run" onClick={() => runTemplate(t)}>{t.name}</button>
-                    <Surface as="button" type="button" relief="ghost" style={{ width: 28, height: 28, borderRadius: 8 }} onClick={() => removeTemplate(t.id)}>×</Surface>
+                    <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => removeTemplate(t.id)}>×</Surface>
                   </li>
                 ))}
               </ul>
-              <Surface as="button" type="button" relief="ghost" style={{ padding: "7px 10px", fontSize: 12, alignSelf: "flex-start" }} onClick={() => setTplPanel("menu")}>Back</Surface>
+              <Surface as="button" type="button" relief="ghost" className="overview-tool" style={{ alignSelf: "flex-start" }} onClick={() => setTplPanel("menu")}>Back</Surface>
             </div>
           )}
           <ul className="overview-list">
@@ -164,10 +155,10 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
                     <span className="muted" style={{ display: "block", fontSize: 11 }}>{n.hidden ? "Hidden" : n.kind} · {n.code}</span>
                   </span>
                 </button>
-                <Surface as="button" type="button" relief="ghost" style={{ width: 28, height: 28, borderRadius: 8 }} onClick={() => (n.hidden ? show(n.id) : hide(n.id))} title={n.hidden ? "Show" : "Hide"}>
+                <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => (n.hidden ? show(n.id) : hide(n.id))} title={n.hidden ? "Show" : "Hide"}>
                   {n.hidden ? "+" : "–"}
                 </Surface>
-                <Surface as="button" type="button" relief="ghost" style={{ width: 28, height: 28, borderRadius: 8 }} onClick={() => close(n.id)}>
+                <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => close(n.id)}>
                   ×
                 </Surface>
               </li>
