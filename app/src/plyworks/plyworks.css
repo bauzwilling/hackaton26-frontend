@@ -26,67 +26,215 @@
 
 .pw-toolbar {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 14px;
+  right: 14px;
+  width: 216px;
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 8px 16px;
-  background: var(--pw-surface);
-  border-radius: 14px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  max-height: calc(100% - 28px);
+  overflow: auto;
+  background: linear-gradient(
+    180deg,
+    var(--pw-surface),
+    color-mix(in oklab, var(--pw-accent) 7%, var(--pw-surface))
+  );
+  border-radius: 18px;
   box-shadow: var(--clay-out, 0 1px 2px rgba(33, 31, 29, 0.1), 0 8px 22px rgba(33, 31, 29, 0.14));
   z-index: 10;
   font-size: 12px;
 }
 
-.pw-group {
+.pw-toolbar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pw-toolbar-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pw-toolbar-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.pw-toolbar-fab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--pw-surface);
+  box-shadow: var(--clay-out, 0 1px 2px rgba(33, 31, 29, 0.1), 0 8px 22px rgba(33, 31, 29, 0.14));
+}
+
+.pw-fab-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pw-fab-count {
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+.pw-group {
+  --pw-tone: var(--pw-accent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--pw-tone) 9%, var(--pw-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--pw-tone) 22%, var(--pw-surface));
+}
+
+.pw-group.is-insert {
+  --pw-tone: var(--pw-accent);
+}
+
+.pw-group.is-view {
+  --pw-tone: var(--sage, #4f8f5c);
+}
+
+.pw-group.is-download {
+  --pw-tone: #3d7ea6;
 }
 
 .pw-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
-  font-weight: 600;
-  opacity: 0.5;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--pw-tone) 70%, var(--ink, #201e1d));
+}
+
+.pw-label::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pw-tone);
+}
+
+.pw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .pw-row {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+}
+
+.pw-row .pw-btn {
+  flex: 1;
 }
 
 .pw-btn {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  padding: 5px 10px;
+  border: 1px solid color-mix(in oklab, var(--pw-tone, var(--pw-accent)) 20%, rgba(0, 0, 0, 0.08));
+  border-radius: 10px;
+  padding: 7px 12px;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   font-family: inherit;
   background: var(--pw-surface);
   color: inherit;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
+.pw-btn:hover {
+  background: color-mix(in oklab, var(--pw-tone, var(--pw-accent)) 14%, var(--pw-surface));
+}
+
+.pw-btn:active {
+  transform: translateY(1px);
+}
+
+.pw-btn.is-primary,
 .pw-btn.is-on {
-  background: var(--pw-accent);
+  border-color: transparent;
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--pw-tone, var(--pw-accent)) 78%, #fff),
+    var(--pw-tone, var(--pw-accent))
+  );
   color: #fff;
+  box-shadow: 0 2px 6px color-mix(in oklab, var(--pw-tone, var(--pw-accent)) 40%, transparent);
 }
 
-.pw-count {
-  align-self: center;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.6;
-  white-space: nowrap;
+.pw-btn.is-primary:hover,
+.pw-btn.is-on:hover {
+  background: var(--pw-tone, var(--pw-accent));
+}
+
+.pw-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pw-tile {
+  display: grid;
+  place-items: center;
+  padding: 8px 4px;
+  cursor: pointer;
+  border: 1px solid color-mix(in oklab, var(--pw-tone) 24%, var(--pw-surface));
+  border-radius: 12px;
+  background: var(--pw-surface);
+}
+
+.pw-tile:hover {
+  border-color: var(--pw-tone);
+  background: color-mix(in oklab, var(--pw-tone) 10%, var(--pw-surface));
+}
+
+.pw-tile-icon {
+  width: 100%;
+  height: 34px;
+  color: var(--ink, #201e1d);
+}
+
+.pw-icon-face {
+  fill: color-mix(in oklab, var(--pw-tone) 12%, #fff);
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-opacity: 0.7;
+}
+
+.pw-icon-edge {
+  fill: color-mix(in oklab, var(--pw-tone) 55%, #fff);
+  stroke: var(--pw-tone);
+  stroke-width: 1;
 }
 
 .pw-panel {
   position: absolute;
   top: 26px;
-  right: 26px;
+  left: 26px;
   width: 240px;
   background: var(--pw-surface);
   border-radius: 14px;
@@ -113,8 +261,13 @@
   background: none;
   cursor: pointer;
   font-size: 18px;
-  opacity: 0.5;
+  line-height: 1;
+  color: var(--pw-accent);
   padding: 2px 6px;
+}
+
+.pw-close:hover {
+  opacity: 0.7;
 }
 
 .pw-dims {
@@ -209,6 +362,11 @@
   font-size: 11px;
   opacity: 0.5;
   margin-bottom: 10px;
+}
+
+.pw-group .pw-note {
+  margin: 0;
+  line-height: 1.35;
 }
 
 .pw-grid {
