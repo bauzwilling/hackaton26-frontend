@@ -1,29 +1,49 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useSession } from "../context/session";
+import { lookTokens, useSession } from "../context/session";
+
+const LOOK_TYPE = "f2f-look";
+const LOOK_READY = "f2f-look-ready";
 
 // WAITING DATABASE: job output from this iframe (nesting ZIP / send-results payload) → product job/artifact API
 
-export function EmbeddedApp({ src, title }: { src: string; title: string }) {
+export function EmbeddedApp({
+  src,
+  title,
+  complementBg = false,
+}: {
+  src: string;
+  title: string;
+  complementBg?: boolean;
+}) {
   const { theme, accent } = useSession();
   const ref = useRef<HTMLIFrameElement>(null);
 
   const pushLook = useCallback(() => {
     const win = ref.current?.contentWindow;
     if (!win) return;
-    const root = document.documentElement;
-    const cs = getComputedStyle(root);
+    const t = lookTokens(theme, accent);
     win.postMessage({
-      type: "f2f-look",
-      acc: cs.getPropertyValue("--acc").trim(),
-      bg: cs.getPropertyValue("--bg").trim(),
-      face2: cs.getPropertyValue("--face2").trim(),
-      theme: root.dataset.theme === "dark" ? "dark" : "bright",
+      type: LOOK_TYPE,
+      acc: t.acc,
+      bg: complementBg ? t.pwBg : t.bg,
+      face2: complementBg ? t.pwFace2 : t.face2,
+      theme,
     }, "*");
-  }, []);
+  }, [theme, accent, complementBg]);
 
   useEffect(() => {
     pushLook();
-  }, [theme, accent, pushLook]);
+  }, [pushLook]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== ref.current?.contentWindow) return;
+      if (event.data?.type !== LOOK_READY) return;
+      pushLook();
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [pushLook]);
 
   if (!src) {
     return <p className="muted" style={{ margin: 16 }}>No URL configured.</p>;
