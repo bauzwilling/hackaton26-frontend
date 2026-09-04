@@ -10,14 +10,19 @@ import type { ConfiguratorStore } from "./useConfiguratorState";
  * when the ref mounts and disposed on unmount. State changes trigger
  * engine.rebuild() via the effect.
  */
-export function useThreeEngine(store: ConfiguratorStore) {
+export function useThreeEngine(
+  store: ConfiguratorStore,
+  opts?: { onContextMenu?: (info: { x: number; y: number; id: number | null }) => void },
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ThreeEngine | null>(null);
 
   // Stable callbacks — these close over the latest store via ref
   const storeRef = useRef(store);
+  const ctxRef = useRef(opts?.onContextMenu);
   useEffect(() => {
     storeRef.current = store;
+    ctxRef.current = opts?.onContextMenu;
   });
 
   const onSelect = useCallback((id: number | null) => {
@@ -36,12 +41,16 @@ export function useThreeEngine(store: ConfiguratorStore) {
     storeRef.current.commit(msg, beforeBoards);
   }, []);
 
+  const onContextMenu = useCallback((info: { x: number; y: number; id: number | null }) => {
+    ctxRef.current?.(info);
+  }, []);
+
   // Create engine on mount
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onCommit });
+    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onCommit, onContextMenu });
     engineRef.current = engine;
 
     const onResize = () => engine.resize();
@@ -58,7 +67,7 @@ export function useThreeEngine(store: ConfiguratorStore) {
       engine.dispose();
       engineRef.current = null;
     };
-  }, [onSelect, onMoveBoard, onResizeBoard, onCommit]);
+  }, [onSelect, onMoveBoard, onResizeBoard, onCommit, onContextMenu]);
 
   // Rebuild scene on state change
   useEffect(() => {

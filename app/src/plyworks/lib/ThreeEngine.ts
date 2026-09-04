@@ -33,6 +33,7 @@ export interface EngineCallbacks {
   onMoveBoard: (id: number, axis: "x" | "y" | "z", value: number) => void;
   onResizeBoard: (id: number, field: "w" | "h" | "d", value: number) => void;
   onCommit: (msg: string, beforeBoards: Board[]) => void;
+  onContextMenu?: (info: { x: number; y: number; id: number | null }) => void;
 }
 
 export class ThreeEngine {
@@ -538,14 +539,18 @@ export class ThreeEngine {
     );
   }
 
-  private pick(e: PointerEvent) {
+  private hitId(e: PointerEvent): number | null {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(this.ndc(e), this.cam);
     const hits = ray.intersectObjects(
       this.group.children.filter((c) => (c as THREE.Mesh).userData.id),
       false
     );
-    this.cb.onSelect(hits.length ? hits[0].object.userData.id : null);
+    return hits.length ? (hits[0].object.userData.id as number) : null;
+  }
+
+  private pick(e: PointerEvent) {
+    this.cb.onSelect(this.hitId(e));
   }
 
   private pickHandle(e: PointerEvent) {
@@ -639,7 +644,14 @@ export class ThreeEngine {
         dom.style.cursor = "grab";
         return;
       }
-      if (down && down.moved < 5 && e.button === 0) this.pick(e);
+      if (down && down.moved < 5) {
+        if (e.button === 0) this.pick(e);
+        if (e.button === 2) {
+          const id = this.hitId(e);
+          this.cb.onSelect(id);
+          this.cb.onContextMenu?.({ x: e.clientX, y: e.clientY, id });
+        }
+      }
       down = null;
       dom.style.cursor = "grab";
     };
