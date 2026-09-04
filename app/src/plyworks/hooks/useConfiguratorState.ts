@@ -61,11 +61,11 @@ interface FullState extends ConfiguratorState {
 const INITIAL_BOARDS: Board[] = [
   { id: 1, name: "Side left",  w: THICKNESS, h: 1200, d: 320, x: -391, y: 600,  z: 0 },
   { id: 2, name: "Side right", w: THICKNESS, h: 1200, d: 320, x: 391,  y: 600,  z: 0 },
-  { id: 3, name: "Top",        w: 764, h: THICKNESS, d: 282, x: 0,    y: 1191, z: -1 },
-  { id: 4, name: "Bottom",     w: 764, h: THICKNESS, d: 282, x: 0,    y: 9,    z: -1 },
-  { id: 5, name: "Shelf 1",    w: 764, h: THICKNESS, d: 282, x: 0,    y: 420,  z: -1 },
-  { id: 6, name: "Shelf 2",    w: 764, h: THICKNESS, d: 282, x: 0,    y: 800,  z: -1 },
-  { id: 7, name: "Back",       w: 764, h: 1164, d: THICKNESS, x: 0,   y: 600,  z: -151 },
+  { id: 3, name: "Top",        w: 800, h: THICKNESS, d: 320, x: 0,    y: 1191, z: 0 },
+  { id: 4, name: "Bottom",     w: 800, h: THICKNESS, d: 320, x: 0,    y: 9,    z: 0 },
+  { id: 5, name: "Shelf 1",    w: 800, h: THICKNESS, d: 320, x: 0,    y: 420,  z: 0 },
+  { id: 6, name: "Shelf 2",    w: 800, h: THICKNESS, d: 320, x: 0,    y: 800,  z: 0 },
+  { id: 7, name: "Back",       w: 800, h: 1200, d: THICKNESS, x: 0,   y: 600,  z: -151 },
 ];
 
 const INITIAL_STATE: FullState = {

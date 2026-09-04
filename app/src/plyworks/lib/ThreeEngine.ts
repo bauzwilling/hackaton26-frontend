@@ -406,11 +406,11 @@ export class ThreeEngine {
       const geo = new THREE.BoxGeometry(w, h, d);
 
       if (comic) {
-        const mat = new THREE.MeshBasicMaterial({
-          color: on ? "#ffe1d0" : "#ffffff",
+        const mat = new THREE.MeshLambertMaterial({
+          color: on ? "#ffe1d0" : "#e8e4dc",
           polygonOffset: true,
-          polygonOffsetFactor: 1.5,
-          polygonOffsetUnits: 1.5,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
         });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(b.x / 1000, b.y / 1000, b.z / 1000);
@@ -418,7 +418,7 @@ export class ThreeEngine {
         this.group.add(mesh);
         const edges = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo),
-          new THREE.LineBasicMaterial({ color: on ? "#b2622d" : "#000000" })
+          new THREE.LineBasicMaterial({ color: on ? "#b2622d" : "#1a1a1a" })
         );
         edges.position.copy(mesh.position);
         this.group.add(edges);
@@ -504,11 +504,11 @@ export class ThreeEngine {
     // Scene settings per mode
     this.blob.visible = false;
     this.ground.visible = !comic;
-    this.hemi.intensity = comic ? 1.35 : 0.5;
-    this.keyLight.intensity = comic ? 0.35 : 1.05;
-    this.fill.intensity = comic ? 0.1 : 0.25;
+    this.hemi.intensity = comic ? 0.72 : 0.5;
+    this.keyLight.intensity = comic ? 0.62 : 1.05;
+    this.fill.intensity = comic ? 0.22 : 0.25;
     this.keyLight.castShadow = !comic;
-    this.renderer.setPixelRatio(comic ? 1 : Math.min(devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.toneMapping = comic ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = comic ? 1 : 0.95;
 

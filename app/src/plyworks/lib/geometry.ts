@@ -33,8 +33,12 @@ export function createBoard(
   }
   const bb = bbox(boards);
   const cx = (bb.x0 + bb.x1) / 2;
-  const dz = bb.z1 - (bb.z0 + T);
-  const cz = (bb.z1 + bb.z0 + T) / 2;
+  const cy = (bb.y0 + bb.y1) / 2;
+  const cz = (bb.z0 + bb.z1) / 2;
+  // Span the full envelope so new slabs intersect existing ones by default.
+  const spanX = Math.round(bb.x1 - bb.x0);
+  const spanY = Math.round(bb.y1 - bb.y0);
+  const spanZ = Math.round(bb.z1 - bb.z0);
   const id = nextId(boards);
   const count =
     boards.filter((b) => (kind === "h" ? b.h === T : b.w === T)).length + 1;
@@ -44,21 +48,21 @@ export function createBoard(
       ? {
           id,
           name: `Shelf ${count}`,
-          w: Math.round(bb.x1 - bb.x0 - 2 * T),
+          w: spanX,
           h: T,
-          d: Math.round(dz),
+          d: spanZ,
           x: Math.round(cx),
-          y: Math.round((bb.y0 + bb.y1) / 2),
+          y: Math.round(cy),
           z: Math.round(cz),
         }
       : {
           id,
           name: `Divider ${count}`,
           w: T,
-          h: Math.round(bb.y1 - bb.y0 - 2 * T),
-          d: Math.round(dz),
+          h: spanY,
+          d: spanZ,
           x: Math.round(cx),
-          y: Math.round((bb.y0 + bb.y1) / 2),
+          y: Math.round(cy),
           z: Math.round(cz),
         };
   return b;

@@ -6,6 +6,14 @@ export function PlyworksPage() {
   return <EmbeddedApp src={PLYWORKS_URL} title="Plyworks" complementBg />;
 }
 
+export function PlyworksJwPage({ jobId }: { jobId?: string }) {
+  const base = PLYWORKS_URL.replace(/\/$/, "");
+  const src = jobId
+    ? `${base}/jw?jobId=${encodeURIComponent(jobId)}`
+    : `${base}/jw`;
+  return <EmbeddedApp src={src} title="Plyworks JointWiz" complementBg />;
+}
+
 export function PlyworksNestingPage({ jobId }: { jobId?: string }) {
   const base = PLYWORKS_URL.replace(/\/$/, "");
   const src = jobId
