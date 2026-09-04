@@ -29,16 +29,4 @@ export function ProjectsPage() {
   );
 }
 
-export function PlyworksPage() {
-  return (
-    <div className="page">
-      <div className="hero">
-        <h1>Plyworks</h1>
-        <p>The plywood editor still lives in the original prototype. This page is the same shell as every other app.</p>
-      </div>
-      <Surface className="pad">
-        <p>Open the bundled editor beside this app when you need the full sheet layout tools. A native port comes after Boxouts and Simple Parts are solid.</p>
-      </Surface>
-    </div>
-  );
-}
+export { PlyworksPage } from "./Plyworks";

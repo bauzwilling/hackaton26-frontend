@@ -11,6 +11,7 @@ import {
 import { Link } from "react-router-dom";
 import { COMPANIES, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, useSession, type AccentId } from "../context/session";
+import { useWorkspace } from "../context/workspace";
 
 export type Relief = "raised" | "inset" | "accent" | "ghost";
 
@@ -35,15 +36,26 @@ export function Surface<T extends ElementType = "div">({
   return createElement(Tag, { className: cls, ...rest });
 }
 
+function BrandMark() {
+  return (
+    <svg className="chrome-mark" viewBox="0 0 36 36" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M18 17.2C12.4 8.2 5.6 5.4 3.2 8.6 1 11.4 3.8 17 10 22.2 13.4 25 16.4 26.6 18 26.6c1.6 0 4.6-1.6 8-4.4C32.2 17 35 11.4 32.8 8.6 30.4 5.4 23.6 8.2 18 17.2z"
+      />
+    </svg>
+  );
+}
+
 export function Brand({ kicker = "Manufacturing as a service" }: { kicker?: string }) {
   return (
-    <Surface className="chrome-brand">
-      <span className="chrome-mark">d</span>
+    <span className="chrome-brand">
+      <BrandMark />
       <span>
         <div className="chrome-title">FILE <span>→</span> FACTORY</div>
         <div className="chrome-kicker">{kicker}</div>
       </span>
-    </Surface>
+    </span>
   );
 }
 
@@ -130,11 +142,12 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, enter, flash, flashKey, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, enter, flash, flashKey, selected, viewport, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; hidden?: boolean; autoSize?: boolean; tilt?: number; enter?: boolean;
   flash?: boolean; flashKey?: number;
+  selected?: boolean; viewport?: boolean;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
@@ -160,7 +173,7 @@ export function Window({
   return (
     <Surface
       ref={ref}
-      className={`win${kind ? ` win-${kind}` : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}`}
+      className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}`}
       style={{
         left: x,
         top: y,
@@ -172,7 +185,7 @@ export function Window({
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        onFocus();
+        if (e.button === 0) onFocus();
         if (!onGrab || e.button !== 0) return;
         const t = e.target as HTMLElement;
         if (t.closest("button, input, textarea, a, select, .composer")) return;
@@ -181,12 +194,12 @@ export function Window({
     >
       <div className="win-bar" onPointerDown={onDrag}>
         <span className="win-dot" />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{title}</span>
-        <span className="muted" style={{ fontSize: 10 }}>{code}</span>
+        <span className="win-title">{title}</span>
+        <span className="win-code">{code}</span>
         {onHide && (
-          <Surface as="button" type="button" relief="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} style={{ width: 28, height: 28, borderRadius: 8 }} title="Hide">–</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
         )}
-        <Surface as="button" type="button" relief="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8 }} title="Close">×</Surface>
+        <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
       </div>
       <div className="win-body">{children}</div>
       {flash ? <div key={flashKey} className="win-flash-overlay" aria-hidden /> : null}
@@ -194,8 +207,26 @@ export function Window({
   );
 }
 
-function VizAccordion() {
-  const { theme, setTheme, accent, setAccent, showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode } = useSession();
+function AccentDots() {
+  const { accent, setAccent } = useSession();
+  return (
+    <div className="viz-accents" role="group" aria-label="Accent color">
+      {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
+        <button
+          key={id}
+          type="button"
+          className={`viz-dot${accent === id ? " is-on" : ""}`}
+          style={{ background: ACCENTS[id].acc }}
+          title={ACCENTS[id].label}
+          onClick={() => setAccent(id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LookOverflow() {
+  const { showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode } = useSession();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -208,42 +239,42 @@ function VizAccordion() {
     return () => window.removeEventListener("pointerdown", onDoc);
   }, [open]);
 
-  const swatch = ACCENTS[accent];
-
   return (
     <div className="viz" ref={box}>
-      <Surface as="button" type="button" className="viz-toggle" active={open} onClick={() => setOpen((v) => !v)}>
-        <span className="viz-swatch" style={{ background: theme === "dark" ? swatch.dark : swatch.acc }} />
-        Look
-        <span className="muted" style={{ fontSize: 11 }}>{open ? "▴" : "▾"}</span>
+      <Surface as="button" type="button" relief="ghost" className="viz-toggle" active={open} onClick={() => setOpen((v) => !v)} aria-label="Canvas options" title="Canvas options">
+        ···
       </Surface>
       {open && (
         <Surface className="viz-panel">
-          <div className="viz-label">Theme</div>
-          <Segment
-            value={theme}
-            options={[{ id: "bright", label: "Light" }, { id: "dark", label: "Dark" }]}
-            onChange={(id) => setTheme(id as "bright" | "dark")}
-          />
+          <div className="viz-label">Canvas</div>
           <Switch on={showWires} onToggle={() => setShowWires(!showWires)} label="Show wires" note={showWires ? "On" : "Off"} />
           <Switch on={showGrid} onToggle={() => setShowGrid(!showGrid)} label="Show grid" note={showGrid ? "On" : "Off"} />
           <Switch on={bubbleMode} onToggle={() => setBubbleMode(!bubbleMode)} label="Bubble mode" note={bubbleMode ? "On" : "Off"} />
-          <div className="viz-label">Accent color</div>
-          <div className="viz-accents">
-            {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
-              <button
-                key={id}
-                type="button"
-                className={`viz-dot${accent === id ? " is-on" : ""}`}
-                style={{ background: ACCENTS[id].acc }}
-                title={ACCENTS[id].label}
-                onClick={() => setAccent(id)}
-              />
-            ))}
-          </div>
         </Surface>
       )}
     </div>
+  );
+}
+
+function WindowsToggle() {
+  const { nodes, overviewOpen, setOverviewOpen } = useWorkspace();
+  return (
+    <Surface
+      as="button"
+      type="button"
+      relief="ghost"
+      className="chrome-windows"
+      active={overviewOpen}
+      onClick={() => setOverviewOpen(!overviewOpen)}
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+        <rect x="0" y="0" width="5" height="5" rx="1" />
+        <rect x="7" y="0" width="5" height="5" rx="1" />
+        <rect x="0" y="7" width="5" height="5" rx="1" />
+        <rect x="7" y="7" width="5" height="5" rx="1" />
+      </svg>
+      All windows · {nodes.length}
+    </Surface>
   );
 }
 
@@ -253,13 +284,30 @@ export function Chrome({
   session: Session | null;
   onSignOut: () => void;
 }) {
+  const { theme, setTheme } = useSession();
+
   return (
     <header className="chrome">
       <Link to={session ? "/" : "/login"}><Brand /></Link>
       <div className="chrome-actions">
-        <VizAccordion />
+        <div className="chrome-look">
+          <div className="chrome-status">
+            <span className="chrome-status-dot" />
+            Decentralized network online
+          </div>
+          <div className="chrome-look-row">
+            {session && <WindowsToggle />}
+            <AccentDots />
+            <Segment
+              value={theme}
+              options={[{ id: "bright", label: "Bright" }, { id: "dark", label: "Dark" }]}
+              onChange={(id) => setTheme(id as "bright" | "dark")}
+            />
+            <LookOverflow />
+          </div>
+        </div>
         {session && (
-          <Surface className="user-chip">
+          <div className="user-chip">
             <span className="avatar">{session.name[0]}</span>
             <span>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{session.name}</div>
@@ -267,10 +315,10 @@ export function Chrome({
                 {ROLES_LABEL(session)}
               </div>
             </span>
-            <Surface as="button" type="button" relief="inset" style={{ borderRadius: 999, padding: "7px 12px", fontSize: 12 }} onClick={onSignOut}>
+            <Surface as="button" type="button" relief="ghost" className="user-chip-out" onClick={onSignOut}>
               Sign out
             </Surface>
-          </Surface>
+          </div>
         )}
       </div>
     </header>

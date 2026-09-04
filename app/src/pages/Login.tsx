@@ -27,7 +27,7 @@ export function LoginPage() {
       <div style={{ width: "min(480px, 100%)" }}>
         <div style={{ marginBottom: 22 }}><Brand /></div>
         <Surface className="login-card pad">
-          <h1 style={{ margin: 0, fontSize: 29, color: "var(--acc-deep)" }}>Sign in</h1>
+          <h1 style={{ margin: 0, fontSize: 29, color: "var(--acc)" }}>Sign in</h1>
           <p className="muted" style={{ margin: "11px 0 22px" }}>
             Dummy accounts only — there is no user database yet. Pick a person to preview that company’s apps, machines and dashboard. Company comes from the email domain; role is assigned in the fixture, not chosen here.
           </p>

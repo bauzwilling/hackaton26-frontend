@@ -33,6 +33,8 @@ npm run dev
 
 Sign in with any password. Example: `lena@frischeis.example`.
 
+Plyworks is a native Three.js configurator in the Studio window (`/?app=plyworks`), not an iframe. Figtree is loaded only for that app. Boxouts and Simple Parts are unchanged.
+
 ## Layout
 
 ```
@@ -43,6 +45,7 @@ app/                 Vite web app
     context/         Session and workspace state
     lib/             Auth, catalog, templates, concierge client
     pages/           Login and in-window apps
+    plyworks/        Native plywood configurator (Three.js, not an iframe)
     styles/          Theme and layout CSS
 server.py            Local FastAPI bridge to Claude
 llm.py               Claude concierge helper

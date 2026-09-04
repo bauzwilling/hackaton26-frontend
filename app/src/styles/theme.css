@@ -1,42 +1,67 @@
 :root {
-  --bg: #f8f9fa;
-  --face: color-mix(in oklab, #f8f9fa 72%, white);
-  --face2: #ffffff;
-  --ink: #202124;
-  --muted: #5f6368;
-  --acc: #f9ab00;
-  --acc-deep: #ea8600;
-  --acc-lite: #fdd663;
+  --bg: #f4f1ea;
+  --face: #ffffff;
+  --face2: #faf8f4;
+  --ink: #1a1916;
+  --muted: #6b6560;
+  --acc: #e07a22;
+  --acc-deep: #c45f10;
+  --acc-lite: #f4b57a;
   --sage: #34a853;
   --hi: rgba(255, 255, 255, 0.95);
-  --lo: rgba(60, 64, 67, 0.16);
-  --drop: rgba(60, 64, 67, 0.2);
-  --clay-out: 14px 18px 34px var(--drop), 3px 5px 10px var(--drop);
-  --clay-in: inset 5px 5px 11px var(--hi), inset -6px -8px 14px var(--lo);
-  --clay-press: inset 7px 8px 15px var(--lo), inset -4px -4px 10px var(--hi);
-  --grid: color-mix(in oklab, var(--ink) 8%, var(--bg));
-  --font: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --lo: rgba(40, 32, 24, 0.08);
+  --drop: rgba(40, 32, 24, 0.12);
+  --line: color-mix(in oklab, var(--ink) 12%, transparent);
+  --elev: 0 10px 28px rgba(40, 32, 24, 0.08), 0 1px 3px rgba(40, 32, 24, 0.05);
+  --elev-sm: 0 4px 14px rgba(40, 32, 24, 0.07);
+  --recess: color-mix(in oklab, var(--ink) 4.5%, var(--bg));
+  --clay-out: var(--elev);
+  --clay-in: none;
+  --clay-press: none;
+  --grid: #d9cbb4;
+  --font: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --radius: 14px;
   color-scheme: light;
 }
 
 html[data-theme="dark"] {
-  --bg: #202124;
-  --face: #292a2d;
-  --face2: #35363a;
-  --ink: #e8eaed;
-  --muted: #9aa0a6;
-  --acc-deep: #fdd663;
-  --hi: rgba(255, 255, 255, 0.09);
-  --lo: rgba(0, 0, 0, 0.46);
-  --drop: rgba(0, 0, 0, 0.54);
+  --face: #1c1c1c;
+  --ink: #eeeae4;
+  --muted: #9a948c;
+  --acc-deep: #f0a45a;
+  --hi: rgba(255, 255, 255, 0.06);
+  --lo: rgba(0, 0, 0, 0.4);
+  --drop: rgba(0, 0, 0, 0.45);
+  --line: rgba(255, 255, 255, 0.1);
+  --elev: 0 12px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04);
+  --elev-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --recess: color-mix(in oklab, var(--ink) 4.5%, var(--bg));
   color-scheme: dark;
 }
+
+html[data-accent="yellow"] { --bg: #f4f1ea; --grid: #d9cbb4; --face2: #faf8f4; }
+html[data-accent="blue"] { --bg: #e8eef6; --grid: #c5d2e4; --face2: #f4f7fb; }
+html[data-accent="red"] { --bg: #f5ebe8; --grid: #e0c8c2; --face2: #faf6f5; }
+html[data-accent="green"] { --bg: #e8f0ea; --grid: #c5d4c8; --face2: #f4f8f5; }
+html[data-accent="purple"] { --bg: #efeaf4; --grid: #d0c6dc; --face2: #f7f5fa; }
+html[data-accent="grey"] { --bg: #eeeeec; --grid: #c8c8c4; --face2: #f6f6f5; }
+
+html[data-theme="dark"][data-accent="yellow"] { --bg: #181614; --grid: #2c2822; --face2: #26221e; }
+html[data-theme="dark"][data-accent="blue"] { --bg: #14161a; --grid: #242a32; --face2: #1e2228; }
+html[data-theme="dark"][data-accent="red"] { --bg: #181414; --grid: #322624; --face2: #261e1e; }
+html[data-theme="dark"][data-accent="green"] { --bg: #141814; --grid: #242c26; --face2: #1e241e; }
+html[data-theme="dark"][data-accent="purple"] { --bg: #16141a; --grid: #2a2430; --face2: #221e28; }
+html[data-theme="dark"][data-accent="grey"] { --bg: #141414; --grid: #2a2a2a; --face2: #242424; }
 
 * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 html, body, #root { margin: 0; min-height: 100%; height: 100%; }
 #root { display: flex; flex-direction: column; }
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
   color: var(--ink);
   font-family: var(--font);
 }

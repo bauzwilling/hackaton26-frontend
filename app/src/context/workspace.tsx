@@ -3,10 +3,11 @@ import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "..
 import { askConcierge, type ConciergeResult } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchApp } from "../lib/routing";
+import { plyworksOpening } from "../lib/catalog";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "projects" | "orbit" | "admin";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
 
 export type WorkspaceNode = {
   id: string;
@@ -121,6 +122,7 @@ type Ctx = {
   setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setZoom: (z: number | ((prev: number) => number)) => void;
   openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => string | null;
+  announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
   ask: (query: string) => void;
@@ -148,20 +150,28 @@ export const CONCIERGE_ID = "concierge";
 const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
-const APP_W = 960;
-const IFRAME_H = 720;
+const APP_W = 1760;
+const IFRAME_H = 1040;
+const JW_SIZE = 1040;
 const NOTE_W = 240;
 const NOTE_H = 160;
 const FLASH_MS = 700;
 
-function isIframeApp(app?: WorkspaceApp): boolean {
-  return app === "boxouts" || app === "simpleparts";
+function isFixedSizeApp(app?: WorkspaceApp): boolean {
+  return app === "boxouts" || app === "simpleparts" || app === "plyworks" || app === "plyworks-jw" || app === "plyworks-nesting";
+}
+
+function appBox(app?: WorkspaceApp): { w: number; h: number } {
+  if (app === "plyworks-jw") return { w: JW_SIZE, h: JW_SIZE };
+  return { w: APP_W, h: IFRAME_H };
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
+  { id: "plyworks-jw", label: "Plyworks JointWiz", licensed: "plyworks" },
+  { id: "plyworks-nesting", label: "Plyworks nesting", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
   { id: "admin", label: "Admin console", perm: "users", ready: false },
@@ -282,7 +292,7 @@ function openable(session: Session | null, app: WorkspaceApp) {
 }
 
 function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => openable(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => a.id !== "plyworks-nesting" && a.id !== "plyworks-jw" && openable(session, a.id)).map((a) => a.id);
 }
 
 function restrictedApps(session: Session | null): WorkspaceApp[] {
@@ -335,15 +345,15 @@ function logNode(): WorkspaceNode {
 function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
-  const iframe = isIframeApp(n.appId);
+  const iframe = isFixedSizeApp(n.appId);
+  const box = appBox(n.appId);
+  const square = n.appId === "plyworks-jw";
   return {
     ...n,
     title: n.kind === "app" && label ? label : n.title,
     autoSize: iframe ? false : true,
-    w: iframe ? Math.max(n.w || APP_W, APP_W) : Math.max(n.w || minW, minW),
-    h: iframe
-      ? (n.autoSize === false ? Math.max(n.h || IFRAME_H, 80) : IFRAME_H)
-      : Math.max(n.h || 80, 80),
+    w: iframe ? (square ? box.w : Math.max(n.w || box.w, box.w)) : Math.max(n.w || minW, minW),
+    h: iframe ? (square ? box.h : Math.max(n.h || box.h, box.h)) : Math.max(n.h || 80, 80),
   };
 }
 
@@ -505,11 +515,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const base = withRail(list);
       const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
       if (current) {
-        return base.map((n) => (n.id === current.id ? { ...n, z, hidden: false, title: meta.label, parentId: opts?.parentId ?? n.parentId, query: opts?.query ?? n.query } : n));
+        const box = appBox(app);
+        return base.map((n) => {
+          if (n.id !== current.id) return n;
+          return {
+            ...n,
+            z,
+            hidden: false,
+            title: meta.label,
+            parentId: opts?.parentId ?? n.parentId,
+            query: opts?.query ?? n.query,
+            ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
+          };
+        });
       }
-      const iframe = isIframeApp(app);
-      const appH = iframe ? IFRAME_H : EST_H.app;
-      const slot = placeBeside(base, APP_W, appH);
+      const iframe = isFixedSizeApp(app);
+      const box = appBox(app);
+      const appW = iframe ? box.w : APP_W;
+      const appH = iframe ? box.h : EST_H.app;
+      const slot = placeBeside(base, appW, appH);
       const node: WorkspaceNode = {
         id,
         kind: "app",
@@ -521,8 +545,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         x: slot.x,
         y: slot.y,
         z,
-        w: APP_W,
-        h: iframe ? IFRAME_H : 1,
+        w: appW,
+        h: iframe ? box.h : 1,
         hidden: false,
         autoSize: !iframe,
       };
@@ -530,6 +554,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
     return id;
   }, [session]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data.jobId !== "string") return;
+      const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
+      if (data.type === "plyworks-jw") {
+        openApp("plyworks-jw", { parentId: parent?.id, query: data.jobId });
+        return;
+      }
+      if (data.type !== "plyworks-nesting") return;
+      openApp("plyworks-nesting", { parentId: parent?.id, query: data.jobId });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [openApp]);
 
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
@@ -539,6 +579,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     )));
     return CONCIERGE_ID;
   }, []);
+
+  const announceOpen = useCallback((app: WorkspaceApp, appTarget: string | null) => {
+    if (app !== "plyworks") return;
+    const conciergeId = ensureConcierge();
+    const entryId = uid("e");
+    const targetIds = appTarget ? [conciergeId, appTarget] : [conciergeId];
+    const reply = plyworksOpening(`Opening ${appLabel(app)} for you.`);
+    setEntries((list) => [...list, {
+      id: entryId,
+      at: Date.now(),
+      query: `Open ${appLabel(app)}`,
+      routeLabel: appLabel(app),
+      routeWhy: reply,
+      targetIds,
+      appId: app,
+      result: "app",
+      reply,
+    }]);
+    setSelectedEntryId(entryId);
+  }, [ensureConcierge]);
 
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
@@ -613,7 +673,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         settle({
           app: appId,
           reply: appId
-            ? `Opening ${appLabel(appId)} for you.`
+            ? appId === "plyworks"
+              ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
+              : `Opening ${appLabel(appId)} for you.`
             : named
               ? denyCopy(session, named).body
               : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
@@ -896,6 +958,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPan,
     setZoom,
     openApp,
+    announceOpen,
     addNote,
     setNodeBody,
     ask,
@@ -914,7 +977,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
@@ -927,6 +990,8 @@ export function useWorkspace() {
 
 export function appLabel(app: WorkspaceApp) {
   if (app === "boxouts") return "Door Box Out";
+  if (app === "plyworks-jw") return "Plyworks JointWiz";
+  if (app === "plyworks-nesting") return "Plyworks nesting";
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";

@@ -3,7 +3,8 @@ import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import { BoxoutsPage } from "../pages/Boxouts";
 import { OrbitPage } from "../pages/Orbit";
 import { PartsPage } from "../pages/Parts";
-import { PlyworksPage, ProjectsPage } from "../pages/Projects";
+import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyworks";
+import { ProjectsPage } from "../pages/Projects";
 import { RequestLog } from "./RequestLog";
 import { ConciergeChat } from "./Concierge";
 
@@ -46,6 +47,12 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
     if (node.appId === "boxouts") return <BoxoutsPage />;
     if (node.appId === "simpleparts") return <PartsPage />;
     if (node.appId === "plyworks") return <PlyworksPage />;
+    if (node.appId === "plyworks-jw") {
+      return <PlyworksJwPage jobId={node.query} />;
+    }
+    if (node.appId === "plyworks-nesting") {
+      return <PlyworksNestingPage jobId={node.query} />;
+    }
     if (node.appId === "projects") return <ProjectsPage />;
     if (node.appId === "orbit") return <OrbitPage />;
     if (node.appId === "admin") {

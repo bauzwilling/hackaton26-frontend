@@ -23,7 +23,7 @@ export function ConciergeChat() {
     <div className="concierge">
       <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
         <div className="panel-clear">
-          <Surface as="button" type="button" relief="inset" style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12 }} onClick={clearTranscript} disabled={entries.length === 0}>
+          <Surface as="button" type="button" className="chip" onClick={clearTranscript} disabled={entries.length === 0}>
             Clear
           </Surface>
         </div>
@@ -46,8 +46,7 @@ export function ConciergeChat() {
                       key={app}
                       as="button"
                       type="button"
-                      relief="inset"
-                      style={{ padding: "8px 14px", borderRadius: 999, fontSize: 13 }}
+                      className="chip"
                       onClick={(ev) => {
                         ev.stopPropagation();
                         confirmIntake(e.id, app);
