@@ -19,6 +19,15 @@ import type { Board, Material, RenderMode } from "../types";
 import { MATERIALS, THICKNESS as T } from "../types";
 import { bbox, crossOverlap, contactSnap } from "./geometry";
 
+function resolveBg(el: HTMLElement): string {
+  const probe = document.createElement("span");
+  probe.style.backgroundColor = "var(--bg, #f5ead8)";
+  el.appendChild(probe);
+  const color = getComputedStyle(probe).backgroundColor;
+  probe.remove();
+  return color || "#f5ead8";
+}
+
 export interface EngineCallbacks {
   onSelect: (id: number | null) => void;
   onMoveBoard: (id: number, axis: "x" | "y" | "z", value: number) => void;
@@ -66,7 +75,7 @@ export class ThreeEngine {
     this.cb = callbacks;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#f5ead8");
+    this.scene.background = new THREE.Color(resolveBg(container));
 
     this.cam = new THREE.PerspectiveCamera(
       36,
@@ -186,6 +195,11 @@ export class ThreeEngine {
     this.cam.aspect = el.clientWidth / el.clientHeight;
     this.cam.updateProjectionMatrix();
     this.renderer.setSize(el.clientWidth, el.clientHeight);
+  }
+
+  syncBackground() {
+    const el = this.renderer.domElement.parentElement ?? document.documentElement;
+    this.scene.background = new THREE.Color(resolveBg(el));
   }
 
   dispose() {

@@ -18,16 +18,16 @@
   --clay-out: var(--elev);
   --clay-in: none;
   --clay-press: none;
-  --grid: color-mix(in oklab, #c4a882 32%, var(--bg));
+  --grid: #d9cbb4;
   --font: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --radius: 14px;
   color-scheme: light;
 }
 
 html[data-theme="dark"] {
-  --bg: #141414;
+  --bg: #181614;
   --face: #1c1c1c;
-  --face2: #242424;
+  --face2: #26221e;
   --ink: #eeeae4;
   --muted: #9a948c;
   --acc-deep: #f0a45a;
@@ -37,8 +37,8 @@ html[data-theme="dark"] {
   --line: rgba(255, 255, 255, 0.1);
   --elev: 0 12px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04);
   --elev-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
-  --recess: #121212;
-  --grid: color-mix(in oklab, #eeeae4 8%, #141414);
+  --recess: color-mix(in oklab, var(--ink) 4.5%, var(--bg));
+  --grid: #2c2822;
   color-scheme: dark;
 }
 

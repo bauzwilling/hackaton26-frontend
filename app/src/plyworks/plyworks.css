@@ -9,7 +9,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #f5ead8;
+  background: var(--bg, #f5ead8);
   font-family: Figtree, system-ui, sans-serif;
   color: var(--ink, #201e1d);
   border-radius: 0 0 22px 22px;

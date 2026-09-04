@@ -48,10 +48,13 @@ export function useThreeEngine(store: ConfiguratorStore) {
     window.addEventListener("resize", onResize);
     const ro = new ResizeObserver(onResize);
     ro.observe(el);
+    const mo = new MutationObserver(() => engine.syncBackground());
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-theme"] });
 
     return () => {
       window.removeEventListener("resize", onResize);
       ro.disconnect();
+      mo.disconnect();
       engine.dispose();
       engineRef.current = null;
     };

@@ -417,6 +417,10 @@ html[data-theme="dark"] .win-note { color: #1a1916; }
   padding: 0;
 }
 .note-body::placeholder { color: color-mix(in oklab, currentColor 45%, transparent); }
+.win-log .win-body,
+.win-text .win-body {
+  padding: 16px 24px 20px;
+}
 .win-log .win-body { display: flex; flex-direction: column; overflow: visible; }
 .win-log .request-log { flex: none; min-height: 0; max-height: none; height: auto; }
 .win-log .request-log-list { flex: none; min-height: 0; max-height: min(180px, 22vh); overflow: auto; }

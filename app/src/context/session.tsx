@@ -11,13 +11,43 @@ import {
 
 export type { AccentId, Appearance, Theme };
 
-export const ACCENTS: Record<AccentId, { label: string; acc: string; lite: string; deep: string; dark: string }> = {
-  yellow: { label: "Orange", acc: "#e07a22", lite: "#f4b57a", deep: "#c45f10", dark: "#f0a45a" },
-  blue: { label: "Blue", acc: "#1a73e8", lite: "#8ab4f8", deep: "#0f3d82", dark: "#8ab4f8" },
-  red: { label: "Red", acc: "#ea4335", lite: "#f28b82", deep: "#a01a17", dark: "#f28b82" },
-  green: { label: "Green", acc: "#34a853", lite: "#81c995", deep: "#12602a", dark: "#81c995" },
-  purple: { label: "Purple", acc: "#a142f4", lite: "#c58af9", deep: "#5b1d8f", dark: "#c58af9" },
-  grey: { label: "Graphite", acc: "#5f6368", lite: "#9aa0a6", deep: "#202124", dark: "#9aa0a6" },
+export const ACCENTS: Record<AccentId, {
+  label: string;
+  acc: string;
+  lite: string;
+  deep: string;
+  dark: string;
+  bg: string;
+  bgDark: string;
+  grid: string;
+  gridDark: string;
+  face2: string;
+  face2Dark: string;
+}> = {
+  yellow: {
+    label: "Orange", acc: "#e07a22", lite: "#f4b57a", deep: "#c45f10", dark: "#f0a45a",
+    bg: "#f4f1ea", bgDark: "#181614", grid: "#d9cbb4", gridDark: "#2c2822", face2: "#faf8f4", face2Dark: "#26221e",
+  },
+  blue: {
+    label: "Blue", acc: "#1a73e8", lite: "#8ab4f8", deep: "#0f3d82", dark: "#8ab4f8",
+    bg: "#e8eef6", bgDark: "#14161a", grid: "#c5d2e4", gridDark: "#242a32", face2: "#f4f7fb", face2Dark: "#1e2228",
+  },
+  red: {
+    label: "Red", acc: "#ea4335", lite: "#f28b82", deep: "#a01a17", dark: "#f28b82",
+    bg: "#f5ebe8", bgDark: "#181414", grid: "#e0c8c2", gridDark: "#322624", face2: "#faf6f5", face2Dark: "#261e1e",
+  },
+  green: {
+    label: "Green", acc: "#34a853", lite: "#81c995", deep: "#12602a", dark: "#81c995",
+    bg: "#e8f0ea", bgDark: "#141814", grid: "#c5d4c8", gridDark: "#242c26", face2: "#f4f8f5", face2Dark: "#1e241e",
+  },
+  purple: {
+    label: "Purple", acc: "#a142f4", lite: "#c58af9", deep: "#5b1d8f", dark: "#c58af9",
+    bg: "#efeaf4", bgDark: "#16141a", grid: "#d0c6dc", gridDark: "#2a2430", face2: "#f7f5fa", face2Dark: "#221e28",
+  },
+  grey: {
+    label: "Graphite", acc: "#5f6368", lite: "#9aa0a6", deep: "#202124", dark: "#9aa0a6",
+    bg: "#eeeeec", bgDark: "#141414", grid: "#c8c8c4", gridDark: "#2a2a2a", face2: "#f6f6f5", face2Dark: "#242424",
+  },
 };
 
 type Ctx = {
@@ -48,10 +78,16 @@ function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean) {
     root.style.setProperty("--acc", a.dark);
     root.style.setProperty("--acc-lite", a.acc);
     root.style.setProperty("--acc-deep", a.dark);
+    root.style.setProperty("--bg", a.bgDark);
+    root.style.setProperty("--grid", a.gridDark);
+    root.style.setProperty("--face2", a.face2Dark);
   } else {
     root.style.setProperty("--acc", a.acc);
     root.style.setProperty("--acc-lite", a.lite);
     root.style.setProperty("--acc-deep", a.deep);
+    root.style.setProperty("--bg", a.bg);
+    root.style.setProperty("--grid", a.grid);
+    root.style.setProperty("--face2", a.face2);
   }
 }
 
