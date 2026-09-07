@@ -563,7 +563,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (!data || typeof data.jobId !== "string") return;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "plyworks-open") {
+        const design = typeof data.design === "string" ? data.design.trim().toLowerCase() : "";
+        if (design !== "shelf" && design !== "table" && design !== "stool" && design !== "bench") return;
+        const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
+        openApp("plyworks", { parentId: parent?.id, design });
+        return;
+      }
+      if (typeof data.jobId !== "string") return;
       const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
       if (data.type === "plyworks-jw") {
         openApp("plyworks-jw", { parentId: parent?.id, query: data.jobId });

@@ -441,7 +441,13 @@ html[data-bubble="on"] .win:active { cursor: grabbing; }
 html[data-bubble="on"] .win-bar { cursor: grab; }
 html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 
-.studio { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.studio {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg);
+}
 .studio-layer {
   position: relative;
   height: 100%;
