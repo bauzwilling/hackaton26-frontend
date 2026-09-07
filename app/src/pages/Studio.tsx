@@ -150,7 +150,7 @@ export function StudioPage() {
         )
       )}
       <p className="studio-hint">
-        Right-click anywhere to ask · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
+        Right-drag to pan · Left-drag to select · Right-click to ask · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
       </p>
       {dropping && (
         <div className="drop-overlay">

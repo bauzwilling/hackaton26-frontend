@@ -148,7 +148,7 @@ export function Window({
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; tilt?: number; enter?: boolean;
   flash?: boolean; flashKey?: number;
   selected?: boolean; viewport?: boolean;
-  onFocus: () => void; onClose: () => void; onHide?: () => void;
+  onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
@@ -185,14 +185,15 @@ export function Window({
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        if (e.button === 0) onFocus();
-        if (!onGrab || e.button !== 0) return;
+        if (e.button === 0) onFocus(e);
+        if (e.button !== 0) return;
         const t = e.target as HTMLElement;
         if (t.closest("button, input, textarea, a, select, .composer")) return;
-        onGrab(e);
+        if (onGrab) onGrab(e);
+        else if (t.closest(".win-bar")) onDrag(e);
       }}
     >
-      <div className="win-bar" onPointerDown={onDrag}>
+      <div className="win-bar">
         <span className="win-dot" />
         <span className="win-title">{title}</span>
         <span className="win-code">{code}</span>

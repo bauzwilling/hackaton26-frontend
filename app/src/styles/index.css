@@ -499,8 +499,9 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   overflow: hidden;
   touch-action: none;
   outline: none;
-  cursor: grab;
+  cursor: default;
 }
+.studio-layer.is-marquee { cursor: crosshair; }
 .studio-layer.is-panning,
 .studio-layer.is-panning .win,
 .studio-layer.is-panning .win-bar {
@@ -518,6 +519,14 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   left: 0; top: 0;
   width: 1px; height: 1px;
   transform-origin: 0 0;
+}
+.studio-marquee {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--acc);
+  background: color-mix(in oklab, var(--acc) 14%, transparent);
+  pointer-events: none;
+  z-index: 40;
 }
 .wire-layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 9999; }
 .wire { stroke: var(--acc); stroke-width: calc(2.5 / var(--studio-zoom, 1)); stroke-opacity: 0.8; }

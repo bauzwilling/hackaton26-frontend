@@ -40,7 +40,7 @@ function massOf(b: BubbleBody) {
   return Math.max(0.45, Math.min(3.2, (b.w * b.h) / 42000));
 }
 
-function collide(a: BubbleBody, b: BubbleBody, heldId: string | null) {
+function collide(a: BubbleBody, b: BubbleBody, held: ReadonlySet<string> | null) {
   const ax = a.x + a.w / 2;
   const ay = a.y + a.h / 2;
   const bx = b.x + b.w / 2;
@@ -68,8 +68,8 @@ function collide(a: BubbleBody, b: BubbleBody, heldId: string | null) {
   ny /= nl;
 
   const overlap = (1 - mag) * Math.hypot(rx * nx, ry * ny);
-  const aHeld = a.id === heldId;
-  const bHeld = b.id === heldId;
+  const aHeld = !!held?.has(a.id);
+  const bHeld = !!held?.has(b.id);
   const invA = aHeld ? 0 : 1 / massOf(a);
   const invB = bHeld ? 0 : 1 / massOf(b);
   const inv = invA + invB;
@@ -97,34 +97,36 @@ function collide(a: BubbleBody, b: BubbleBody, heldId: string | null) {
   b.tilt += spin * (invB ? 1 : 0);
 }
 
-function wake(bodies: BubbleBody[], heldId: string | null, t: number) {
-  if (!heldId) return;
-  const held = bodies.find((b) => b.id === heldId);
-  if (!held) return;
-  const hx = held.x + held.w / 2;
-  const hy = held.y + held.h / 2;
-  const speed = Math.hypot(held.vx, held.vy);
-  if (speed < 8) return;
-  for (const b of bodies) {
-    if (b.id === heldId) continue;
-    const dx = b.x + b.w / 2 - hx;
-    const dy = b.y + b.h / 2 - hy;
-    const d = Math.hypot(dx, dy) || 1;
-    const influence = Math.max(0, 1 - d / 280) ** 2;
-    if (!influence) continue;
-    b.vx += held.vx * influence * 0.55 * t;
-    b.vy += held.vy * influence * 0.55 * t;
+function wake(bodies: BubbleBody[], held: ReadonlySet<string> | null, t: number) {
+  if (!held?.size) return;
+  for (const heldId of held) {
+    const src = bodies.find((b) => b.id === heldId);
+    if (!src) continue;
+    const hx = src.x + src.w / 2;
+    const hy = src.y + src.h / 2;
+    const speed = Math.hypot(src.vx, src.vy);
+    if (speed < 8) continue;
+    for (const b of bodies) {
+      if (held.has(b.id)) continue;
+      const dx = b.x + b.w / 2 - hx;
+      const dy = b.y + b.h / 2 - hy;
+      const d = Math.hypot(dx, dy) || 1;
+      const influence = Math.max(0, 1 - d / 280) ** 2;
+      if (!influence) continue;
+      b.vx += src.vx * influence * 0.55 * t;
+      b.vy += src.vy * influence * 0.55 * t;
+    }
   }
 }
 
 export function stepBubbles(
   bodies: BubbleBody[],
   dt: number,
-  heldId: string | null,
+  held: ReadonlySet<string> | null,
 ) {
   const t = Math.min(Math.max(dt, 0), 0.05);
   for (const b of bodies) {
-    if (b.id === heldId) {
+    if (held?.has(b.id)) {
       b.tilt += (Math.max(-MAX_TILT, Math.min(MAX_TILT, b.vx * 0.06)) - b.tilt) * Math.min(1, t * 10);
       continue;
     }
@@ -147,12 +149,12 @@ export function stepBubbles(
     b.tilt += (lean - b.tilt) * Math.min(1, t * 7);
   }
 
-  wake(bodies, heldId, t);
+  wake(bodies, held, t);
 
   for (let k = 0; k < ITERATIONS; k++) {
     for (let i = 0; i < bodies.length; i++) {
       for (let j = i + 1; j < bodies.length; j++) {
-        collide(bodies[i], bodies[j], heldId);
+        collide(bodies[i], bodies[j], held);
       }
     }
   }
