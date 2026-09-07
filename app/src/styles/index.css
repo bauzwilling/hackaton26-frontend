@@ -329,9 +329,10 @@ button.sf:disabled:active { transform: none; }
   min-width: 240px;
   border-radius: 16px;
   cursor: default;
+  overflow: visible;
 }
 .win.is-selected {
-  box-shadow: 0 0 0 1px var(--acc), var(--elev);
+  box-shadow: 0 0 0 calc((2px + 2px * var(--win-far, 0)) / var(--studio-zoom, 1)) var(--acc), var(--elev);
 }
 .win-bar {
   display: flex;
@@ -343,6 +344,7 @@ button.sf:disabled:active { transform: none; }
   user-select: none;
   flex: none;
   border-bottom: 1px solid var(--line);
+  opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
 .win-bar:active { cursor: grabbing; }
 .win-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); flex: none; }
@@ -368,7 +370,50 @@ button.sf:disabled:active { transform: none; }
   color: var(--muted);
 }
 .win-btn:hover { color: var(--ink); background: var(--recess); }
-.win-body { padding: 16px 18px 18px; overflow: auto; flex: 1; min-height: 0; }
+.win-body {
+  padding: 16px 18px 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  opacity: calc(1 - var(--win-far, 0) * 0.62);
+}
+.win-far-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 22px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 3;
+  user-select: none;
+  opacity: var(--win-far, 0);
+  transform: scale(clamp(1, calc(0.45 / var(--studio-zoom, 1)), 3));
+  transform-origin: center center;
+}
+.win-far-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.win-far-query {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: 0.75;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .win-app:has(.embedded-app) .win-body,
 .win-app:has(.pw) .win-body {
   padding: 0;
@@ -475,8 +520,8 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   transform-origin: 0 0;
 }
 .wire-layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 9999; }
-.wire { stroke: var(--acc); stroke-width: 2.5; stroke-opacity: 0.8; }
-.wire.is-hot { stroke-width: 3.5; stroke-opacity: 1; }
+.wire { stroke: var(--acc); stroke-width: calc(2.5 / var(--studio-zoom, 1)); stroke-opacity: 0.8; }
+.wire.is-hot { stroke-width: calc(3.5 / var(--studio-zoom, 1)); stroke-opacity: 1; }
 .bubble-query { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 500; }
 .overview {
   position: absolute;

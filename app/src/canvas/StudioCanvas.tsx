@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ME, type PointerEvent as PE } from "react";
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
-import { CONCIERGE_ID, useWorkspace, type WorkspaceNode } from "../context/workspace";
+import { CONCIERGE_ID, useWorkspace, ZOOM_MAX, ZOOM_MIN, type WorkspaceNode } from "../context/workspace";
 import {
   capSpeed,
   spawnVelocity,
@@ -96,7 +96,7 @@ export function StudioCanvas() {
       const z = zoomRef.current;
       const p = panRef.current;
       const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      const next = Math.min(2, Math.max(0.4, z * factor));
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z * factor));
       const box = el.getBoundingClientRect();
       const cx = e.clientX - box.left;
       const cy = e.clientY - box.top;
@@ -309,12 +309,14 @@ export function StudioCanvas() {
   }
 
   const grid = 34 * zoom;
+  const far = Math.max(0, Math.min(1, (0.55 - zoom) / (0.55 - 0.18)));
 
   return (
     <div
       className={`studio-layer${panning ? " is-panning" : ""}`}
       ref={layer}
       tabIndex={0}
+      style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
       onKeyDown={onKeyDown}
       onPointerDownCapture={onAuxPointerDownCapture}
       onPointerDown={onPointerDown}
@@ -352,6 +354,7 @@ export function StudioCanvas() {
               width={n.w}
               height={n.h}
               kind={n.kind}
+              query={n.query ?? n.design}
               hidden={n.hidden}
               autoSize={n.autoSize !== false}
               enter={conciergeEnter && n.id === CONCIERGE_ID}

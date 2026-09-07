@@ -142,10 +142,10 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, hidden, autoSize, tilt, enter, flash, flashKey, selected, viewport, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, tilt, enter, flash, flashKey, selected, viewport, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
-  kind?: string; hidden?: boolean; autoSize?: boolean; tilt?: number; enter?: boolean;
+  kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; tilt?: number; enter?: boolean;
   flash?: boolean; flashKey?: number;
   selected?: boolean; viewport?: boolean;
   onFocus: () => void; onClose: () => void; onHide?: () => void;
@@ -202,6 +202,10 @@ export function Window({
         <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
       </div>
       <div className="win-body">{children}</div>
+      <div className="win-far-label" aria-hidden>
+        <span className="win-far-title">{title}</span>
+        {query ? <span className="win-far-query">{query}</span> : null}
+      </div>
       {flash ? <div key={flashKey} className="win-flash-overlay" aria-hidden /> : null}
     </Surface>
   );

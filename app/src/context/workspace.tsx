@@ -9,6 +9,10 @@ import { useSession } from "./session";
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
 export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
 
+export const ZOOM_MIN = 0.05;
+export const ZOOM_MAX = 12;
+const FIT_ZOOM_MAX = 1.15;
+
 export type WorkspaceNode = {
   id: string;
   kind: NodeKind;
@@ -817,7 +821,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const bw = Math.max(120, maxX - minX);
     const bh = Math.max(80, maxY - minY);
     const pad = 64;
-    const nextZoom = Math.min(1.15, Math.max(0.45, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
+    const nextZoom = Math.min(FIT_ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
     setZoom(nextZoom);
     setPan({
       x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
