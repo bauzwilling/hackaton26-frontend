@@ -361,6 +361,18 @@ button.sf:disabled:active { transform: none; }
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+.win-lock {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: none;
+}
+.win.is-locked,
+html[data-bubble="on"] .win.is-locked,
+html[data-bubble="on"] .win.is-locked .win-bar {
+  cursor: default;
+}
 .win-btn {
   width: 28px;
   height: 28px;
@@ -616,6 +628,23 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .request-menu button:hover { background: color-mix(in oklab, var(--face) 70%, var(--acc-lite)); }
 
 .ctx-backdrop { position: absolute; inset: 0; z-index: 90; }
+.sel-backdrop { position: absolute; inset: 0; z-index: 90; }
+.sel-menu {
+  position: absolute;
+  z-index: 91;
+  min-width: 200px;
+  padding: 8px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  animation: f2f-rise .18s cubic-bezier(.2,.8,.25,1) both;
+}
+.sel-menu .ctx-title { margin-bottom: 6px; }
+.sel-menu button {
+  border: none; background: transparent; color: inherit; cursor: pointer;
+  text-align: left; padding: 8px 10px; border-radius: 10px; font: inherit; font-size: 13px;
+}
+.sel-menu button:hover { background: color-mix(in oklab, var(--face) 70%, var(--acc-lite)); }
+.sel-menu-danger { color: var(--acc-deep); }
 .ctx-ask {
   position: absolute;
   z-index: 91;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { CONCIERGE_ID, useWorkspace } from "../context/workspace";
+import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace";
 import { DEFAULT_TEMPLATES, loadTemplates, saveTemplates, uidTemplate, type RequestTemplate } from "../lib/templates";
 
 export function Overview({ viewport }: { viewport: { width: number; height: number } }) {
@@ -158,9 +158,11 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
                 <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => (n.hidden ? show(n.id) : hide(n.id))} title={n.hidden ? "Show" : "Hide"}>
                   {n.hidden ? "+" : "–"}
                 </Surface>
-                <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => close(n.id)}>
-                  ×
-                </Surface>
+                {canDeleteNode(n) && (
+                  <Surface as="button" type="button" relief="ghost" className="win-btn" onClick={() => close(n.id)}>
+                    ×
+                  </Surface>
+                )}
               </li>
             ))}
           </ul>

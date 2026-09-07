@@ -33,6 +33,7 @@ export type WorkspaceNode = {
   h: number;
   hidden: boolean;
   autoSize?: boolean;
+  locked?: boolean;
   /** Concierge only: keep me stacked under the request log until the user drags me off. */
   railed?: boolean;
 };
@@ -143,6 +144,8 @@ type Ctx = {
   close: (id: string) => void;
   hide: (id: string) => void;
   show: (id: string) => void;
+  setLocked: (ids: string[], locked: boolean) => void;
+  duplicateNodes: (ids: string[]) => string[];
   tile: (viewport: { width: number; height: number }) => void;
   clear: (opts?: { transcript?: boolean }) => void;
   clearTranscript: () => void;
@@ -154,6 +157,14 @@ const WorkspaceCtx = createContext<Ctx | null>(null);
 
 export const LOG_ID = "request-log";
 export const CONCIERGE_ID = "concierge";
+
+export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
+  return n.kind === "app";
+}
+
+export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
+  return n.kind === "app" || n.kind === "note";
+}
 const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
@@ -855,7 +866,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const move = useCallback((id: string, x: number, y: number) => {
     setNodes((list) => restack(list.map((n) => {
-      if (n.id !== id) return n;
+      if (n.id !== id || n.locked) return n;
       return n.id === CONCIERGE_ID ? { ...n, x, y, railed: false } : { ...n, x, y };
     })));
   }, []);
@@ -902,7 +913,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback((id: string) => {
-    setNodes((list) => list.filter((n) => n.id !== id));
+    const n = nodesRef.current.find((item) => item.id === id);
+    if (n && !canDeleteNode(n)) return;
+    setNodes((list) => list.filter((item) => item.id !== id));
     setEdges((list) => list.filter((e) => e.from !== id && e.to !== id));
   }, []);
 
@@ -914,9 +927,43 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     bumpZ(id);
   }, [bumpZ]);
 
+  const setLocked = useCallback((ids: string[], locked: boolean) => {
+    const set = new Set(ids);
+    setNodes((list) => list.map((n) => (set.has(n.id) ? { ...n, locked } : n)));
+  }, []);
+
+  const duplicateNodes = useCallback((ids: string[]) => {
+    const want = new Set(ids);
+    const sources = nodesRef.current.filter((n) => want.has(n.id) && canDuplicateNode(n) && !n.hidden);
+    if (!sources.length) return [] as string[];
+    const offset = 40;
+    let z = zTop.current;
+    const copies: WorkspaceNode[] = sources.map((n) => {
+      z += 1;
+      const prefix = n.kind === "note" ? "n" : "a";
+      const code = n.kind === "app"
+        ? `${n.title.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+        : n.code;
+      return {
+        ...n,
+        id: uid(prefix),
+        code,
+        x: n.x + offset,
+        y: n.y + offset,
+        z,
+        locked: false,
+        hidden: false,
+        railed: false,
+      };
+    });
+    zTop.current = z;
+    setNodes((list) => [...list, ...copies]);
+    return copies.map((n) => n.id);
+  }, []);
+
   const tile = useCallback((viewport: { width: number; height: number }) => {
     setNodes((list) => {
-      const vis = list.filter((n) => !n.hidden);
+      const vis = list.filter((n) => !n.hidden && !n.locked);
       if (!vis.length) return list;
       const pad = 24;
       const limit = Math.max(viewport.width, 400);
@@ -997,12 +1044,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     close,
     hide,
     show,
+    setLocked,
+    duplicateNodes,
     tile,
     clear,
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
