@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
-import { askConcierge, type ConciergeResult } from "../lib/concierge";
+import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
-import { matchApp } from "../lib/routing";
+import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { useSession } from "./session";
 
@@ -21,6 +21,7 @@ export type WorkspaceNode = {
   routeLabel?: string;
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
+  design?: PlyworksDesign;
   x: number;
   y: number;
   z: number;
@@ -46,6 +47,8 @@ export type RequestEntry = {
   result: "app" | "text" | "denied";
   reply?: string;
   confirmApps?: WorkspaceApp[];
+  design?: PlyworksDesign;
+  choices?: PlyworksDesign[];
   pending?: boolean;
 };
 
@@ -121,7 +124,7 @@ type Ctx = {
   setOverviewOpen: (v: boolean) => void;
   setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setZoom: (z: number | ((prev: number) => number)) => void;
-  openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => string | null;
+  openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => string | null;
   announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
@@ -502,7 +505,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     bumpZ(id);
   }, [bumpZ]);
 
-  const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => {
+  const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => {
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
     if (!meta || !openable(session, app)) return null;
 
@@ -525,6 +528,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             title: meta.label,
             parentId: opts?.parentId ?? n.parentId,
             query: opts?.query ?? n.query,
+            design: opts?.design ?? n.design,
             ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
           };
         });
@@ -541,6 +545,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         code: `${meta.label.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
         appId: app,
         query: opts?.query,
+        design: opts?.design,
         parentId: opts?.parentId,
         x: slot.x,
         y: slot.y,
@@ -644,7 +649,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
-          const appTarget = openApp(appId, { parentId: conciergeId, query: q });
+          const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
+          const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
           if (appTarget) targetIds.push(appTarget);
         } else if (appId) {
           // Unavailable: no window. The concierge reply is the whole answer.
@@ -659,6 +665,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           routeWhy,
           reply: result.reply,
           targetIds,
+          design: result.design ?? undefined,
+          choices: result.choices ?? undefined,
           pending: false,
         } : e)));
       };
@@ -666,19 +674,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       try {
         settle(await askConcierge(q, history, apps, restricted));
       } catch {
-        // No assistant reachable: fall back to a local name match so the board stays usable.
-        const guess = matchApp(q);
-        const named = guess && isWorkspaceApp(guess) ? guess : null;
+        // No assistant reachable: fall back to a local name/design match so the board stays usable.
+        const local = matchLocalRoute(q);
+        const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
+        const choices = appId ? null : local.choices;
         settle({
           app: appId,
+          design: appId === "plyworks" ? (local.design ?? "shelf") : null,
+          choices,
           reply: appId
             ? appId === "plyworks"
               ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
               : `Opening ${appLabel(appId)} for you.`
             : named
               ? denyCopy(session, named).body
-              : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+              : choices
+                ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
+                : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
         });
       }
     })();
@@ -818,7 +831,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const conciergeId = ensureConcierge();
     const targetIds: string[] = [conciergeId];
     if (entry.appId && entry.result === "app") {
-      const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
+      const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query, design: entry.design });
       if (appTarget) targetIds.push(appTarget);
     }
     setEntries((list) => list.map((e) => (e.id === entryId ? { ...e, targetIds } : e)));

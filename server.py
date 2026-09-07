@@ -13,12 +13,15 @@ See docs/model-integration.md.
 """
 
 from typing import List, Optional
+import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from llm import route_message
+
+log = logging.getLogger("concierge")
 
 app = FastAPI()
 app.add_middleware(
@@ -44,6 +47,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     app: Optional[str] = None
+    design: Optional[str] = None
+    choices: Optional[List[str]] = None
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -59,5 +64,11 @@ def chat(req: ChatRequest) -> ChatResponse:
             restricted_apps=req.restricted,
         )
     except Exception as exc:
+        log.exception("Concierge route failed")
         raise HTTPException(status_code=502, detail="The assistant could not reply.") from exc
-    return ChatResponse(reply=result["reply"], app=result.get("app"))
+    return ChatResponse(
+        reply=result["reply"],
+        app=result.get("app"),
+        design=result.get("design"),
+        choices=result.get("choices"),
+    )

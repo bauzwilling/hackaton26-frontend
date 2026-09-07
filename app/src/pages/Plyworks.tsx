@@ -2,8 +2,12 @@ import { EmbeddedApp } from "../components/EmbeddedApp";
 
 export const PLYWORKS_URL = import.meta.env.VITE_PLYWORKS_URL || "http://localhost:5176";
 
-export function PlyworksPage() {
-  return <EmbeddedApp src={PLYWORKS_URL} title="Plyworks" complementBg />;
+export function PlyworksPage({ design }: { design?: string }) {
+  const base = PLYWORKS_URL.replace(/\/$/, "");
+  const src = design
+    ? `${base}/?design=${encodeURIComponent(design)}`
+    : base;
+  return <EmbeddedApp src={src} title="Plyworks" complementBg />;
 }
 
 export function PlyworksJwPage({ jobId }: { jobId?: string }) {

@@ -17,6 +17,7 @@ from anthropic import Anthropic
 import config
 
 KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
+KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
 
 
 def load_prompt_from_file(filename: str, marker: str) -> str:
@@ -40,6 +41,23 @@ def strip_json_fences(response_text: str) -> str:
     return response_text.strip()
 
 
+def parse_json_object(response_text: str) -> Dict[str, Any]:
+    text = strip_json_fences(response_text)
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        data = json.loads(text[start : end + 1])
+        if isinstance(data, dict):
+            return data
+    raise ValueError("Claude did not return JSON")
+
+
 def call_claude_json(client: Anthropic, prompt: str) -> Dict[str, Any]:
     message = client.messages.create(
         model="claude-sonnet-4-5",
@@ -49,8 +67,7 @@ def call_claude_json(client: Anthropic, prompt: str) -> Dict[str, Any]:
 
     block = message.content[0]
     text = getattr(block, "text", None) or str(block)
-    response_text = strip_json_fences(text)
-    return json.loads(response_text)
+    return parse_json_object(text)
 
 
 def _normalize_app(raw: Any, available_apps: List[str]) -> Optional[str]:
@@ -61,6 +78,34 @@ def _normalize_app(raw: Any, available_apps: List[str]) -> Optional[str]:
         return None
     allowed = {a for a in available_apps if a in KNOWN_APPS}
     return app if app in allowed else None
+
+
+def _normalize_design(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    design = str(raw).strip().lower()
+    if not design or design in ("null", "none"):
+        return None
+    return design if design in KNOWN_DESIGNS else None
+
+
+def _normalize_choices(raw: Any) -> Optional[List[str]]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        return None
+    out: List[str] = []
+    seen = set()
+    for item in items:
+        design = _normalize_design(item)
+        if design and design not in seen:
+            seen.add(design)
+            out.append(design)
+    return out or None
 
 
 def route_message(
@@ -89,4 +134,14 @@ def route_message(
     reply = str(data.get("reply") or "").strip()
     if not reply:
         raise ValueError("Claude returned an empty reply")
-    return {"reply": reply, "app": _normalize_app(data.get("app"), apps)}
+    app = _normalize_app(data.get("app"), apps)
+    design = _normalize_design(data.get("design"))
+    choices = _normalize_choices(data.get("choices"))
+    if app == "plyworks":
+        design = design or "shelf"
+        choices = None
+    else:
+        design = None
+        if app is not None:
+            choices = None
+    return {"reply": reply, "app": app, "design": design, "choices": choices}
