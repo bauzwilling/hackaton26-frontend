@@ -4,7 +4,7 @@ Native plywood furniture configurator for Studio. Geometry, DXF/STL/STEP export,
 
 Open it from Studio: `/?app=plyworks` (same deep-link as before).
 
-This folder is self-contained. Boxouts and Simple Parts stay iframes; this app uses the host React + Three.js stack.
+This folder is self-contained. BoxOut and Simple Parts are separate native React modules; this app uses the host React + Three.js stack.
 
 ## Layout
 
