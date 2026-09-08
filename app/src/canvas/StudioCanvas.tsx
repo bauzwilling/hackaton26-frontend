@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ME, type PointerEvent as PE } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as KE, type MouseEvent as ME, type PointerEvent as PE } from "react";
 import { Window } from "../components/kit";
 import { useSession } from "../context/session";
-import { CONCIERGE_ID, useWorkspace, type WorkspaceNode } from "../context/workspace";
+import { canDeleteNode, canDuplicateNode, CONCIERGE_ID, useWorkspace, ZOOM_MAX, ZOOM_MIN, type WorkspaceNode } from "../context/workspace";
 import {
   capSpeed,
   spawnVelocity,
@@ -9,6 +9,7 @@ import {
   type BubbleBody,
 } from "./bubbles";
 import { NodeBody } from "./NodeBody";
+import { SelectionMenu } from "./SelectionMenu";
 import { WireLayer } from "./WireLayer";
 
 function clientToCanvas(
@@ -26,21 +27,29 @@ function clientToCanvas(
 }
 
 type DragState = {
-  id: string;
-  dx: number;
-  dy: number;
+  ids: string[];
+  origin: Record<string, { x: number; y: number }>;
+  grabX: number;
+  grabY: number;
   lastX: number;
   lastY: number;
   lastT: number;
   bubble: boolean;
 };
 
+function rectsOverlap(
+  ax: number, ay: number, aw: number, ah: number,
+  bx: number, by: number, bw: number, bh: number,
+) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
 const FLUSH_MS = 2000;
 
 export function StudioCanvas() {
   const {
     nodes, edges, pan, zoom, setPan, setZoom,
-    focus, move, fit, close, hide, flashIds, flashKey,
+    focus, move, fit, close, hide, setLocked, duplicateNodes, flashIds, flashKey,
   } = useWorkspace();
   const { showWires, showGrid, bubbleMode } = useSession();
   const [conciergeEnter, setConciergeEnter] = useState(false);
@@ -53,17 +62,29 @@ export function StudioCanvas() {
   const zoomRef = useRef(zoom);
   const nodesRef = useRef(nodes);
   const moveRef = useRef(move);
+  const closeRef = useRef(close);
+  const duplicateRef = useRef(duplicateNodes);
+  const selectedRef = useRef<string[]>([]);
+  const marqueeRef = useRef<{ x: number; y: number; base: string[] } | null>(null);
   const bodiesRef = useRef(new Map<string, BubbleBody>());
   const flushedRef = useRef(new Map<string, { x: number; y: number }>());
   useEffect(() => { panRef.current = pan; }, [pan]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { moveRef.current = move; }, [move]);
+  useEffect(() => { closeRef.current = close; }, [close]);
+  useEffect(() => { duplicateRef.current = duplicateNodes; }, [duplicateNodes]);
 
   const [panning, setPanning] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [selMenu, setSelMenu] = useState<{ x: number; y: number } | null>(null);
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [, setBubbleTick] = useState(0);
+  useEffect(() => { selectedRef.current = selectedIds; }, [selectedIds]);
+  useEffect(() => {
+    if (!selectedIds.length) setSelMenu(null);
+  }, [selectedIds]);
 
   // Play the enter animation only when the concierge appears mid-session, not on reload.
   useEffect(() => {
@@ -75,8 +96,12 @@ export function StudioCanvas() {
   }, [nodes]);
 
   useEffect(() => {
-    if (activeId && !nodes.some((n) => n.id === activeId && !n.hidden)) setActiveId(null);
-  }, [nodes, activeId]);
+    const live = new Set(nodes.filter((n) => !n.hidden).map((n) => n.id));
+    setSelectedIds((ids) => {
+      const next = ids.filter((id) => live.has(id));
+      return next.length === ids.length ? ids : next;
+    });
+  }, [nodes]);
 
   useEffect(() => {
     const el = layer.current;
@@ -96,7 +121,7 @@ export function StudioCanvas() {
       const z = zoomRef.current;
       const p = panRef.current;
       const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      const next = Math.min(2, Math.max(0.4, z * factor));
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z * factor));
       const box = el.getBoundingClientRect();
       const cx = e.clientX - box.left;
       const cy = e.clientY - box.top;
@@ -171,10 +196,17 @@ export function StudioCanvas() {
       const dt = (now - last) / 1000;
       last = now;
       syncBodies();
+      const held = new Set<string>();
+      if (drag.current?.bubble) for (const id of drag.current.ids) held.add(id);
+      for (const n of nodesRef.current) if (n.locked) held.add(n.id);
+      for (const id of held) {
+        const body = bodiesRef.current.get(id);
+        if (body) { body.vx = 0; body.vy = 0; }
+      }
       stepBubbles(
         [...bodiesRef.current.values()],
         dt,
-        drag.current?.bubble ? drag.current.id : null,
+        held.size ? held : null,
       );
       if (now - lastFlush > FLUSH_MS) {
         lastFlush = now;
@@ -192,7 +224,41 @@ export function StudioCanvas() {
     };
   }, [bubbleMode]);
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+  function deleteSelected() {
+    const removable = selectedRef.current.filter((id) => {
+      const n = nodesRef.current.find((item) => item.id === id);
+      return !!n && canDeleteNode(n);
+    });
+    if (!removable.length) return false;
+    for (const id of removable) closeRef.current(id);
+    return true;
+  }
+
+  function duplicateSelected() {
+    const ids = duplicateRef.current(selectedRef.current);
+    if (!ids.length) return false;
+    applySelection(ids);
+    return true;
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("input, textarea, select, [contenteditable='true']")) return;
+      if ((e.key === "d" || e.key === "D") && (e.ctrlKey || e.metaKey)) {
+        if (!selectedRef.current.length) return;
+        if (duplicateSelected()) e.preventDefault();
+        return;
+      }
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!selectedRef.current.length) return;
+      if (deleteSelected()) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function onKeyDown(e: KE<HTMLDivElement>) {
     if (e.code === "Space" && e.target === e.currentTarget) e.preventDefault();
   }
 
@@ -204,18 +270,57 @@ export function StudioCanvas() {
   }
 
   function skipBoardPan(t: HTMLElement) {
-    if (t.closest("input, textarea, select, button, a, .composer, .overview, .ctx-ask, .ctx-backdrop, .request-log")) return true;
+    if (t.closest("input, textarea, select, button, a, .composer, .overview, .ctx-ask, .ctx-backdrop, .sel-menu, .sel-backdrop, .request-log")) return true;
     const win = t.closest(".win-app");
     if (!win) return false;
     if (win.classList.contains("win-viewport")) return win.classList.contains("is-selected");
     return true;
   }
 
+  function applySelection(ids: string[]) {
+    selectedRef.current = ids;
+    setSelectedIds(ids);
+  }
+
+  function hitsInMarquee(x: number, y: number, w: number, h: number) {
+    const el = layer.current;
+    if (!el || (w < 3 && h < 3)) return [] as string[];
+    const box = el.getBoundingClientRect();
+    const a = clientToCanvas(el, box.left + x, box.top + y, panRef.current, zoomRef.current);
+    const b = clientToCanvas(el, box.left + x + w, box.top + y + h, panRef.current, zoomRef.current);
+    const rx = Math.min(a.x, b.x);
+    const ry = Math.min(a.y, b.y);
+    const rw = Math.abs(b.x - a.x);
+    const rh = Math.abs(b.y - a.y);
+    const hits: string[] = [];
+    for (const n of nodesRef.current) {
+      if (n.hidden) continue;
+      const body = bodiesRef.current.get(n.id);
+      const nx = body?.x ?? n.x;
+      const ny = body?.y ?? n.y;
+      if (rectsOverlap(rx, ry, rw, rh, nx, ny, n.w, n.h)) hits.push(n.id);
+    }
+    return hits;
+  }
+
+  function beginMarquee(e: PE<HTMLDivElement>) {
+    const el = layer.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    const base = e.shiftKey ? [...selectedRef.current] : [];
+    marqueeRef.current = { x, y, base };
+    applySelection(base);
+    setMarquee({ x, y, w: 0, h: 0 });
+    setSelMenu(null);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
   function onAuxPointerDownCapture(e: PE<HTMLDivElement>) {
     if (e.button !== 1 && e.button !== 2) return;
     const t = e.target as HTMLElement;
     if (skipBoardPan(t)) return;
-    if (!t.closest(".win")) setActiveId(null);
     e.preventDefault();
     beginPan(e);
   }
@@ -224,13 +329,41 @@ export function StudioCanvas() {
     if (e.button === 1 || e.button === 2) return;
     if (e.button !== 0) return;
     const t = e.target as HTMLElement;
-    if (t.closest(".win, .overview, .ctx-ask, .ctx-backdrop, .request-log")) return;
-    setActiveId(null);
-    beginPan(e);
+    if (t.closest(".win, .overview, .ctx-ask, .ctx-backdrop, .sel-menu, .sel-backdrop, .request-log")) return;
+    beginMarquee(e);
+  }
+
+  function selectWindow(id: string, e: PE<HTMLDivElement>) {
+    const cur = selectedRef.current;
+    let next: string[];
+    if (e.shiftKey) {
+      next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    } else if (cur.includes(id)) {
+      next = cur;
+    } else {
+      next = [id];
+    }
+    applySelection(next);
+    focus(id);
   }
 
   function onMove(e: PE<HTMLDivElement>) {
     const el = layer.current;
+    const origin = marqueeRef.current;
+    if (origin && el) {
+      const box = el.getBoundingClientRect();
+      const x1 = e.clientX - box.left;
+      const y1 = e.clientY - box.top;
+      const x = Math.min(origin.x, x1);
+      const y = Math.min(origin.y, y1);
+      const w = Math.abs(x1 - origin.x);
+      const h = Math.abs(y1 - origin.y);
+      setMarquee({ x, y, w, h });
+      const hits = hitsInMarquee(x, y, w, h);
+      const merged = origin.base.length ? [...new Set([...origin.base, ...hits])] : hits;
+      applySelection(merged);
+      return;
+    }
     if (panDrag.current && e.buttons) {
       const d = panDrag.current;
       if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 5) panMoved.current = true;
@@ -240,68 +373,101 @@ export function StudioCanvas() {
     if (!el || !drag.current || !e.buttons) return;
     const pt = clientToCanvas(el, e.clientX, e.clientY, panRef.current, zoomRef.current);
     const d = drag.current;
-    const x = pt.x - d.dx;
-    const y = pt.y - d.dy;
+    const dx = pt.x - d.grabX;
+    const dy = pt.y - d.grabY;
     const now = performance.now();
     const dt = Math.max(now - d.lastT, 8) / 1000;
-    if (d.bubble) {
-      const body = bodiesRef.current.get(d.id);
-      if (body) {
-        body.vx = (x - body.x) / dt;
-        body.vy = (y - body.y) / dt;
-        capSpeed(body);
-        body.x = x;
-        body.y = y;
-        setBubbleTick((n) => n + 1);
+    for (const id of d.ids) {
+      const o = d.origin[id];
+      if (!o) continue;
+      const x = o.x + dx;
+      const y = o.y + dy;
+      if (d.bubble) {
+        const body = bodiesRef.current.get(id);
+        if (body) {
+          body.vx = (x - body.x) / dt;
+          body.vy = (y - body.y) / dt;
+          capSpeed(body);
+          body.x = x;
+          body.y = y;
+        }
+      } else {
+        move(id, x, y);
       }
-    } else {
-      move(d.id, x, y);
     }
-    d.lastX = x;
-    d.lastY = y;
+    if (d.bubble) setBubbleTick((n) => n + 1);
+    d.lastX = pt.x;
+    d.lastY = pt.y;
     d.lastT = now;
   }
 
   function endGesture() {
     const d = drag.current;
     if (d?.bubble) {
-      const body = bodiesRef.current.get(d.id);
-      if (body) {
+      const moved = new Map<string, { x: number; y: number }>();
+      for (const id of d.ids) {
+        const body = bodiesRef.current.get(id);
+        if (!body) continue;
         body.vx *= 1.2;
         body.vy *= 1.2;
         capSpeed(body);
         moveRef.current(body.id, body.x, body.y);
         flushedRef.current.set(body.id, { x: body.x, y: body.y });
-        nodesRef.current = nodesRef.current.map((n) => (
-          n.id === body.id ? { ...n, x: body.x, y: body.y } : n
-        ));
+        moved.set(id, { x: body.x, y: body.y });
+      }
+      if (moved.size) {
+        nodesRef.current = nodesRef.current.map((n) => {
+          const p = moved.get(n.id);
+          return p ? { ...n, x: p.x, y: p.y } : n;
+        });
       }
     }
     drag.current = null;
     panDrag.current = null;
+    marqueeRef.current = null;
+    setMarquee(null);
     setPanning(false);
   }
 
   function onContextMenu(e: ME<HTMLDivElement>) {
-    if (!panMoved.current) return;
+    if (panMoved.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      panMoved.current = false;
+      return;
+    }
+    if (!selectedRef.current.length) return;
     e.preventDefault();
     e.stopPropagation();
-    panMoved.current = false;
+    const el = layer.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top });
   }
 
   function startDrag(node: WorkspaceNode, e: PE<HTMLDivElement>) {
     const el = layer.current;
     if (!el || e.button !== 0) return;
+    if (node.locked || !selectedRef.current.includes(node.id)) return;
     const pt = clientToCanvas(el, e.clientX, e.clientY, panRef.current, zoomRef.current);
-    const body = bubbleMode ? bodiesRef.current.get(node.id) : undefined;
-    const x = body?.x ?? node.x;
-    const y = body?.y ?? node.y;
+    const ids = selectedRef.current.filter((id) => {
+      const n = nodesRef.current.find((item) => item.id === id);
+      return !!n && !n.locked;
+    });
+    if (!ids.length) return;
+    const origin: Record<string, { x: number; y: number }> = {};
+    for (const id of ids) {
+      const n = nodesRef.current.find((item) => item.id === id);
+      const body = bodiesRef.current.get(id);
+      origin[id] = { x: body?.x ?? n?.x ?? 0, y: body?.y ?? n?.y ?? 0 };
+    }
     drag.current = {
-      id: node.id,
-      dx: pt.x - x,
-      dy: pt.y - y,
-      lastX: x,
-      lastY: y,
+      ids,
+      origin,
+      grabX: pt.x,
+      grabY: pt.y,
+      lastX: pt.x,
+      lastY: pt.y,
       lastT: performance.now(),
       bubble: !!bubbleMode,
     };
@@ -309,12 +475,20 @@ export function StudioCanvas() {
   }
 
   const grid = 34 * zoom;
+  const far = Math.max(0, Math.min(1, (0.55 - zoom) / (0.55 - 0.18)));
+  const selectedNodes = selectedIds
+    .map((id) => nodes.find((n) => n.id === id))
+    .filter((n): n is WorkspaceNode => !!n);
+  const menuCanDelete = selectedNodes.some(canDeleteNode);
+  const menuCanDuplicate = selectedNodes.some(canDuplicateNode);
+  const menuLocked = selectedNodes.length > 0 && selectedNodes.every((n) => n.locked);
 
   return (
     <div
-      className={`studio-layer${panning ? " is-panning" : ""}`}
+      className={`studio-layer${panning ? " is-panning" : ""}${marquee ? " is-marquee" : ""}`}
       ref={layer}
       tabIndex={0}
+      style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
       onKeyDown={onKeyDown}
       onPointerDownCapture={onAuxPointerDownCapture}
       onPointerDown={onPointerDown}
@@ -327,6 +501,12 @@ export function StudioCanvas() {
         <div
           className="studio-grid"
           style={{ backgroundSize: `${grid}px ${grid}px`, backgroundPosition: `${pan.x}px ${pan.y}px` }}
+        />
+      )}
+      {marquee && (marquee.w > 1 || marquee.h > 1) && (
+        <div
+          className="studio-marquee"
+          style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
         />
       )}
       <div className="studio-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
@@ -352,16 +532,18 @@ export function StudioCanvas() {
               width={n.w}
               height={n.h}
               kind={n.kind}
+              query={n.query ?? n.design}
               hidden={n.hidden}
               autoSize={n.autoSize !== false}
+              locked={n.locked}
               enter={conciergeEnter && n.id === CONCIERGE_ID}
               flash={flashIds.includes(n.id)}
               flashKey={flashKey}
-              selected={activeId === n.id}
+              selected={selectedIds.includes(n.id)}
               viewport={false}
               tilt={bubbleMode ? b?.tilt : undefined}
-              onFocus={() => { setActiveId(n.id); focus(n.id); }}
-              onClose={() => close(n.id)}
+              onFocus={(e) => selectWindow(n.id, e)}
+              onClose={canDeleteNode(n) ? () => close(n.id) : undefined}
               onHide={() => hide(n.id)}
               onDrag={(e) => { if (!bubbleMode) startDrag(n, e); }}
               onGrab={bubbleMode ? (e) => startDrag(n, e) : undefined}
@@ -372,6 +554,19 @@ export function StudioCanvas() {
           );
         })}
       </div>
+      {selMenu && (
+        <SelectionMenu
+          at={selMenu}
+          host={viewport}
+          canDelete={menuCanDelete}
+          canDuplicate={menuCanDuplicate}
+          locked={menuLocked}
+          onDelete={() => { deleteSelected(); }}
+          onDuplicate={() => { duplicateSelected(); }}
+          onToggleLock={() => setLocked(selectedRef.current, !menuLocked)}
+          onClose={() => setSelMenu(null)}
+        />
+      )}
     </div>
   );
 }

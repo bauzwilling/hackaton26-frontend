@@ -51,7 +51,7 @@ export function chipsFor(includeOrbit: boolean) {
 }
 
 export const PLYWORKS_INTRO =
-  "Plyworks is a plywood furniture configurator. Start from an 18 mm cabinet, add or move panels, preview realistic wood, then download STEP, DXF, or STL for manufacture.";
+  "Plyworks is a plywood furniture configurator. Start from a base design (shelf, table, stool, or bench), add or move panels, preview realistic wood, then download STEP, DXF, or STL for manufacture.";
 
 export function plyworksOpening(prefix: string) {
   return `${prefix} ${PLYWORKS_INTRO}`;

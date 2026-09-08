@@ -62,11 +62,12 @@ button.sf:disabled:active { transform: none; }
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 14px 24px;
-  padding: 20px 28px 10px;
+  padding: 18px 28px 16px;
   flex-shrink: 0;
   position: relative;
   z-index: 60;
-  background: transparent;
+  background: color-mix(in oklab, var(--acc) 8%, var(--face));
+  border-bottom: 1px solid color-mix(in oklab, var(--acc) 22%, var(--line));
 }
 .chrome-brand {
   display: flex;
@@ -328,9 +329,10 @@ button.sf:disabled:active { transform: none; }
   min-width: 240px;
   border-radius: 16px;
   cursor: default;
+  overflow: visible;
 }
 .win.is-selected {
-  box-shadow: 0 0 0 1px var(--acc), var(--elev);
+  box-shadow: 0 0 0 calc((2px + 2px * var(--win-far, 0)) / var(--studio-zoom, 1)) var(--acc), var(--elev);
 }
 .win-bar {
   display: flex;
@@ -342,6 +344,7 @@ button.sf:disabled:active { transform: none; }
   user-select: none;
   flex: none;
   border-bottom: 1px solid var(--line);
+  opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
 .win-bar:active { cursor: grabbing; }
 .win-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); flex: none; }
@@ -358,6 +361,18 @@ button.sf:disabled:active { transform: none; }
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+.win-lock {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: none;
+}
+.win.is-locked,
+html[data-bubble="on"] .win.is-locked,
+html[data-bubble="on"] .win.is-locked .win-bar {
+  cursor: default;
+}
 .win-btn {
   width: 28px;
   height: 28px;
@@ -367,7 +382,50 @@ button.sf:disabled:active { transform: none; }
   color: var(--muted);
 }
 .win-btn:hover { color: var(--ink); background: var(--recess); }
-.win-body { padding: 16px 18px 18px; overflow: auto; flex: 1; min-height: 0; }
+.win-body {
+  padding: 16px 18px 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  opacity: calc(1 - var(--win-far, 0) * 0.62);
+}
+.win-far-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 22px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 3;
+  user-select: none;
+  opacity: var(--win-far, 0);
+  transform: scale(clamp(1, calc(0.45 / var(--studio-zoom, 1)), 3));
+  transform-origin: center center;
+}
+.win-far-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.win-far-query {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: 0.75;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .win-app:has(.embedded-app) .win-body,
 .win-app:has(.pw) .win-body {
   padding: 0;
@@ -440,15 +498,22 @@ html[data-bubble="on"] .win:active { cursor: grabbing; }
 html[data-bubble="on"] .win-bar { cursor: grab; }
 html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 
-.studio { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.studio {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg);
+}
 .studio-layer {
   position: relative;
   height: 100%;
   overflow: hidden;
   touch-action: none;
   outline: none;
-  cursor: grab;
+  cursor: default;
 }
+.studio-layer.is-marquee { cursor: crosshair; }
 .studio-layer.is-panning,
 .studio-layer.is-panning .win,
 .studio-layer.is-panning .win-bar {
@@ -467,9 +532,17 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   width: 1px; height: 1px;
   transform-origin: 0 0;
 }
+.studio-marquee {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--acc);
+  background: color-mix(in oklab, var(--acc) 14%, transparent);
+  pointer-events: none;
+  z-index: 40;
+}
 .wire-layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 9999; }
-.wire { stroke: var(--acc); stroke-width: 2.5; stroke-opacity: 0.8; }
-.wire.is-hot { stroke-width: 3.5; stroke-opacity: 1; }
+.wire { stroke: var(--acc); stroke-width: calc(2.5 / var(--studio-zoom, 1)); stroke-opacity: 0.8; }
+.wire.is-hot { stroke-width: calc(3.5 / var(--studio-zoom, 1)); stroke-opacity: 1; }
 .bubble-query { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 500; }
 .overview {
   position: absolute;
@@ -555,6 +628,23 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .request-menu button:hover { background: color-mix(in oklab, var(--face) 70%, var(--acc-lite)); }
 
 .ctx-backdrop { position: absolute; inset: 0; z-index: 90; }
+.sel-backdrop { position: absolute; inset: 0; z-index: 90; }
+.sel-menu {
+  position: absolute;
+  z-index: 91;
+  min-width: 200px;
+  padding: 8px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  animation: f2f-rise .18s cubic-bezier(.2,.8,.25,1) both;
+}
+.sel-menu .ctx-title { margin-bottom: 6px; }
+.sel-menu button {
+  border: none; background: transparent; color: inherit; cursor: pointer;
+  text-align: left; padding: 8px 10px; border-radius: 10px; font: inherit; font-size: 13px;
+}
+.sel-menu button:hover { background: color-mix(in oklab, var(--face) 70%, var(--acc-lite)); }
+.sel-menu-danger { color: var(--acc-deep); }
 .ctx-ask {
   position: absolute;
   z-index: 91;
@@ -641,7 +731,16 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 }
 .composer-hero { width: 100%; text-align: left; }
 .composer-panel {
-  flex: none; margin-top: 12px; padding: 6px 6px 6px 12px; border-radius: 16px;
+  flex: none;
+  margin-top: 12px;
+  margin-inline: 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 16px;
+  box-shadow: var(--elev);
+}
+.composer-panel:focus-within {
+  border-color: var(--acc);
+  box-shadow: var(--elev);
 }
 .composer-panel input[type="text"] { font-size: 13.5px; }
 .composer-panel .composer-attach { width: 32px; height: 32px; }
@@ -662,11 +761,12 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .concierge-scroll {
   display: flex; flex-direction: column; gap: 12px;
   max-height: min(420px, 34vh); overflow: auto;
+  padding-inline: 8px;
 }
 .chat-turn { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
 .chat-bubble {
   padding: 10px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45;
-  max-width: 92%;
+  max-width: 85%;
 }
 .chat-user {
   align-self: flex-end;

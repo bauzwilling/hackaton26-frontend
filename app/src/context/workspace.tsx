@@ -1,13 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
-import { askConcierge, type ConciergeResult } from "../lib/concierge";
+import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
-import { matchApp } from "../lib/routing";
+import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
 export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
+
+export const ZOOM_MIN = 0.05;
+export const ZOOM_MAX = 12;
+const FIT_ZOOM_MAX = 1.15;
 
 export type WorkspaceNode = {
   id: string;
@@ -21,6 +25,7 @@ export type WorkspaceNode = {
   routeLabel?: string;
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
+  design?: PlyworksDesign;
   x: number;
   y: number;
   z: number;
@@ -28,6 +33,7 @@ export type WorkspaceNode = {
   h: number;
   hidden: boolean;
   autoSize?: boolean;
+  locked?: boolean;
   /** Concierge only: keep me stacked under the request log until the user drags me off. */
   railed?: boolean;
 };
@@ -46,6 +52,8 @@ export type RequestEntry = {
   result: "app" | "text" | "denied";
   reply?: string;
   confirmApps?: WorkspaceApp[];
+  design?: PlyworksDesign;
+  choices?: PlyworksDesign[];
   pending?: boolean;
 };
 
@@ -121,7 +129,7 @@ type Ctx = {
   setOverviewOpen: (v: boolean) => void;
   setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setZoom: (z: number | ((prev: number) => number)) => void;
-  openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => string | null;
+  openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => string | null;
   announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
@@ -136,6 +144,8 @@ type Ctx = {
   close: (id: string) => void;
   hide: (id: string) => void;
   show: (id: string) => void;
+  setLocked: (ids: string[], locked: boolean) => void;
+  duplicateNodes: (ids: string[]) => string[];
   tile: (viewport: { width: number; height: number }) => void;
   clear: (opts?: { transcript?: boolean }) => void;
   clearTranscript: () => void;
@@ -147,6 +157,14 @@ const WorkspaceCtx = createContext<Ctx | null>(null);
 
 export const LOG_ID = "request-log";
 export const CONCIERGE_ID = "concierge";
+
+export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
+  return n.kind === "app";
+}
+
+export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
+  return n.kind === "app" || n.kind === "note";
+}
 const RAIL_X = 20;
 const RAIL_W = 340;
 const LOG_W = 340;
@@ -502,7 +520,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     bumpZ(id);
   }, [bumpZ]);
 
-  const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string }) => {
+  const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => {
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
     if (!meta || !openable(session, app)) return null;
 
@@ -525,6 +543,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             title: meta.label,
             parentId: opts?.parentId ?? n.parentId,
             query: opts?.query ?? n.query,
+            design: opts?.design ?? n.design,
             ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
           };
         });
@@ -541,6 +560,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         code: `${meta.label.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
         appId: app,
         query: opts?.query,
+        design: opts?.design,
         parentId: opts?.parentId,
         x: slot.x,
         y: slot.y,
@@ -558,7 +578,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (!data || typeof data.jobId !== "string") return;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "plyworks-open") {
+        const design = typeof data.design === "string" ? data.design.trim().toLowerCase() : "";
+        if (design !== "shelf" && design !== "table" && design !== "stool" && design !== "bench") return;
+        const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
+        openApp("plyworks", { parentId: parent?.id, design });
+        return;
+      }
+      if (typeof data.jobId !== "string") return;
       const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
       if (data.type === "plyworks-jw") {
         openApp("plyworks-jw", { parentId: parent?.id, query: data.jobId });
@@ -644,7 +672,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
-          const appTarget = openApp(appId, { parentId: conciergeId, query: q });
+          const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
+          const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
           if (appTarget) targetIds.push(appTarget);
         } else if (appId) {
           // Unavailable: no window. The concierge reply is the whole answer.
@@ -659,6 +688,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           routeWhy,
           reply: result.reply,
           targetIds,
+          design: result.design ?? undefined,
+          choices: result.choices ?? undefined,
           pending: false,
         } : e)));
       };
@@ -666,19 +697,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       try {
         settle(await askConcierge(q, history, apps, restricted));
       } catch {
-        // No assistant reachable: fall back to a local name match so the board stays usable.
-        const guess = matchApp(q);
-        const named = guess && isWorkspaceApp(guess) ? guess : null;
+        // No assistant reachable: fall back to a local name/design match so the board stays usable.
+        const local = matchLocalRoute(q);
+        const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
+        const choices = appId ? null : local.choices;
         settle({
           app: appId,
+          design: appId === "plyworks" ? (local.design ?? "shelf") : null,
+          choices,
           reply: appId
             ? appId === "plyworks"
               ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
               : `Opening ${appLabel(appId)} for you.`
             : named
               ? denyCopy(session, named).body
-              : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+              : choices
+                ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
+                : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
         });
       }
     })();
@@ -796,7 +832,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const bw = Math.max(120, maxX - minX);
     const bh = Math.max(80, maxY - minY);
     const pad = 64;
-    const nextZoom = Math.min(1.15, Math.max(0.45, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
+    const nextZoom = Math.min(FIT_ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
     setZoom(nextZoom);
     setPan({
       x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
@@ -818,7 +854,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const conciergeId = ensureConcierge();
     const targetIds: string[] = [conciergeId];
     if (entry.appId && entry.result === "app") {
-      const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query });
+      const appTarget = openApp(entry.appId, { parentId: conciergeId, query: entry.query, design: entry.design });
       if (appTarget) targetIds.push(appTarget);
     }
     setEntries((list) => list.map((e) => (e.id === entryId ? { ...e, targetIds } : e)));
@@ -830,7 +866,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const move = useCallback((id: string, x: number, y: number) => {
     setNodes((list) => restack(list.map((n) => {
-      if (n.id !== id) return n;
+      if (n.id !== id || n.locked) return n;
       return n.id === CONCIERGE_ID ? { ...n, x, y, railed: false } : { ...n, x, y };
     })));
   }, []);
@@ -877,7 +913,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback((id: string) => {
-    setNodes((list) => list.filter((n) => n.id !== id));
+    const n = nodesRef.current.find((item) => item.id === id);
+    if (n && !canDeleteNode(n)) return;
+    setNodes((list) => list.filter((item) => item.id !== id));
     setEdges((list) => list.filter((e) => e.from !== id && e.to !== id));
   }, []);
 
@@ -889,9 +927,43 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     bumpZ(id);
   }, [bumpZ]);
 
+  const setLocked = useCallback((ids: string[], locked: boolean) => {
+    const set = new Set(ids);
+    setNodes((list) => list.map((n) => (set.has(n.id) ? { ...n, locked } : n)));
+  }, []);
+
+  const duplicateNodes = useCallback((ids: string[]) => {
+    const want = new Set(ids);
+    const sources = nodesRef.current.filter((n) => want.has(n.id) && canDuplicateNode(n) && !n.hidden);
+    if (!sources.length) return [] as string[];
+    const offset = 40;
+    let z = zTop.current;
+    const copies: WorkspaceNode[] = sources.map((n) => {
+      z += 1;
+      const prefix = n.kind === "note" ? "n" : "a";
+      const code = n.kind === "app"
+        ? `${n.title.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+        : n.code;
+      return {
+        ...n,
+        id: uid(prefix),
+        code,
+        x: n.x + offset,
+        y: n.y + offset,
+        z,
+        locked: false,
+        hidden: false,
+        railed: false,
+      };
+    });
+    zTop.current = z;
+    setNodes((list) => [...list, ...copies]);
+    return copies.map((n) => n.id);
+  }, []);
+
   const tile = useCallback((viewport: { width: number; height: number }) => {
     setNodes((list) => {
-      const vis = list.filter((n) => !n.hidden);
+      const vis = list.filter((n) => !n.hidden && !n.locked);
       if (!vis.length) return list;
       const pad = 24;
       const limit = Math.max(viewport.width, 400);
@@ -972,12 +1044,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     close,
     hide,
     show,
+    setLocked,
+    duplicateNodes,
     tile,
     clear,
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

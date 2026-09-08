@@ -69,6 +69,7 @@ export function StudioPage() {
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app")) return;
     e.preventDefault();
+    if (root.current?.querySelector(".win.is-selected")) return;
     const box = e.currentTarget.getBoundingClientRect();
     setHost({ width: box.width, height: box.height });
     setCtx({
@@ -150,7 +151,7 @@ export function StudioPage() {
         )
       )}
       <p className="studio-hint">
-        Right-click anywhere to ask · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
+        Right-drag to pan · Left-drag to select · Delete to close apps · Right-click for options · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
       </p>
       {dropping && (
         <div className="drop-overlay">

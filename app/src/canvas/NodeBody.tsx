@@ -46,7 +46,7 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
   if (node.kind === "app") {
     if (node.appId === "boxouts") return <BoxoutsPage />;
     if (node.appId === "simpleparts") return <PartsPage />;
-    if (node.appId === "plyworks") return <PlyworksPage />;
+    if (node.appId === "plyworks") return <PlyworksPage design={node.design} />;
     if (node.appId === "plyworks-jw") {
       return <PlyworksJwPage jobId={node.query} />;
     }
