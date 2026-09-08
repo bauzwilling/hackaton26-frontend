@@ -1,0 +1,226 @@
+/* :root — chat tokens only */
+:root {
+  --color-accent: #1d4e89;
+  --color-accent-bg: #e6f2ff;
+  --color-accent-bg-hover: #d4e8ff;
+  --color-border: #cccccc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f5f5f5;
+  --color-text-summary: #333333;
+  --color-text-muted: #888888;
+  --color-neutral-selected: #e7e5e4;
+  --color-neutral-edited-accent: #a8a29e;
+  --color-result-bg: #f0efed;
+  --color-result-text: #78716c;
+  --color-warning-emphasis: #ff9900;
+  --color-warning-bg: #fef7e0;
+  --color-error-emphasis: #c62828;
+  --color-error-bg: #fdecea;
+  --color-salmon: #e8a090;
+  --color-salmon-hover: #d98978;
+  --color-salmon-bg: #fde8e2;
+
+  /* Part highlight colors (DXF viewer + chat legend) */
+  --color-part-red: #ff0000;
+  --color-part-yellow: #ffff00;
+  --color-part-purple: #800080;
+  --color-part-brown: #712e11;
+  --color-part-green: #188500;
+  --color-part-blue: #176498;
+  --color-part-grey: #808080;
+  --color-part-orange: #ff8c00;
+  --color-part-pink: #e91e8c;
+  --color-part-default: #b0b0b0;
+}
+
+.legend-part-red {
+  color: var(--color-part-red);
+}
+
+.legend-part-green {
+  color: var(--color-part-green);
+}
+
+.legend-part-blue {
+  color: var(--color-part-blue);
+}
+
+.legend-part-grey {
+  color: var(--color-part-grey);
+}
+
+.legend-part-orange {
+  color: var(--color-part-orange);
+}
+
+.legend-part-pink {
+  color: var(--color-part-pink);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex: 0 0 22%;
+  min-width: 300px;
+  padding: 1rem;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.main > .view {
+  flex: 1;
+  min-height: 0;
+}
+
+.main > .viewer-toggles {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.mobile-toggle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Full-screen chat */
+  .app:not(:has(.message-user)) .main {
+    display: none;
+  }
+
+  .app:not(:has(.message-user)) .sidebar {
+    flex: 1 1 auto;
+  }
+
+  /* Viewer + toggle after first message */
+  .app:has(.message-user) .main {
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .app:has(.message-user) .mobile-toggle {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  .app:has(.message-user):not(:has(#mobile-chat:checked)) .sidebar {
+    display: none;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto minmax(0, 2fr);
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .main {
+    display: contents;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .mobile-toggle {
+    grid-row: 2;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .main > .view {
+    display: none;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .main > .viewer-toggles {
+    display: none;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .sidebar {
+    display: flex;
+    grid-row: 3;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    gap: 0;
+    border-right: none;
+  }
+
+  .app:has(.message-user):has(#mobile-chat:checked) .chat-slot {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .app:has(.message-user) .sidebar h1 {
+    display: none;
+  }
+
+  .mobile-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mobile-toggle label {
+    flex: 1;
+    padding: 0.4rem;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .mobile-toggle input:checked + label {
+    background: var(--color-neutral-selected);
+  }
+
+  .mobile-toggle input:disabled + label {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .main > .view {
+    min-height: 0;
+    grid-row: 2;
+  }
+
+  .main > .viewer-toggles {
+    grid-row: 3;
+  }
+}
