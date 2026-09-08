@@ -46,6 +46,72 @@ export function HelpFab() {
   );
 }
 
+const PAN_HINT_KEY = "f2f.panHintSeen";
+
+function panHintSeen() {
+  try {
+    return localStorage.getItem(PAN_HINT_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markPanHintSeen() {
+  try {
+    localStorage.setItem(PAN_HINT_KEY, "1");
+  } catch { /* ignore */ }
+}
+
+/** First-visit canvas tip. Not the Help tour overlay. */
+export function PanHint({ empty, conciergeUp }: { empty: boolean; conciergeUp: boolean }) {
+  const { phase, startHelp } = useHelp();
+  const [ready, setReady] = useState(false);
+  const [visible, setVisible] = useState(() => !panHintSeen());
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setReady(true), 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !visible) return;
+    if (phase !== "idle" || !empty || conciergeUp) {
+      markPanHintSeen();
+      setVisible(false);
+    }
+  }, [ready, visible, phase, empty, conciergeUp]);
+
+  function dismiss() {
+    markPanHintSeen();
+    setVisible(false);
+  }
+
+  if (!ready || !visible || !empty || conciergeUp || phase !== "idle") return null;
+
+  return (
+    <Surface className="pan-hint" role="status">
+      <p className="pan-hint-copy">This is a canvas. Right-drag to pan, scroll to zoom.</p>
+      <div className="pan-hint-actions">
+        <Surface as="button" type="button" relief="ghost" className="help-card-btn" onClick={dismiss}>
+          Got it
+        </Surface>
+        <Surface
+          as="button"
+          type="button"
+          relief="accent"
+          className="help-card-btn"
+          onClick={() => {
+            dismiss();
+            startHelp();
+          }}
+        >
+          Give me a tour
+        </Surface>
+      </div>
+    </Surface>
+  );
+}
+
 export function HelpOverlay() {
   const { phase, step, steps, stepIndex, appNodeId, iframeReady, next, back, stop } = useHelp();
   const [hole, setHole] = useState<{ top: number; left: number; width: number; height: number } | null>(null);

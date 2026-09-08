@@ -33,8 +33,10 @@ export const PROJECTS = [
   { title: "Simple Parts · spacer rings", desc: "Turned aluminium, 60 units, no finishing.", kind: "Simple Parts", status: "Shipped", when: "3 weeks ago" },
 ];
 
+export const TOUR_CHIP = "Give me a tour";
+
 export const CHIPS = [
-  "Give me a tour",
+  TOUR_CHIP,
   "Make a boxout 300×2000×1000 — 5×",
   "Configure a door boxout",
   "How does plate nesting work?",

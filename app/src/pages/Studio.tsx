@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AskMenu } from "../canvas/AskMenu";
-import { HelpFab } from "../canvas/HelpTour";
+import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { Overview } from "../canvas/Overview";
 import { StudioCanvas } from "../canvas/StudioCanvas";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { appLabel, CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
-import { chipsFor } from "../lib/catalog";
+import { chipsFor, TOUR_CHIP } from "../lib/catalog";
 import { can } from "../lib/auth";
 
 function isFileDrag(e: DragEvent) {
@@ -17,7 +17,7 @@ function isFileDrag(e: DragEvent) {
 
 export function StudioPage() {
   const { session } = useSession();
-  const { nodes, ask, openApp, announceOpen, addNote, ingestFiles, pan, zoom } = useWorkspace();
+  const { nodes, ask, openApp, announceOpen, ingestFiles, pan, zoom } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [ctx, setCtx] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
@@ -68,7 +68,7 @@ export function StudioPage() {
 
   function onContext(e: MouseEvent<HTMLDivElement>) {
     const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app, .help-fab, .help-card")) return;
+    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app, .help-fab, .help-card, .pan-hint")) return;
     e.preventDefault();
     if (root.current?.querySelector(".win.is-selected")) return;
     const box = e.currentTarget.getBoundingClientRect();
@@ -137,13 +137,16 @@ export function StudioPage() {
             <Composer variant="hero" autoFocus />
             <div className="chips">
               {chips.map((c) => (
-                <Surface key={c} as="button" type="button" className="chip" onClick={() => ask(c)}>
+                <Surface
+                  key={c}
+                  as="button"
+                  type="button"
+                  className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
+                  onClick={() => ask(c)}
+                >
                   {c}
                 </Surface>
               ))}
-              <Surface as="button" type="button" className="chip" onClick={() => addNote()}>
-                Add note
-              </Surface>
             </div>
           </div>
         ) : (
@@ -153,7 +156,13 @@ export function StudioPage() {
         )
       )}
       <p className="studio-hint" data-help="studio-hint">
-        Right-drag to pan · Left-drag to select · Delete to close apps · Right-click for options · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
+        Right-drag to pan
+        <span aria-hidden="true"> · </span>
+        Left-drag to select
+        <span aria-hidden="true"> · </span>
+        Delete to close apps
+        <span aria-hidden="true"> · </span>
+        Right-click for options
       </p>
       {dropping && (
         <div className="drop-overlay">
@@ -165,6 +174,7 @@ export function StudioPage() {
       )}
       <Overview viewport={viewport} />
       {ctx && <AskMenu at={ctx} host={host} world={ctx.world} onClose={() => setCtx(null)} />}
+      <PanHint empty={empty} conciergeUp={conciergeUp} />
       <HelpFab />
     </div>
   );
