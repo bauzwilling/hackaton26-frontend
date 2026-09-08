@@ -146,7 +146,7 @@ export function HelpOverlay() {
 
   const card = hole ? placeCard(hole) : { x: MARGIN, y: window.innerHeight - CARD_H - MARGIN };
   const last = stepIndex >= steps.length - 1;
-  const nextLabel = step.handoff === "plyworks-iframe" ? "Continue" : last ? "Done" : "Next";
+  const nextLabel = step.handoff === "plyworks-native" ? "Continue" : last ? "Done" : "Next";
 
   return createPortal(
     <div className="help-overlay" role="dialog" aria-label="Studio tour">

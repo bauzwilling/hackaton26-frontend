@@ -1,4 +1,5 @@
-import { Board, BBox, DEFAULT_LOOK, PlateMaterial } from "../types";
+import { DEFAULT_LOOK } from "../types";
+import type { Board, BBox, PlateMaterial } from "../types";
 
 export function thinField(board: Pick<Board, "w" | "h" | "d">): "w" | "h" | "d" {
   if (board.w <= board.h && board.w <= board.d) return "w";

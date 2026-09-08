@@ -1,3 +1,5 @@
+import { plyworksApi } from "../api";
+
 export type GhGeometryLeaf = {
   type?: string;
   data?: unknown;
@@ -38,10 +40,6 @@ export type ProduceBoard = {
   material?: "kiefer" | "film";
 };
 
-// Parked unused: Studio still iframes Plyworks. Do not import from pages.
-// WAITING BFF: Flask /api/produce is the standalone-app stand-in; the UI may only talk to the Platform BFF (boundary-plan §3, §18).
-const API_BASE = "/api";
-
 async function readJson<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -58,7 +56,8 @@ export async function startProduce(
   filename = "plyworks-18mm.step",
   thicknesses: { KieferThickness: number; FilmThickness: number }
 ): Promise<{ jobId: string }> {
-  const res = await fetch(`${API_BASE}/produce`, {
+  // WAITING BFF: POST /produce is the existing Flask stand-in for accepting a platform action and starting a run.
+  const res = await fetch(plyworksApi("/produce"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -73,12 +72,14 @@ export async function startProduce(
 }
 
 export async function getProduce(jobId: string): Promise<ProduceJob> {
-  const res = await fetch(`${API_BASE}/produce/${encodeURIComponent(jobId)}`);
+  // WAITING BFF: polling the existing Flask job moves to GET /api/runs/:runId.
+  const res = await fetch(plyworksApi(`/produce/${encodeURIComponent(jobId)}`));
   return readJson(res);
 }
 
 export async function startNest(jobId: string): Promise<ProduceJob> {
-  const res = await fetch(`${API_BASE}/produce/${encodeURIComponent(jobId)}/nest`, {
+  // WAITING BFF: nesting starts through a BFF-owned SuggestedAction, not this Flask route.
+  const res = await fetch(plyworksApi(`/produce/${encodeURIComponent(jobId)}/nest`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -87,11 +88,13 @@ export async function startNest(jobId: string): Promise<ProduceJob> {
 
 export function nestingZipUrl(jobId: string, preview = true): string {
   const q = preview ? "?preview=1" : "";
-  return `${API_BASE}/produce/${encodeURIComponent(jobId)}/download${q}`;
+  // WAITING BFF: the nesting ZIP becomes a BFF-owned Artifact URL.
+  return plyworksApi(`/produce/${encodeURIComponent(jobId)}/download${q}`);
 }
 
 export function input3dmUrl(jobId: string): string {
-  return `${API_BASE}/produce/${encodeURIComponent(jobId)}/input-3dm`;
+  // WAITING BFF: the Rhino input becomes a BFF-owned Artifact URL.
+  return plyworksApi(`/produce/${encodeURIComponent(jobId)}/input-3dm`);
 }
 
 export async function downloadInput3dm(jobId: string): Promise<void> {

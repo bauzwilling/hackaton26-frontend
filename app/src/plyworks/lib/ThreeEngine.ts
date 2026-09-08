@@ -76,11 +76,9 @@ export class ThreeEngine {
   // Snapshot of last-applied state (for dirty checking)
   private lastBoards: Board[] = [];
   private lastSelIds: number[] = [];
-  private lastMode: RenderMode = "comic";
 
   // Drag state
   private drag: any = null;
-  private snapped = false;
 
   constructor(container: HTMLElement, callbacks: EngineCallbacks) {
     this.cb = callbacks;
@@ -167,7 +165,6 @@ export class ThreeEngine {
   ) {
     this.lastBoards = boards;
     this.lastSelIds = selIds;
-    this.lastMode = mode;
     this.applyMode(boards, selIds, mode, showDims);
   }
 
@@ -582,10 +579,6 @@ export class ThreeEngine {
     return hits.length ? (hits[0].object.userData.id as number) : null;
   }
 
-  private pick(e: PointerEvent) {
-    this.cb.onSelect(this.hitId(e), e.shiftKey || e.ctrlKey || e.metaKey);
-  }
-
   private pickHandle(e: PointerEvent): any {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(this.ndc(e), this.cam);
@@ -739,7 +732,6 @@ export class ThreeEngine {
           if (gap <= tolM && (!bestM || w < bestM.w)) bestM = { w, pos: p - s * half };
         }
       }
-      this.snapped = !!bestM;
       if (bestM) pos = Math.round(bestM.pos);
       this.cb.onMoveBoard(b.id, ax0 as "x" | "y" | "z", pos);
     } else {
@@ -763,7 +755,6 @@ export class ThreeEngine {
           if (gap <= tol && (!best || gap < best.gap)) best = { p, gap };
         }
       }
-      this.snapped = !!best;
       if (best) face = best.p;
       const size = Math.max(minFace, (face - fixed) * d.h.sign);
       const shift = ((size - b[d.h.dim as "w" | "h" | "d"]) * d.h.sign) / 2;

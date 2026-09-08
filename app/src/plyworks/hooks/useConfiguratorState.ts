@@ -9,7 +9,7 @@ import {
   thinField,
   withPlateMaterial,
 } from "../lib/geometry";
-import { boardsFor, designFromSearch, type DesignId } from "../lib/designs";
+import { boardsFor, parseDesignId, type DesignId } from "../lib/designs";
 import { boardName, designLabel, t } from "../lib/i18n";
 
 // ── Log helper ──
@@ -46,10 +46,9 @@ interface FullState extends ConfiguratorState {
   logs: LogEntry[];
 }
 
-function createInitialState(): FullState {
-  const search = typeof window === "undefined" ? "" : window.location.search;
+function createInitialState(initialDesign?: DesignId): FullState {
   return {
-    boards: boardsFor(designFromSearch(search)),
+    boards: boardsFor(parseDesignId(initialDesign)),
     selIds: [],
     mode: "comic",
     dims: false,
@@ -256,8 +255,8 @@ function reducer(state: FullState, action: Action): FullState {
 
 // ── Hook ──
 
-export function useConfiguratorState() {
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+export function useConfiguratorState(initialDesign?: DesignId) {
+  const [state, dispatch] = useReducer(reducer, initialDesign, createInitialState);
 
   const selectedBoards = state.selIds
     .map((id) => state.boards.find((b) => b.id === id))

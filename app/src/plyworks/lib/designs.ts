@@ -59,26 +59,6 @@ export function parseDesignId(raw: string | null | undefined): DesignId {
   return (DESIGN_IDS as readonly string[]).includes(id) ? (id as DesignId) : "shelf";
 }
 
-export function designFromSearch(search: string): DesignId {
-  return parseDesignId(new URLSearchParams(search).get("design"));
-}
-
 export function boardsFor(id: DesignId): Board[] {
   return BASE_DESIGNS[id].map((b) => ({ look: DEFAULT_LOOK, ...b }));
-}
-
-export const OPEN_DESIGN_MESSAGE = "plyworks-open";
-
-export function inStudioFrame() {
-  return typeof window !== "undefined" && window.parent !== window;
-}
-
-export function requestNewDesignWindow(id: DesignId) {
-  if (inStudioFrame()) {
-    window.parent.postMessage({ type: OPEN_DESIGN_MESSAGE, design: id }, "*");
-    return;
-  }
-  const url = new URL(window.location.href);
-  url.searchParams.set("design", id);
-  window.open(url.toString(), "_blank", "noopener");
 }

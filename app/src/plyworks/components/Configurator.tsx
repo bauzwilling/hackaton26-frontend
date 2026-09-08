@@ -9,9 +9,19 @@ import { HistoryLog } from "./HistoryLog";
 import { ProduceBanner } from "./ProduceBanner";
 import { TemplatePicker } from "./TemplatePicker";
 import { HelpOverlay } from "./HelpOverlay";
-import { HOST_HELP } from "../lib/look";
 import { PLYWORKS_TOUR } from "../lib/helpTour";
+import type { DesignId } from "../lib/designs";
 import "../plyworks.css";
+
+interface ConfiguratorProps {
+  design?: DesignId;
+  helpActive?: boolean;
+  onHelpReady?: () => void;
+  onHelpDone?: () => void;
+  onOpenDesign: (design: DesignId) => void;
+  onOpenJointWiz: (jobId: string) => void;
+  onOpenNesting: (jobId: string) => void;
+}
 
 /**
  * Top-level Plyworks configurator.
@@ -25,8 +35,16 @@ import "../plyworks.css";
  * For integration into a larger app, you can lift `useConfiguratorState`
  * to a parent and pass the store as a prop instead.
  */
-export function Configurator() {
-  const store = useConfiguratorState();
+export function Configurator({
+  design,
+  helpActive = false,
+  onHelpReady,
+  onHelpDone,
+  onOpenDesign,
+  onOpenJointWiz,
+  onOpenNesting,
+}: ConfiguratorProps) {
+  const store = useConfiguratorState(design);
   const rootRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -36,9 +54,9 @@ export function Configurator() {
   const helpStep = helpIndex != null ? PLYWORKS_TOUR[helpIndex] : null;
 
   const postHelp = useCallback((action: "ready" | "done" | "stop") => {
-    if (window.parent === window) return;
-    window.parent.postMessage({ type: HOST_HELP, action }, "*");
-  }, []);
+    if (action === "ready") onHelpReady?.();
+    else onHelpDone?.();
+  }, [onHelpDone, onHelpReady]);
 
   const stopHelp = useCallback((notify: "done" | "stop" | null) => {
     setHelpIndex(null);
@@ -66,21 +84,25 @@ export function Configurator() {
   }, []);
 
   const { containerRef, resetView } = useThreeEngine(store, { onContextMenu });
-  const produce = useProduce(store.boards, store.kieferThickness, store.filmThickness);
+  const { deleteSelected, select, selectedBoards } = store;
+  const produce = useProduce(
+    store.boards,
+    store.kieferThickness,
+    store.filmThickness,
+    onOpenJointWiz,
+    onOpenNesting,
+  );
 
   useEffect(() => {
     if (!store.selIds.length) setMenu(null);
   }, [store.selIds]);
 
   useEffect(() => {
-    const onHelp = (e: Event) => {
-      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
-      if (action === "start") startHelp();
-      if (action === "stop") stopHelp(null);
-    };
-    window.addEventListener(HOST_HELP, onHelp);
-    return () => window.removeEventListener(HOST_HELP, onHelp);
-  }, [startHelp, stopHelp]);
+    if (helpActive) startHelp();
+    else if (helpIndex != null) stopHelp(null);
+    // The active help phase is the host contract; local help index follows it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [helpActive]);
 
   useEffect(() => {
     if (!helpStep) return;
@@ -106,18 +128,18 @@ export function Configurator() {
           return;
         }
         setMenu(null);
-        store.select(null);
+        select(null);
         return;
       }
       if (e.key !== "Delete" && e.key !== "Backspace") return;
-      if (!store.selectedBoards.length) return;
+      if (!selectedBoards.length) return;
       e.preventDefault();
-      store.deleteSelected();
+      deleteSelected();
       setMenu(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store.selectedBoards, store.deleteSelected, store.select, templatesOpen, helpIndex, stopHelp]);
+  }, [deleteSelected, selectedBoards, select, templatesOpen, helpIndex, stopHelp]);
 
   useEffect(() => {
     if (!menu) return;
@@ -165,6 +187,7 @@ export function Configurator() {
           <TemplatePicker
             lang={store.lang}
             onClose={() => setTemplatesOpen(false)}
+            onOpenNewWindow={onOpenDesign}
             onOverwrite={(id) => {
               store.loadDesign(id);
               setTemplatesOpen(false);

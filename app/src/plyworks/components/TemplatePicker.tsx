@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DESIGN_IDS, requestNewDesignWindow, type DesignId } from "../lib/designs";
+import { DESIGN_IDS, type DesignId } from "../lib/designs";
 import { designLabel, t, type Lang } from "../lib/i18n";
 import iconChair from "../assets/icons/icon-chair.svg?raw";
 import iconTable from "../assets/icons/icon-table.svg?raw";
@@ -16,10 +16,11 @@ const DESIGN_ICONS: Record<DesignId, string> = {
 interface Props {
   lang: Lang;
   onOverwrite: (id: DesignId) => void;
+  onOpenNewWindow: (id: DesignId) => void;
   onClose: () => void;
 }
 
-export function TemplatePicker({ lang, onOverwrite, onClose }: Props) {
+export function TemplatePicker({ lang, onOverwrite, onOpenNewWindow, onClose }: Props) {
   const [chosen, setChosen] = useState<DesignId | null>(null);
 
   return (
@@ -53,7 +54,7 @@ export function TemplatePicker({ lang, onOverwrite, onClose }: Props) {
             type="button"
             className="pw-btn"
             onClick={() => {
-              requestNewDesignWindow(chosen);
+              onOpenNewWindow(chosen);
               onClose();
             }}
           >

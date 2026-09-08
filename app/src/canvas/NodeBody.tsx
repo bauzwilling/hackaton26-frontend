@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import { BoxoutsPage } from "../pages/Boxouts";
 import { OrbitPage } from "../pages/Orbit";
@@ -15,7 +15,7 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 
   useEffect(() => {
     if (!(node.body ?? "").trim()) ref.current?.focus();
-  }, [node.id]);
+  }, [node.body, node.id]);
 
   useEffect(() => {
     const el = ref.current;
@@ -39,6 +39,16 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 
 export const NodeBody = memo(function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
   const help = useHelpOptional();
+  const { openApp } = useWorkspace();
+  const openDesign = useCallback((design: "shelf" | "table" | "stool" | "bench") => {
+    openApp("plyworks", { parentId: node.id, design });
+  }, [node.id, openApp]);
+  const openJointWiz = useCallback((jobId: string) => {
+    openApp("plyworks-jw", { parentId: node.id, query: jobId });
+  }, [node.id, openApp]);
+  const openNesting = useCallback((jobId: string) => {
+    openApp("plyworks-nesting", { parentId: node.id, query: jobId });
+  }, [node.id, openApp]);
   if (node.kind === "log") return <RequestLog viewport={viewport} />;
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;
@@ -51,10 +61,20 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
     if (node.appId === "plyworks") {
       const bridged = help?.topic === "plyworks" && (help.phase === "iframe" || help.phase === "touring")
         && (!help.appNodeId || help.appNodeId === node.id);
-      return <PlyworksPage design={node.design} helpBridge={bridged} />;
+      return (
+        <PlyworksPage
+          design={node.design}
+          helpActive={bridged && help?.phase === "iframe"}
+          onHelpReady={help?.onPlyworksReady}
+          onHelpDone={help?.onPlyworksDone}
+          onOpenDesign={openDesign}
+          onOpenJointWiz={openJointWiz}
+          onOpenNesting={openNesting}
+        />
+      );
     }
     if (node.appId === "plyworks-jw") {
-      return <PlyworksJwPage jobId={node.query} />;
+      return <PlyworksJwPage jobId={node.query} onOpenNesting={openNesting} />;
     }
     if (node.appId === "plyworks-nesting") {
       return <PlyworksNestingPage jobId={node.query} />;

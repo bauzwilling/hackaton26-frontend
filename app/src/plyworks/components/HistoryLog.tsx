@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { t } from "../lib/i18n";
 import type { ConfiguratorStore } from "../hooks/useConfiguratorState";
 
@@ -10,10 +10,7 @@ interface Props {
 export function HistoryLog({ store, helpOpen }: Props) {
   const [open, setOpen] = useState(false);
   const lang = store.lang;
-
-  useEffect(() => {
-    if (helpOpen) setOpen(true);
-  }, [helpOpen]);
+  const visible = open || helpOpen;
 
   return (
     <div style={styles.wrap} data-help="history">
@@ -21,7 +18,7 @@ export function HistoryLog({ store, helpOpen }: Props) {
         {t(lang, "log")} ({store.logs.length})
       </button>
 
-      {open && (
+      {visible && (
         <div style={styles.panel}>
           {store.logs.length === 0 ? (
             <div style={styles.empty}>{t(lang, "logEmpty")}</div>

@@ -1,9 +1,5 @@
-import { useEffect, useRef } from "react";
-import { createApp, type App as VueApp } from "vue";
-import NestingCurvePreview from "../nesting-preview/NestingCurvePreviewComponent.vue";
+import NestingCurvePreview from "../nesting-preview/NestingCurvePreviewComponent";
 import { nestingZipUrl } from "../lib/produceApi";
-
-// Parked unused: Studio still iframes /nesting. This file is not imported by pages/.
 
 const PREVIEW_TOKENS: React.CSSProperties = {
   ["--color-neutral-bg" as string]: "#fafaf9",
@@ -17,27 +13,18 @@ function previewZipUrl(jobId: string): string {
   return nestingZipUrl(jobId, true);
 }
 
-export function NestingPage() {
-  const jobId = new URLSearchParams(window.location.search).get("jobId") || "";
-  const hostRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const app: VueApp = createApp(NestingCurvePreview, {
-      jobId,
-      open: true,
-      solving: false,
-      layout: "fill",
-      zipUrl: previewZipUrl,
-    });
-    app.mount(host);
-    return () => app.unmount();
-  }, [jobId]);
-
+export function NestingPage({ jobId = "" }: { jobId?: string }) {
   return (
     <div style={{ ...styles.root, ...PREVIEW_TOKENS }}>
-      <div ref={hostRef} style={styles.canvas} />
+      <div style={styles.canvas}>
+        <NestingCurvePreview
+          jobId={jobId}
+          open
+          solving={false}
+          layout="fill"
+          zipUrl={previewZipUrl}
+        />
+      </div>
     </div>
   );
 }

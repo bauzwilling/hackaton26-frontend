@@ -29,7 +29,7 @@ export type HelpStep = {
   anchor: HelpAnchor;
   pad?: number;
   prepare?: HelpPrepare;
-  handoff?: "plyworks-iframe";
+  handoff?: "plyworks-native";
 };
 
 export const HELP_APP_TOPICS: HelpTopicId[] = ["boxouts", "simpleparts", "plyworks"];
@@ -195,7 +195,7 @@ export const PLYWORKS_HOST_TOUR: HelpStep[] = [
     anchor: { type: "app", appId: "plyworks" },
     prepare: "open-plyworks",
     pad: 8,
-    handoff: "plyworks-iframe",
+    handoff: "plyworks-native",
   },
 ];
 

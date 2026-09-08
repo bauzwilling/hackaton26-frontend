@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getProduce, startNest, type ProduceJob } from "../lib/produceApi";
-import { NESTING_MESSAGE_TYPE } from "../hooks/useProduce";
 import { createDocFromGhResponse } from "../lib/createDocFromGhResponse";
 import { createViewerScene } from "../lib/viewerScene";
-
-// Parked unused: Studio still iframes /jw. JointWiz is existing-system Plyworks, not a second Studio mill pipeline.
 
 const POLL_MS = 1200;
 
@@ -12,8 +9,7 @@ function validationPassed(job: ProduceJob): boolean | null {
   return job.validationBool ?? job.valid;
 }
 
-export function JointWizPage() {
-  const jobId = new URLSearchParams(window.location.search).get("jobId") || "";
+export function JointWizPage({ jobId = "", onOpenNesting }: { jobId?: string; onOpenNesting: (jobId: string) => void }) {
   const [job, setJob] = useState<ProduceJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nesting, setNesting] = useState(false);
@@ -46,15 +42,12 @@ export function JointWizPage() {
       stopPoll();
     }
     if (next.status === "completed") {
-      window.parent.postMessage({ type: NESTING_MESSAGE_TYPE, jobId: next.jobId }, "*");
+      onOpenNesting(next.jobId);
     }
-  }, [stopPoll]);
+  }, [onOpenNesting, stopPoll]);
 
   useEffect(() => {
-    if (!jobId) {
-      setError("No JointWiz job id.");
-      return;
-    }
+    if (!jobId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -149,6 +142,7 @@ export function JointWizPage() {
   }, [job?.geometryPayload]);
 
   const passed = job ? validationPassed(job) : null;
+  const displayError = jobId ? error : "No JointWiz job id.";
   const blocked = passed === false;
   const ready = job?.status === "joined" && passed === true;
   const runningJw = job?.status === "running" && (job.stage === "joined" || passed === true);
@@ -165,14 +159,14 @@ export function JointWizPage() {
       </header>
       {blocked && (
         <p style={styles.err}>
-          {error || "Validation failed. JointWiz will not run."}
+          {displayError || "Validation failed. JointWiz will not run."}
         </p>
       )}
-      {!blocked && error && <p style={styles.err}>{error}</p>}
-      {!blocked && !error && runningJw && (
+      {!blocked && displayError && <p style={styles.err}>{displayError}</p>}
+      {!blocked && !displayError && runningJw && (
         <p style={styles.note}>Validation passed. Building joints…</p>
       )}
-      {!blocked && !error && ready && viewerNote && <p style={styles.note}>{viewerNote}</p>}
+      {!blocked && !displayError && ready && viewerNote && <p style={styles.note}>{viewerNote}</p>}
       <div ref={hostRef} style={styles.canvas} />
     </div>
   );
@@ -182,7 +176,7 @@ const styles: Record<string, React.CSSProperties> = {
   root: {
     position: "relative",
     width: "100%",
-    height: "100vh",
+    height: "100%",
     overflow: "hidden",
     background: "var(--bg, #f5ead8)",
     fontFamily: "Figtree, system-ui, sans-serif",

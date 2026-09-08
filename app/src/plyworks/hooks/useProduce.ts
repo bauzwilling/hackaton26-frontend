@@ -3,16 +3,16 @@ import { buildSTEP } from "../lib/geometry";
 import { getProduce, startProduce, type ProduceJob } from "../lib/produceApi";
 import type { Board } from "../types";
 
-// WAITING BFF: browser polling of Flask produce jobs is parked unused; BFF BackgroundService owns the loop (boundary-plan §16).
+// WAITING BFF: browser polling of Flask produce jobs is temporary; BFF BackgroundService owns the loop (boundary-plan §16).
 
 const POLL_MS = 1200;
-export const NESTING_MESSAGE_TYPE = "plyworks-nesting";
-export const JW_MESSAGE_TYPE = "plyworks-jw";
 
 export function useProduce(
   boards: Board[],
   kieferThickness: number,
-  filmThickness: number
+  filmThickness: number,
+  onOpenJointWiz: (jobId: string) => void,
+  onOpenNesting: (jobId: string) => void,
 ) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -37,8 +37,8 @@ export function useProduce(
     if (openedJwRef.current) return;
     if (validationPassed(job) !== true) return;
     openedJwRef.current = true;
-    window.parent.postMessage({ type: JW_MESSAGE_TYPE, jobId: job.jobId }, "*");
-  }, [validationPassed]);
+    onOpenJointWiz(job.jobId);
+  }, [onOpenJointWiz, validationPassed]);
 
   const applyValidation = useCallback((job: ProduceJob) => {
     const passed = validationPassed(job);
@@ -70,10 +70,7 @@ export function useProduce(
       setKind("ok");
       setMessage(job.message);
       setReport(job.validationReportSummary || job.validationReport);
-      window.parent.postMessage(
-        { type: NESTING_MESSAGE_TYPE, jobId: job.jobId },
-        "*"
-      );
+      onOpenNesting(job.jobId);
       return;
     }
     if (job.message) {
@@ -85,7 +82,7 @@ export function useProduce(
     setKind("error");
     setMessage(job.error || "Produce failed.");
     setReport(null);
-  }, [applyValidation, openJwIfValid, stopPoll]);
+  }, [applyValidation, onOpenNesting, openJwIfValid, stopPoll]);
 
   const start = useCallback(async () => {
     if (busy) return;

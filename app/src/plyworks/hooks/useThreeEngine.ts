@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from "react";
-import { HOST_LOOK } from "../lib/look";
 import { ThreeEngine } from "../lib/ThreeEngine";
 import type { ConfiguratorStore } from "./useConfiguratorState";
 
@@ -19,9 +18,12 @@ export function useThreeEngine(
 
   // Stable callbacks — these close over the latest store via ref
   const storeRef = useRef(store);
-  storeRef.current = store;
   const ctxRef = useRef(opts?.onContextMenu);
-  ctxRef.current = opts?.onContextMenu;
+
+  useEffect(() => {
+    storeRef.current = store;
+    ctxRef.current = opts?.onContextMenu;
+  }, [opts?.onContextMenu, store]);
 
   const onSelect = useCallback((id: number | null, additive?: boolean) => {
     storeRef.current.select(id, additive);
@@ -52,17 +54,20 @@ export function useThreeEngine(
     engineRef.current = engine;
 
     const onResize = () => engine.resize();
-    const onLook = () => engine.syncBackground();
+    const lookObserver = new MutationObserver(() => engine.syncBackground());
+    lookObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme", "style"],
+    });
     window.addEventListener("resize", onResize);
-    window.addEventListener(HOST_LOOK, onLook);
 
     return () => {
       window.removeEventListener("resize", onResize);
-      window.removeEventListener(HOST_LOOK, onLook);
+      lookObserver.disconnect();
       engine.dispose();
       engineRef.current = null;
     };
-  }, []); // mount-only
+  }, [onContextMenu, onLog, onMoveBoard, onResizeBoard, onSelect]);
 
   // Rebuild scene on state change
   useEffect(() => {
