@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { plyworksDesignLabel } from "../lib/concierge";
+import { HELP_TOPIC_LABEL, type HelpTopicId } from "../lib/help";
 import { appLabel, useWorkspace, type RequestEntry } from "../context/workspace";
+import { useHelp } from "../context/help";
 
 function replyOf(entry: RequestEntry) {
   return entry.reply ?? entry.routeWhy ?? "Answered on the canvas";
@@ -10,6 +12,7 @@ function replyOf(entry: RequestEntry) {
 
 export function ConciergeChat() {
   const { entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake, clearTranscript } = useWorkspace();
+  const { pickTopic } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
   // A pending entry on mount means we opened straight off the hero composer, so take its focus.
   // A restored transcript never has one: reviveEntry clears pending on load.
@@ -72,6 +75,24 @@ export function ConciergeChat() {
                       }}
                     >
                       {plyworksDesignLabel(id)}
+                    </Surface>
+                  ))}
+                </div>
+              )}
+              {e.helpTopics && e.helpTopics.length > 0 && (
+                <div className="concierge-confirm">
+                  {e.helpTopics.map((id: HelpTopicId) => (
+                    <Surface
+                      key={id}
+                      as="button"
+                      type="button"
+                      className="chip"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        pickTopic(id);
+                      }}
+                    >
+                      {HELP_TOPIC_LABEL[id]}
                     </Surface>
                   ))}
                 </div>

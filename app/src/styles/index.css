@@ -862,6 +862,77 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .nest { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; padding: 14px; border-radius: 16px; }
 .nest-cell { min-height: 28px; border-radius: 8px; }
 
+.help-fab {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  z-index: 97;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  pointer-events: none;
+}
+.help-dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  background: color-mix(in oklab, #000 42%, transparent);
+}
+.help-dim.is-cutout { background: transparent; }
+.help-hole {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px color-mix(in oklab, #000 46%, transparent);
+  outline: 2px solid var(--acc);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+.help-card {
+  position: absolute;
+  pointer-events: auto;
+  z-index: 1;
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px 16px 12px;
+  border-radius: 16px;
+}
+.help-card-kicker {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.help-card-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.help-card-body {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.help-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.help-card-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 @media (max-width: 860px) {
   .grid-2 { grid-template-columns: 1fr; }
   .chrome { padding: 16px 16px 8px; }

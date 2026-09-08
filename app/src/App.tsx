@@ -1,6 +1,8 @@
 import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import { Chrome } from "./components/kit";
 import { useSession } from "./context/session";
+import { HelpOverlay } from "./canvas/HelpTour";
+import { HelpProvider } from "./context/help";
 import { WorkspaceProvider } from "./context/workspace";
 import { LoginPage } from "./pages/Login";
 import { StudioPage } from "./pages/Studio";
@@ -11,11 +13,14 @@ function Shell() {
   if (!session) return <Navigate to="/login" replace />;
   return (
     <WorkspaceProvider>
-      <Chrome
-        session={session}
-        onSignOut={() => { signOut(); nav("/login"); }}
-      />
-      <Outlet />
+      <HelpProvider>
+        <Chrome
+          session={session}
+          onSignOut={() => { signOut(); nav("/login"); }}
+        />
+        <Outlet />
+        <HelpOverlay />
+      </HelpProvider>
     </WorkspaceProvider>
   );
 }

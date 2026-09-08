@@ -34,6 +34,7 @@ export const PROJECTS = [
 ];
 
 export const CHIPS = [
+  "Give me a tour",
   "Make a boxout 300×2000×1000 — 5×",
   "Configure a door boxout",
   "How does plate nesting work?",

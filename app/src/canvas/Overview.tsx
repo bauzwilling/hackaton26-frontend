@@ -66,7 +66,7 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
   return (
     <>
       {overviewOpen && (
-        <Surface className="overview">
+        <Surface className="overview" data-help="overview">
           <div className="overview-head">
             <span>Open windows</span>
             <Surface as="button" type="button" relief="ghost" className="overview-tool" style={{ marginLeft: "auto" }} onClick={() => tile(viewport)}>

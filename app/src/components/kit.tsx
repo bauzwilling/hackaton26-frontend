@@ -142,12 +142,13 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
   flash?: boolean; flashKey?: number;
   selected?: boolean; viewport?: boolean;
+  nodeId?: string;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
   onDrag: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
@@ -174,6 +175,7 @@ export function Window({
     <Surface
       ref={ref}
       className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${locked ? " is-locked" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}`}
+      data-node-id={nodeId}
       style={{
         left: x,
         top: y,
@@ -272,6 +274,7 @@ function WindowsToggle() {
       type="button"
       relief="ghost"
       className="chrome-windows"
+      data-help="chrome-windows"
       active={overviewOpen}
       onClick={() => setOverviewOpen(!overviewOpen)}
     >
@@ -303,7 +306,7 @@ export function Chrome({
             <span className="chrome-status-dot" />
             Decentralized network online
           </div>
-          <div className="chrome-look-row">
+          <div className="chrome-look-row" data-help="chrome-look">
             {session && <WindowsToggle />}
             <AccentDots />
             <Segment

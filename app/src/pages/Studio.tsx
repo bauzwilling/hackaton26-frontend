@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AskMenu } from "../canvas/AskMenu";
+import { HelpFab } from "../canvas/HelpTour";
 import { Overview } from "../canvas/Overview";
 import { StudioCanvas } from "../canvas/StudioCanvas";
 import { Composer } from "../components/Composer";
@@ -67,7 +68,7 @@ export function StudioPage() {
 
   function onContext(e: MouseEvent<HTMLDivElement>) {
     const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app")) return;
+    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app, .help-fab, .help-card")) return;
     e.preventDefault();
     if (root.current?.querySelector(".win.is-selected")) return;
     const box = e.currentTarget.getBoundingClientRect();
@@ -116,6 +117,7 @@ export function StudioPage() {
   return (
     <div
       className={`studio${dropping ? " is-dropping" : ""}`}
+      data-help="studio-drop"
       ref={root}
       onContextMenu={onContext}
       onDragEnter={onDragEnter}
@@ -150,7 +152,7 @@ export function StudioPage() {
           </div>
         )
       )}
-      <p className="studio-hint">
+      <p className="studio-hint" data-help="studio-hint">
         Right-drag to pan · Left-drag to select · Delete to close apps · Right-click for options · {nodes.length} window{nodes.length === 1 ? "" : "s"} open
       </p>
       {dropping && (
@@ -163,6 +165,7 @@ export function StudioPage() {
       )}
       <Overview viewport={viewport} />
       {ctx && <AskMenu at={ctx} host={host} world={ctx.world} onClose={() => setCtx(null)} />}
+      <HelpFab />
     </div>
   );
 }
