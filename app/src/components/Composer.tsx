@@ -14,8 +14,8 @@ function ClipIcon() {
 function SendIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 19V5" />
-      <path d="M6 11l6-6 6 6" />
+      <path d="M5 12h14" />
+      <path d="M13 6l6 6-6 6" />
     </svg>
   );
 }
@@ -76,6 +76,7 @@ export function Composer({
           if (e.key === "Enter") submit();
         }}
         placeholder={placeholder}
+        aria-label="Describe what you want to build"
       />
       <Surface as="button" type="button" relief="accent" className="composer-send" onClick={submit} aria-label="Send">
         <SendIcon />

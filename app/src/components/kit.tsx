@@ -303,7 +303,11 @@ export function Chrome({
       <div className="chrome-actions">
         <div className="chrome-look">
           <div className="chrome-status">
-            <span className="chrome-status-dot" />
+            <span className="chrome-status-dot" aria-hidden>
+              <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" />
+              </svg>
+            </span>
             Decentralized network online
           </div>
           <div className="chrome-look-row" data-help="chrome-look">
