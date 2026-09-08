@@ -63,15 +63,25 @@ export function Segment({
   value,
   options,
   onChange,
+  ariaLabel,
 }: {
   value: string;
   options: { id: string; label: string }[];
   onChange: (id: string) => void;
+  ariaLabel?: string;
 }) {
   return (
-    <Surface relief="inset" className="seg">
+    <Surface relief="inset" className="seg" role="radiogroup" aria-label={ariaLabel}>
       {options.map((o) => (
-        <Surface key={o.id} as="button" type="button" active={value === o.id} onClick={() => onChange(o.id)}>
+        <Surface
+          key={o.id}
+          as="button"
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          active={value === o.id}
+          onClick={() => onChange(o.id)}
+        >
           {o.label}
         </Surface>
       ))}
@@ -228,6 +238,8 @@ function AccentDots() {
           className={`viz-dot${accent === id ? " is-on" : ""}`}
           style={{ background: ACCENTS[id].acc }}
           title={ACCENTS[id].label}
+          aria-label={`Switch to ${ACCENTS[id].label.toLowerCase()} theme`}
+          aria-pressed={accent === id}
           onClick={() => setAccent(id)}
         />
       ))}
@@ -236,7 +248,10 @@ function AccentDots() {
 }
 
 function LookOverflow() {
-  const { showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode } = useSession();
+  const {
+    theme, setTheme,
+    showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode,
+  } = useSession();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -251,15 +266,41 @@ function LookOverflow() {
 
   return (
     <div className="viz" ref={box}>
-      <Surface as="button" type="button" relief="ghost" className="viz-toggle" active={open} onClick={() => setOpen((v) => !v)} aria-label="Canvas options" title="Canvas options">
-        ···
+      <Surface
+        as="button"
+        type="button"
+        relief="ghost"
+        className="viz-toggle"
+        active={open}
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Look and canvas options"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        title="Look and canvas options"
+      >
+        Look
       </Surface>
       {open && (
-        <Surface className="viz-panel">
-          <div className="viz-label">Canvas</div>
-          <Switch on={showWires} onToggle={() => setShowWires(!showWires)} label="Show wires" note={showWires ? "On" : "Off"} />
-          <Switch on={showGrid} onToggle={() => setShowGrid(!showGrid)} label="Show grid" note={showGrid ? "On" : "Off"} />
-          <Switch on={bubbleMode} onToggle={() => setBubbleMode(!bubbleMode)} label="Bubble mode" note={bubbleMode ? "On" : "Off"} />
+        <Surface className="viz-panel" role="dialog" aria-label="Look and canvas options">
+          <div className="viz-section">
+            <div className="viz-label">Theme</div>
+            <Segment
+              value={theme}
+              ariaLabel="Theme"
+              options={[{ id: "bright", label: "Light" }, { id: "dark", label: "Dark" }]}
+              onChange={(id) => setTheme(id as "bright" | "dark")}
+            />
+          </div>
+          <div className="viz-section">
+            <div className="viz-label">Accent</div>
+            <AccentDots />
+          </div>
+          <div className="viz-section">
+            <div className="viz-label">Canvas</div>
+            <Switch on={showWires} onToggle={() => setShowWires(!showWires)} label="Show wires" note={showWires ? "On" : "Off"} />
+            <Switch on={showGrid} onToggle={() => setShowGrid(!showGrid)} label="Show grid" note={showGrid ? "On" : "Off"} />
+            <Switch on={bubbleMode} onToggle={() => setBubbleMode(!bubbleMode)} label="Bubble mode" note={bubbleMode ? "On" : "Off"} />
+          </div>
         </Surface>
       )}
     </div>
@@ -268,6 +309,7 @@ function LookOverflow() {
 
 function WindowsToggle() {
   const { nodes, overviewOpen, setOverviewOpen } = useWorkspace();
+  const countLabel = `Show all windows, ${nodes.length} open`;
   return (
     <Surface
       as="button"
@@ -276,6 +318,8 @@ function WindowsToggle() {
       className="chrome-windows"
       data-help="chrome-windows"
       active={overviewOpen}
+      aria-label={countLabel}
+      title={countLabel}
       onClick={() => setOverviewOpen(!overviewOpen)}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
@@ -295,25 +339,21 @@ export function Chrome({
   session: Session | null;
   onSignOut: () => void;
 }) {
-  const { theme, setTheme } = useSession();
-
   return (
     <header className="chrome">
-      <Link to={session ? "/" : "/login"}><Brand /></Link>
+      <Link to={session ? "/" : "/login"} aria-label="File to Factory home"><Brand /></Link>
       <div className="chrome-actions">
         <div className="chrome-look">
           <div className="chrome-status">
-            <span className="chrome-status-dot" />
+            <span className="chrome-status-dot" aria-hidden>
+              <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" />
+              </svg>
+            </span>
             Decentralized network online
           </div>
           <div className="chrome-look-row" data-help="chrome-look">
             {session && <WindowsToggle />}
-            <AccentDots />
-            <Segment
-              value={theme}
-              options={[{ id: "bright", label: "Bright" }, { id: "dark", label: "Dark" }]}
-              onChange={(id) => setTheme(id as "bright" | "dark")}
-            />
             <LookOverflow />
           </div>
         </div>
