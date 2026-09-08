@@ -1,5 +1,23 @@
-import type { Board, BBox } from "../types";
-import { THICKNESS as T } from "../types";
+import { DEFAULT_LOOK } from "../types";
+import type { Board, BBox, PlateMaterial } from "../types";
+
+export function thinField(board: Pick<Board, "w" | "h" | "d">): "w" | "h" | "d" {
+  if (board.w <= board.h && board.w <= board.d) return "w";
+  if (board.h <= board.d) return "h";
+  return "d";
+}
+
+export function withPlateMaterial(
+  board: Board,
+  material: PlateMaterial,
+  thickness: number
+): Board {
+  return { ...board, material, [thinField(board)]: thickness };
+}
+
+export function applyStockThickness(board: Board, thickness: number): Board {
+  return { ...board, [thinField(board)]: thickness };
+}
 
 // ── Bounding box ──
 
@@ -24,24 +42,27 @@ export function nextId(boards: Board[]): number {
 
 export function createBoard(
   boards: Board[],
-  kind: "h" | "v"
+  kind: "h" | "v",
+  thickness: number
 ): Board {
+  const t = thickness;
   if (!boards.length) {
     return kind === "h"
-      ? { id: 1, name: "Panel 1", w: 800, h: T, d: 300, x: 0, y: 400, z: 0 }
-      : { id: 1, name: "Panel 1", w: T, h: 800, d: 300, x: 0, y: 400, z: 0 };
+      ? { id: 1, name: "Panel 1", w: 800, h: t, d: 300, x: 0, y: 400, z: 0, material: "kiefer", look: DEFAULT_LOOK }
+      : { id: 1, name: "Panel 1", w: t, h: 800, d: 300, x: 0, y: 400, z: 0, material: "kiefer", look: DEFAULT_LOOK };
   }
   const bb = bbox(boards);
   const cx = (bb.x0 + bb.x1) / 2;
   const cy = (bb.y0 + bb.y1) / 2;
   const cz = (bb.z0 + bb.z1) / 2;
   // Span the full envelope so new slabs intersect existing ones by default.
+  // Users can shorten or shift a panel later if they want a flush / given joint.
   const spanX = Math.round(bb.x1 - bb.x0);
   const spanY = Math.round(bb.y1 - bb.y0);
   const spanZ = Math.round(bb.z1 - bb.z0);
   const id = nextId(boards);
   const count =
-    boards.filter((b) => (kind === "h" ? b.h === T : b.w === T)).length + 1;
+    boards.filter((b) => (kind === "h" ? b.h === t : b.w === t)).length + 1;
 
   const b: Board =
     kind === "h"
@@ -49,21 +70,25 @@ export function createBoard(
           id,
           name: `Shelf ${count}`,
           w: spanX,
-          h: T,
+          h: t,
           d: spanZ,
           x: Math.round(cx),
           y: Math.round(cy),
           z: Math.round(cz),
+          material: "kiefer",
+          look: DEFAULT_LOOK,
         }
       : {
           id,
           name: `Divider ${count}`,
-          w: T,
+          w: t,
           h: spanY,
           d: spanZ,
           x: Math.round(cx),
           y: Math.round(cy),
           z: Math.round(cz),
+          material: "kiefer",
+          look: DEFAULT_LOOK,
         };
   return b;
 }
@@ -234,7 +259,7 @@ export function exportSTL(boards: Board[]) {
 // Full AP214 BRep — each board becomes its own MANIFOLD_SOLID_BREP.
 // Ported verbatim from the original; this is the most valuable piece.
 
-export function exportSTEP(boards: Board[]) {
+export function buildSTEP(boards: Board[]): string {
   const F = (n: number) => {
     const r = Math.round(n * 1e6) / 1e6;
     return Number.isInteger(r) ? r + "." : String(r);
@@ -353,8 +378,9 @@ export function exportSTEP(boards: Board[]) {
     "ENDSEC;",
     "DATA;",
   ];
-  downloadFile(
-    "plyworks-18mm.step",
-    head.concat(L, ["ENDSEC;", "END-ISO-10303-21;"]).join("\n")
-  );
+  return head.concat(L, ["ENDSEC;", "END-ISO-10303-21;"]).join("\n");
+}
+
+export function exportSTEP(boards: Board[]) {
+  downloadFile("plyworks-18mm.step", buildSTEP(boards));
 }

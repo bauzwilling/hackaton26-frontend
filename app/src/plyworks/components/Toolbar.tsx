@@ -3,91 +3,164 @@ import { t } from "../lib/i18n";
 import { exportDXF, exportSTL, exportSTEP } from "../lib/geometry";
 import type { ConfiguratorStore } from "../hooks/useConfiguratorState";
 import type { ReactNode } from "react";
+import { STOCK_THICKNESSES } from "../types";
 
 interface Props {
   store: ConfiguratorStore;
   onResetView: () => void;
+  onProduce?: () => void;
+  produceBusy?: boolean;
+  forceOpen?: boolean;
+  templatesOpen?: boolean;
+  onToggleTemplates?: () => void;
+  children?: ReactNode;
 }
 
-export function Toolbar({ store, onResetView }: Props) {
+function materialBreakdown(store: ConfiguratorStore, lang: ConfiguratorStore["lang"]) {
+  const film = store.boards.filter((b) => b.material === "film").length;
+  const kiefer = store.boards.length - film;
+  const same = store.kieferThickness === store.filmThickness;
+  return [
+    kiefer &&
+      `${kiefer} ${String(t(lang, "kiefer"))}${same ? "" : ` · ${store.kieferThickness} mm`}`,
+    film &&
+      `${film} ${String(t(lang, "film"))}${same ? "" : ` · ${store.filmThickness} mm`}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function Toolbar({
+  store,
+  onResetView,
+  onProduce,
+  produceBusy,
+  forceOpen,
+  templatesOpen,
+  onToggleTemplates,
+  children,
+}: Props) {
   const lang = store.lang;
   const [open, setOpen] = useState(true);
-  const count = `${store.boards.length} ${String(t(lang, "parts"))}`;
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="pw-toolbar-fab"
-        onClick={() => setOpen(true)}
-        title={String(t(lang, "tools"))}
-      >
-        <span className="pw-fab-title">{String(t(lang, "tools"))}</span>
-        <span className="pw-fab-count">{count}</span>
-      </button>
-    );
-  }
+  const shown = forceOpen || open;
+  const same = store.kieferThickness === store.filmThickness;
+  const count = same
+    ? `${store.boards.length} ${String(t(lang, "parts"))} · ${store.kieferThickness} mm`
+    : `${store.boards.length} ${String(t(lang, "parts"))}`;
+  const mats = materialBreakdown(store, lang);
 
   return (
-    <aside className="pw-toolbar">
-      <header className="pw-toolbar-head">
-        <div>
-          <div className="pw-toolbar-title">{String(t(lang, "tools"))}</div>
-          <div className="pw-toolbar-sub">{count}</div>
-        </div>
+    <div className="pw-tools-cluster">
+      {shown ? (
+        <aside className="pw-toolbar">
+          <header className="pw-toolbar-head">
+            <div>
+              <div className="pw-toolbar-title">{String(t(lang, "tools"))}</div>
+              <div className="pw-toolbar-sub">{count}</div>
+              {mats ? <div className="pw-toolbar-mats">{mats}</div> : null}
+            </div>
+            <button
+              type="button"
+              className="pw-close"
+              onClick={() => setOpen(false)}
+              aria-label={String(t(lang, "done"))}
+            >
+              ×
+            </button>
+          </header>
+
+          <ToolGroup tone="insert" label={String(t(lang, "insert"))}>
+            <div className="pw-tiles">
+              <Tile
+                onClick={() => store.addBoard("h")}
+                title={String(t(lang, "horiz"))}
+              >
+                <HorizontalPanelIcon />
+              </Tile>
+              <Tile
+                onClick={() => store.addBoard("v")}
+                title={String(t(lang, "vert"))}
+              >
+                <VerticalPanelIcon />
+              </Tile>
+            </div>
+          </ToolGroup>
+
+          <ToolGroup tone="material" label={String(t(lang, "material"))}>
+            <StockSelect
+              label={String(t(lang, "kiefer"))}
+              value={store.kieferThickness}
+              onChange={(thickness) => store.setStockThickness("kiefer", thickness)}
+            />
+            <StockSelect
+              label={String(t(lang, "film"))}
+              value={store.filmThickness}
+              onChange={(thickness) => store.setStockThickness("film", thickness)}
+            />
+          </ToolGroup>
+
+          <ToolGroup tone="view" label={String(t(lang, "view"))}>
+            <Btn
+              primary
+              onClick={() =>
+                store.setMode(store.mode === "comic" ? "real" : "comic")
+              }
+            >
+              {String(store.mode === "comic" ? t(lang, "renderReal") : t(lang, "showSketch"))}
+            </Btn>
+            <Btn active={store.dims} onClick={store.toggleDims}>
+              {String(store.dims ? t(lang, "dimsOff") : t(lang, "dimsOn"))}
+            </Btn>
+            <Btn onClick={onResetView}>{String(t(lang, "reset"))}</Btn>
+          </ToolGroup>
+
+          <ToolGroup tone="download" label={String(t(lang, "download"))}>
+            <Btn primary onClick={() => exportSTEP(store.boards)}>
+              STEP
+            </Btn>
+            <p className="pw-note">{String(t(lang, "stepNote"))}</p>
+            <div className="pw-row">
+              <Btn onClick={() => exportDXF(store.boards)}>DXF</Btn>
+              <Btn onClick={() => exportSTL(store.boards)}>STL</Btn>
+            </div>
+          </ToolGroup>
+        </aside>
+      ) : (
         <button
           type="button"
-          className="pw-close"
-          onClick={() => setOpen(false)}
-          aria-label={String(t(lang, "done"))}
+          className="pw-toolbar-fab"
+          onClick={() => setOpen(true)}
+          title={String(t(lang, "tools"))}
         >
-          ×
+          <span className="pw-fab-title">{String(t(lang, "tools"))}</span>
+          <span className="pw-fab-count">{count}</span>
+          {mats ? <span className="pw-fab-mats">{mats}</span> : null}
         </button>
-      </header>
-
-      <ToolGroup tone="insert" label={String(t(lang, "insert"))}>
-        <div className="pw-tiles">
-          <Tile
-            onClick={() => store.addBoard("h")}
-            title={String(t(lang, "horiz"))}
+      )}
+      {onToggleTemplates && (
+        <div className="pw-templates">
+          {children}
+          <button
+            type="button"
+            className="pw-corner-chip"
+            aria-expanded={templatesOpen}
+            onClick={onToggleTemplates}
           >
-            <HorizontalPanelIcon />
-          </Tile>
-          <Tile
-            onClick={() => store.addBoard("v")}
-            title={String(t(lang, "vert"))}
-          >
-            <VerticalPanelIcon />
-          </Tile>
+            {String(t(lang, "templates"))}
+          </button>
         </div>
-      </ToolGroup>
-
-      <ToolGroup tone="view" label={String(t(lang, "view"))}>
-        <Btn
-          primary
-          onClick={() =>
-            store.setMode(store.mode === "comic" ? "real" : "comic")
-          }
+      )}
+      {onProduce && (
+        <button
+          type="button"
+          className="pw-corner-chip is-produce"
+          onClick={onProduce}
+          disabled={produceBusy}
         >
-          {String(store.mode === "comic" ? t(lang, "renderReal") : t(lang, "showSketch"))}
-        </Btn>
-        <Btn active={store.dims} onClick={store.toggleDims}>
-          {String(store.dims ? t(lang, "dimsOff") : t(lang, "dimsOn"))}
-        </Btn>
-        <Btn onClick={onResetView}>{String(t(lang, "reset"))}</Btn>
-      </ToolGroup>
-
-      <ToolGroup tone="download" label={String(t(lang, "download"))}>
-        <Btn primary onClick={() => exportSTEP(store.boards)}>
-          STEP
-        </Btn>
-        <p className="pw-note">{String(t(lang, "stepNote"))}</p>
-        <div className="pw-row">
-          <Btn onClick={() => exportDXF(store.boards)}>DXF</Btn>
-          <Btn onClick={() => exportSTL(store.boards)}>STL</Btn>
-        </div>
-      </ToolGroup>
-    </aside>
+          {produceBusy ? String(t(lang, "producing")) : String(t(lang, "produce"))}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -97,7 +170,7 @@ function ToolGroup({
   children,
 }: {
   label: string;
-  tone: "insert" | "view" | "download";
+  tone: "insert" | "view" | "download" | "material";
   children: ReactNode;
 }) {
   return (
@@ -128,6 +201,33 @@ function Btn({
     <button type="button" onClick={onClick} title={title} className={cls}>
       {children}
     </button>
+  );
+}
+
+function StockSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (thickness: number) => void;
+}) {
+  return (
+    <label className="pw-stock">
+      <span className="pw-stock-label">{label}</span>
+      <select
+        className="pw-stock-select"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      >
+        {STOCK_THICKNESSES.map((mm) => (
+          <option key={mm} value={mm}>
+            {mm} mm
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

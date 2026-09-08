@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
 import { ThreeEngine } from "../lib/ThreeEngine";
-import type { Board } from "../types";
 import type { ConfiguratorStore } from "./useConfiguratorState";
 
 /**
@@ -20,13 +19,14 @@ export function useThreeEngine(
   // Stable callbacks — these close over the latest store via ref
   const storeRef = useRef(store);
   const ctxRef = useRef(opts?.onContextMenu);
+
   useEffect(() => {
     storeRef.current = store;
     ctxRef.current = opts?.onContextMenu;
-  });
+  }, [opts?.onContextMenu, store]);
 
-  const onSelect = useCallback((id: number | null) => {
-    storeRef.current.select(id);
+  const onSelect = useCallback((id: number | null, additive?: boolean) => {
+    storeRef.current.select(id, additive);
   }, []);
 
   const onMoveBoard = useCallback((id: number, axis: "x" | "y" | "z", value: number) => {
@@ -37,8 +37,8 @@ export function useThreeEngine(
     storeRef.current.resizeBoard(id, field, value);
   }, []);
 
-  const onCommit = useCallback((msg: string, beforeBoards: Board[]) => {
-    storeRef.current.commit(msg, beforeBoards);
+  const onLog = useCallback((msg: string) => {
+    storeRef.current.dispatch({ type: "LOG", msg });
   }, []);
 
   const onContextMenu = useCallback((info: { x: number; y: number; id: number | null }) => {
@@ -50,35 +50,34 @@ export function useThreeEngine(
     const el = containerRef.current;
     if (!el) return;
 
-    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onCommit, onContextMenu });
+    const engine = new ThreeEngine(el, { onSelect, onMoveBoard, onResizeBoard, onLog, onContextMenu });
     engineRef.current = engine;
 
     const onResize = () => engine.resize();
+    const lookObserver = new MutationObserver(() => engine.syncBackground());
+    lookObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme", "style"],
+    });
     window.addEventListener("resize", onResize);
-    const ro = new ResizeObserver(onResize);
-    ro.observe(el);
-    const mo = new MutationObserver(() => engine.syncBackground());
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-theme"] });
 
     return () => {
       window.removeEventListener("resize", onResize);
-      ro.disconnect();
-      mo.disconnect();
+      lookObserver.disconnect();
       engine.dispose();
       engineRef.current = null;
     };
-  }, [onSelect, onMoveBoard, onResizeBoard, onCommit, onContextMenu]);
+  }, [onContextMenu, onLog, onMoveBoard, onResizeBoard, onSelect]);
 
   // Rebuild scene on state change
   useEffect(() => {
     engineRef.current?.rebuild(
       store.boards,
-      store.selId,
+      store.selIds,
       store.mode,
-      store.mat,
       store.dims
     );
-  }, [store.boards, store.selId, store.mode, store.mat, store.dims]);
+  }, [store.boards, store.selIds, store.mode, store.dims]);
 
   // Reset view helper
   const resetView = useCallback(() => {

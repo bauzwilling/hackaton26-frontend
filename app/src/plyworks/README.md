@@ -1,33 +1,27 @@
 # Plyworks
 
-Native plywood furniture configurator for Studio. Geometry, DXF/STL/STEP export, and the Three.js engine run in the browser — there is no separate Plyworks frontend or backend repo.
-
-Open it from Studio: `/?app=plyworks` (same deep-link as before).
-
-This folder is self-contained. BoxOut and Simple Parts are separate native React modules; this app uses the host React + Three.js stack.
+Native React Plyworks module mounted directly inside Studio. It keeps the configurator, templates, material/thickness editing, Three.js board engine, local DXF/STL/STEP export, help tour, validation, JointWiz preview, and nesting preview/download.
 
 ## Layout
 
 ```
 plyworks/
-  types.ts                 Board / material model
-  lib/geometry.ts          Snap, rotate, DXF / STL / STEP export
-  lib/i18n.ts              EN / DE / ES strings
-  lib/ThreeEngine.ts       Imperative Three.js renderer (not React)
-  hooks/                   Configurator state + engine lifecycle
-  components/              Toolbar, panels, canvas overlays
-  plyworks.css             Overlay UI (Figtree + host CSS variables)
-  PlyworksPage.tsx         Studio page wrapper
+  PlyworksPage.tsx         Studio wrappers for configurator / jw / nesting
+  components/              React configurator, JointWiz, nesting, produce banner
+  nesting-preview/         Native React DXF nesting viewer
+  hooks/                   Configurator + produce job polling
+  lib/                     Three.js engine, geometry, produce API, rhino helpers
+  assets/icons/            Template picker SVGs
+  api.ts                   Temporary namespaced Flask URL helper
+  types.ts                 Shared board, material, and configurator types
+  plyworks.css
+  README.md
 ```
 
-`useThreeEngine` is the only React bridge. Do not wrap `ThreeEngine` in R3F.
+`useThreeEngine` is the only React bridge to the imperative Three.js configurator engine. The nesting viewer uses `dxf-render`; no Vue or `dxf-vuer` remains.
 
-## Mount
+## Transport is a stand-in, not the architecture
 
-Studio already renders `PlyworksPage` from `pages/Projects.tsx`. Point that export at this module:
+The existing produce pipeline is preserved behind `/api/plyworks`. During local development Vite strips that prefix and proxies to `VITE_PLYWORKS_BACKEND_URL` (default `http://127.0.0.1:5002`), avoiding Studio Concierge on `/api` → `:8000`.
 
-```tsx
-export { PlyworksPage } from "../plyworks";
-```
-
-Figtree loads from `plyworks.css`. No extra npm packages.
+Per boundary-plan §3 and §16 this is temporary: workflow calls and polling eventually move to Platform BFF runs, actions, and artifacts. Call sites are marked `WAITING BFF`; `/api/plyworks` is not a target platform contract.

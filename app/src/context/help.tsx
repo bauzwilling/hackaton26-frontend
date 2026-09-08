@@ -191,7 +191,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const next = useCallback(() => {
     const catalog = topicRef.current ? tourFor(topicRef.current) : [];
     const current = catalog[stepIndex];
-    if (current?.handoff === "plyworks-iframe") {
+    if (current?.handoff === "plyworks-native") {
       setIframeReady(false);
       setPhase("iframe");
       return;

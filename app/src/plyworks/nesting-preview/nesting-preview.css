@@ -1,0 +1,179 @@
+.nesting-curve-preview {
+  flex: 0 0 50%;
+  min-height: 0;
+  position: relative;
+  flex-direction: column;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  overflow: hidden;
+}
+
+.nesting-curve-preview--fill {
+  flex: 1 1 auto;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border-top: none;
+}
+
+.material-toggle-group {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.65rem;
+  z-index: 3;
+  display: flex;
+}
+
+.material-toggle {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--color-neutral-edited-accent);
+  background: var(--color-neutral-bg);
+  color: var(--color-result-text);
+}
+
+.material-toggle--kiefer {
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.material-toggle--film {
+  border-radius: 0 4px 4px 0;
+}
+
+.material-toggle:not(.material-toggle--active):hover,
+.sheet-controls button:not(:disabled):hover,
+.nesting-dxf-viewer__toolbar button:hover,
+.nesting-layer-panel button:hover {
+  background: var(--color-neutral-bg-hover);
+}
+
+.material-toggle--active {
+  background: var(--color-neutral-selected);
+  border-color: var(--color-neutral-edited-accent);
+  color: var(--color-result-text);
+}
+
+.sheet-controls {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.65rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-result-text);
+}
+
+.sheet-controls button,
+.nesting-dxf-viewer__toolbar button,
+.nesting-layer-panel button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--color-neutral-edited-accent);
+  border-radius: 4px;
+  background: var(--color-neutral-bg);
+  color: var(--color-result-text);
+}
+
+.sheet-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nesting-status {
+  margin: auto;
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-result-text);
+}
+
+.nesting-status--error {
+  color: #b45309;
+}
+
+.nesting-dxf-viewer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.nesting-dxf-viewer__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.nesting-dxf-viewer__canvas canvas {
+  display: block;
+}
+
+.nesting-dxf-viewer__toolbar {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.nesting-dxf-viewer__layers {
+  position: absolute;
+  top: 2.75rem;
+  left: 0.5rem;
+  z-index: 2;
+}
+
+.nesting-layer-panel {
+  width: min(15rem, calc(100vw - 1rem));
+  max-height: min(22rem, calc(100vh - 7rem));
+  padding: 0.5rem;
+  overflow: auto;
+  border: 1px solid #d6d3d1;
+  border-radius: 5px;
+  background: rgb(250 250 249 / 94%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  color: var(--color-result-text);
+}
+
+.nesting-layer-panel__actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+
+.nesting-layer-panel__layer {
+  display: grid;
+  grid-template-columns: auto 0.65rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.nesting-layer-panel__swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 1px solid rgb(0 0 0 / 18%);
+  border-radius: 50%;
+}
+
+.nesting-layer-panel__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nesting-layer-panel__count {
+  color: #a8a29e;
+  font-variant-numeric: tabular-nums;
+}

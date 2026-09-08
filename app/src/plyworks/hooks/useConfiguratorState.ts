@@ -1,8 +1,16 @@
 import { useCallback, useReducer } from "react";
-import type { Board, ConfiguratorState, LogEntry, RenderMode } from "../types";
-import { THICKNESS } from "../types";
-import { bbox, createBoard, rotateBoard } from "../lib/geometry";
-import { boardName } from "../lib/i18n";
+import type { Board, ConfiguratorState, LogEntry, PlateMaterial, RenderMode } from "../types";
+import { DEFAULT_LOOK, FILM_THICKNESS, KIEFER_THICKNESS, STOCK_THICKNESSES, plateThickness } from "../types";
+import {
+  applyStockThickness,
+  bbox,
+  createBoard,
+  rotateBoard,
+  thinField,
+  withPlateMaterial,
+} from "../lib/geometry";
+import { boardsFor, parseDesignId, type DesignId } from "../lib/designs";
+import { boardName, designLabel, t } from "../lib/i18n";
 
 // ── Log helper ──
 
@@ -14,32 +22,11 @@ function timestamp(): string {
   });
 }
 
-type Snapshot = LogEntry["snapshot"];
-
-function snapshotOf(state: FullState): Snapshot {
-  return {
-    boards: state.boards.map((b) => ({ ...b })),
-    selId: state.selId,
-    mat: state.mat,
-  };
-}
-
-function withChange(state: FullState, msg: string, patch: Partial<FullState>): FullState {
-  return {
-    ...state,
-    ...patch,
-    logs: [
-      { id: Date.now() + Math.random(), time: timestamp(), msg, snapshot: snapshotOf(state) },
-      ...state.logs,
-    ].slice(0, 120),
-  };
-}
-
 // ── Actions ──
 
 type Action =
   | { type: "SET_BOARDS"; boards: Board[] }
-  | { type: "SELECT"; id: number | null }
+  | { type: "SELECT"; id: number | null; additive?: boolean }
   | { type: "ADD_BOARD"; kind: "h" | "v" }
   | { type: "DELETE_SELECTED" }
   | { type: "ROTATE"; axis: "x" | "y" | "z" }
@@ -47,82 +34,163 @@ type Action =
   | { type: "MOVE_BOARD"; id: number; axis: "x" | "y" | "z"; value: number }
   | { type: "RESIZE_BOARD"; id: number; field: "w" | "h" | "d"; value: number }
   | { type: "SET_MODE"; mode: RenderMode }
-  | { type: "SET_MATERIAL"; mat: string }
+  | { type: "SET_BOARD_LOOK"; look: string }
+  | { type: "SET_BOARD_MATERIAL"; material: PlateMaterial }
+  | { type: "SET_STOCK_THICKNESS"; material: PlateMaterial; thickness: number }
   | { type: "SET_LANG"; lang: "en" | "de" | "es" }
   | { type: "TOGGLE_DIMS" }
-  | { type: "COMMIT"; msg: string; boards: Board[] }
-  | { type: "UNDO" }
-  | { type: "UNDO_TO"; id: number };
+  | { type: "LOG"; msg: string }
+  | { type: "LOAD_DESIGN"; design: DesignId };
 
 interface FullState extends ConfiguratorState {
   logs: LogEntry[];
 }
 
-const INITIAL_BOARDS: Board[] = [
-  { id: 1, name: "Side left",  w: THICKNESS, h: 1200, d: 320, x: -391, y: 600,  z: 0 },
-  { id: 2, name: "Side right", w: THICKNESS, h: 1200, d: 320, x: 391,  y: 600,  z: 0 },
-  { id: 3, name: "Top",        w: 800, h: THICKNESS, d: 320, x: 0,    y: 1191, z: 0 },
-  { id: 4, name: "Bottom",     w: 800, h: THICKNESS, d: 320, x: 0,    y: 9,    z: 0 },
-  { id: 5, name: "Shelf 1",    w: 800, h: THICKNESS, d: 320, x: 0,    y: 420,  z: 0 },
-  { id: 6, name: "Shelf 2",    w: 800, h: THICKNESS, d: 320, x: 0,    y: 800,  z: 0 },
-  { id: 7, name: "Back",       w: 800, h: 1200, d: THICKNESS, x: 0,   y: 600,  z: -151 },
-];
+function createInitialState(initialDesign?: DesignId): FullState {
+  return {
+    boards: boardsFor(parseDesignId(initialDesign)),
+    selIds: [],
+    mode: "comic",
+    dims: false,
+    lang: "en",
+    kieferThickness: KIEFER_THICKNESS,
+    filmThickness: FILM_THICKNESS,
+    logs: [],
+  };
+}
 
-const INITIAL_STATE: FullState = {
-  boards: INITIAL_BOARDS,
-  selId: null,
-  mode: "comic",
-  mat: "birch",
-  dims: false,
-  lang: "en",
-  logs: [],
-};
+function addLog(state: FullState, msg: string): LogEntry[] {
+  return [
+    { id: Date.now() + Math.random(), time: timestamp(), msg },
+    ...state.logs,
+  ].slice(0, 120);
+}
+
+function selectedSet(state: FullState): Set<number> {
+  return new Set(state.selIds);
+}
+
+function boardsOf(state: FullState, ids: Set<number>): Board[] {
+  return state.boards.filter((b) => ids.has(b.id));
+}
+
+function selectionLabel(state: FullState, boards: Board[]): string {
+  if (boards.length === 1) return boardName(state.lang, boards[0].name);
+  return `${boards.length} ${String(t(state.lang, "parts"))}`;
+}
 
 function reducer(state: FullState, action: Action): FullState {
   switch (action.type) {
     case "SET_BOARDS":
-      return { ...state, boards: action.boards, selId: null };
+      return { ...state, boards: action.boards, selIds: [] };
 
-    case "SELECT":
-      return { ...state, selId: action.id };
+    case "SELECT": {
+      if (action.id == null) {
+        if (action.additive || !state.selIds.length) return state;
+        return { ...state, selIds: [] };
+      }
+      if (!state.boards.some((b) => b.id === action.id)) return state;
+      if (action.additive) {
+        const has = state.selIds.includes(action.id);
+        return {
+          ...state,
+          selIds: has
+            ? state.selIds.filter((id) => id !== action.id)
+            : [...state.selIds, action.id],
+        };
+      }
+      if (state.selIds.length === 1 && state.selIds[0] === action.id) return state;
+      return { ...state, selIds: [action.id] };
+    }
 
     case "ADD_BOARD": {
-      const b = createBoard(state.boards, action.kind);
-      return withChange(state, `+ ${boardName(state.lang, b.name)} · ${b.w}×${b.h}×${b.d}`, {
+      const b = createBoard(state.boards, action.kind, state.kieferThickness);
+      return {
+        ...state,
         boards: [...state.boards, b],
-        selId: b.id,
-      });
+        selIds: [b.id],
+        logs: addLog(state, `+ ${boardName(state.lang, b.name)} · ${b.w}×${b.h}×${b.d}`),
+      };
     }
 
     case "DELETE_SELECTED": {
-      const b = state.boards.find((x) => x.id === state.selId);
-      if (!b) return { ...state, boards: state.boards.filter((x) => x.id !== state.selId), selId: null };
-      return withChange(state, `− ${boardName(state.lang, b.name)}`, {
-        boards: state.boards.filter((x) => x.id !== state.selId),
-        selId: null,
-      });
+      const ids = selectedSet(state);
+      if (!ids.size) return state;
+      const removed = boardsOf(state, ids);
+      return {
+        ...state,
+        boards: state.boards.filter((x) => !ids.has(x.id)),
+        selIds: [],
+        logs: addLog(state, `− ${selectionLabel(state, removed)}`),
+      };
     }
 
     case "ROTATE": {
-      const b = state.boards.find((x) => x.id === state.selId);
-      if (!b) return state;
-      const patch = rotateBoard(b, action.axis);
-      return withChange(state, `⟳ ${boardName(state.lang, b.name)} · ${action.axis.toUpperCase()} 90°`, {
+      const ids = selectedSet(state);
+      const targets = boardsOf(state, ids);
+      if (!targets.length) return state;
+      return {
+        ...state,
         boards: state.boards.map((x) =>
-          x.id === state.selId ? { ...x, ...patch } : x
+          ids.has(x.id) ? { ...x, ...rotateBoard(x, action.axis) } : x
         ),
-      });
+        logs: addLog(
+          state,
+          `⟳ ${selectionLabel(state, targets)} · ${action.axis.toUpperCase()} 90°`
+        ),
+      };
     }
 
     case "SET_DIM": {
-      const v = Math.max(THICKNESS, Math.round(action.value || 0));
-      const cur = state.boards.find((x) => x.id === state.selId);
-      if (!cur || cur[action.field] === v) return state;
-      return withChange(state, `▭ ${boardName(state.lang, cur.name)} · ${action.field.toUpperCase()} ${v}`, {
-        boards: state.boards.map((x) =>
-          x.id === state.selId ? { ...x, [action.field]: v } : x
-        ),
+      const ids = selectedSet(state);
+      if (!ids.size) return state;
+      const thicknesses = { kiefer: state.kieferThickness, film: state.filmThickness };
+      let changed = false;
+      const boards = state.boards.map((x) => {
+        if (!ids.has(x.id) || action.field === thinField(x)) return x;
+        const min = plateThickness(x.material ?? "kiefer", thicknesses);
+        const v = Math.max(min, Math.round(action.value || 0));
+        if (x[action.field] === v) return x;
+        changed = true;
+        return { ...x, [action.field]: v };
       });
+      return changed ? { ...state, boards } : state;
+    }
+
+    case "SET_BOARD_MATERIAL": {
+      const ids = selectedSet(state);
+      const targets = boardsOf(state, ids);
+      if (!targets.length) return state;
+      const thicknesses = { kiefer: state.kieferThickness, film: state.filmThickness };
+      const nextTh = plateThickness(action.material, thicknesses);
+      let changed = 0;
+      const boards = state.boards.map((board) => {
+        if (!ids.has(board.id) || board.material === action.material) return board;
+        changed += 1;
+        return withPlateMaterial(board, action.material, nextTh);
+      });
+      if (!changed) return state;
+      return {
+        ...state,
+        boards,
+        logs: addLog(state, `◧ ${selectionLabel(state, targets)} · ${action.material}`),
+      };
+    }
+
+    case "SET_STOCK_THICKNESS": {
+      if (!(STOCK_THICKNESSES as readonly number[]).includes(action.thickness)) return state;
+      const key = action.material === "film" ? "filmThickness" : "kieferThickness";
+      if (state[key] === action.thickness) return state;
+      return {
+        ...state,
+        [key]: action.thickness,
+        boards: state.boards.map((board) =>
+          (board.material ?? "kiefer") === action.material
+            ? applyStockThickness(board, action.thickness)
+            : board
+        ),
+        logs: addLog(state, `◧ ${action.material} · ${action.thickness} mm`),
+      };
     }
 
     case "MOVE_BOARD":
@@ -136,17 +204,32 @@ function reducer(state: FullState, action: Action): FullState {
     case "RESIZE_BOARD":
       return {
         ...state,
-        boards: state.boards.map((x) =>
-          x.id === action.id ? { ...x, [action.field]: action.value } : x
-        ),
+        boards: state.boards.map((x) => {
+          if (x.id !== action.id || action.field === thinField(x)) return x;
+          return { ...x, [action.field]: action.value };
+        }),
       };
 
     case "SET_MODE":
       return { ...state, mode: action.mode };
 
-    case "SET_MATERIAL":
-      if (state.mat === action.mat) return state;
-      return withChange(state, `◧ ${action.mat}`, { mat: action.mat });
+    case "SET_BOARD_LOOK": {
+      const ids = selectedSet(state);
+      const targets = boardsOf(state, ids);
+      if (!targets.length) return state;
+      let changed = 0;
+      const boards = state.boards.map((board) => {
+        if (!ids.has(board.id) || (board.look ?? DEFAULT_LOOK) === action.look) return board;
+        changed += 1;
+        return { ...board, look: action.look };
+      });
+      if (!changed) return state;
+      return {
+        ...state,
+        boards,
+        logs: addLog(state, `◧ ${selectionLabel(state, targets)} · ${action.look}`),
+      };
+    }
 
     case "SET_LANG":
       return { ...state, lang: action.lang };
@@ -154,48 +237,16 @@ function reducer(state: FullState, action: Action): FullState {
     case "TOGGLE_DIMS":
       return { ...state, dims: !state.dims };
 
-    case "COMMIT":
-      return {
-        ...state,
-        logs: [
-          {
-            id: Date.now() + Math.random(),
-            time: timestamp(),
-            msg: action.msg,
-            snapshot: {
-              boards: action.boards.map((b) => ({ ...b })),
-              selId: state.selId,
-              mat: state.mat,
-            },
-          },
-          ...state.logs,
-        ].slice(0, 120),
-      };
+    case "LOG":
+      return { ...state, logs: addLog(state, action.msg) };
 
-    case "UNDO": {
-      const latest = state.logs[0];
-      if (!latest) return state;
+    case "LOAD_DESIGN":
       return {
         ...state,
-        boards: latest.snapshot.boards,
-        selId: latest.snapshot.selId,
-        mat: latest.snapshot.mat,
-        logs: state.logs.slice(1),
+        boards: boardsFor(action.design),
+        selIds: [],
+        logs: addLog(state, `◇ ${designLabel(state.lang, action.design)}`),
       };
-    }
-
-    case "UNDO_TO": {
-      const idx = state.logs.findIndex((e) => e.id === action.id);
-      if (idx < 0) return state;
-      const entry = state.logs[idx];
-      return {
-        ...state,
-        boards: entry.snapshot.boards,
-        selId: entry.snapshot.selId,
-        mat: entry.snapshot.mat,
-        logs: state.logs.slice(idx + 1),
-      };
-    }
 
     default:
       return state;
@@ -204,23 +255,40 @@ function reducer(state: FullState, action: Action): FullState {
 
 // ── Hook ──
 
-export function useConfiguratorState() {
-  const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+export function useConfiguratorState(initialDesign?: DesignId) {
+  const [state, dispatch] = useReducer(reducer, initialDesign, createInitialState);
 
-  const selectedBoard = state.boards.find((b) => b.id === state.selId) ?? null;
+  const selectedBoards = state.selIds
+    .map((id) => state.boards.find((b) => b.id === id))
+    .filter((b): b is Board => !!b);
+  const selectedBoard = selectedBoards[selectedBoards.length - 1] ?? null;
+  const selId = selectedBoard?.id ?? null;
   const bb = bbox(state.boards);
 
   // Convenience dispatchers
-  const select = useCallback((id: number | null) => dispatch({ type: "SELECT", id }), []);
+  const select = useCallback(
+    (id: number | null, additive?: boolean) => dispatch({ type: "SELECT", id, additive }),
+    []
+  );
   const addBoard = useCallback((kind: "h" | "v") => dispatch({ type: "ADD_BOARD", kind }), []);
   const deleteSelected = useCallback(() => dispatch({ type: "DELETE_SELECTED" }), []);
   const rotate = useCallback((axis: "x" | "y" | "z") => dispatch({ type: "ROTATE", axis }), []);
   const setDim = useCallback((field: "w" | "h" | "d", value: number) => dispatch({ type: "SET_DIM", field, value }), []);
   const setMode = useCallback((mode: RenderMode) => dispatch({ type: "SET_MODE", mode }), []);
-  const setMaterial = useCallback((mat: string) => dispatch({ type: "SET_MATERIAL", mat }), []);
+  const setBoardLook = useCallback((look: string) => dispatch({ type: "SET_BOARD_LOOK", look }), []);
+  const setBoardMaterial = useCallback(
+    (material: PlateMaterial) => dispatch({ type: "SET_BOARD_MATERIAL", material }),
+    []
+  );
+  const setStockThickness = useCallback(
+    (material: PlateMaterial, thickness: number) =>
+      dispatch({ type: "SET_STOCK_THICKNESS", material, thickness }),
+    []
+  );
   const setLang = useCallback((lang: "en" | "de" | "es") => dispatch({ type: "SET_LANG", lang }), []);
   const toggleDims = useCallback(() => dispatch({ type: "TOGGLE_DIMS" }), []);
   const setBoards = useCallback((boards: Board[]) => dispatch({ type: "SET_BOARDS", boards }), []);
+  const loadDesign = useCallback((design: DesignId) => dispatch({ type: "LOAD_DESIGN", design }), []);
   const moveBoard = useCallback(
     (id: number, axis: "x" | "y" | "z", value: number) =>
       dispatch({ type: "MOVE_BOARD", id, axis, value }),
@@ -231,15 +299,12 @@ export function useConfiguratorState() {
       dispatch({ type: "RESIZE_BOARD", id, field, value }),
     []
   );
-  const commit = useCallback((msg: string, beforeBoards: Board[]) => {
-    dispatch({ type: "COMMIT", msg, boards: beforeBoards });
-  }, []);
-  const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
-  const undoTo = useCallback((id: number) => dispatch({ type: "UNDO_TO", id }), []);
 
   return {
     ...state,
+    selId,
     selectedBoard,
+    selectedBoards,
     bbox: bb,
     dispatch,
     select,
@@ -248,15 +313,15 @@ export function useConfiguratorState() {
     rotate,
     setDim,
     setMode,
-    setMaterial,
+    setBoardLook,
+    setBoardMaterial,
+    setStockThickness,
     setLang,
     toggleDims,
     setBoards,
+    loadDesign,
     moveBoard,
     resizeBoard,
-    commit,
-    undo,
-    undoTo,
   };
 }
 

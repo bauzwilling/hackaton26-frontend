@@ -579,30 +579,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return id;
   }, [session]);
 
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== "object") return;
-      if (data.type === "plyworks-open") {
-        const design = typeof data.design === "string" ? data.design.trim().toLowerCase() : "";
-        if (design !== "shelf" && design !== "table" && design !== "stool" && design !== "bench") return;
-        const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
-        openApp("plyworks", { parentId: parent?.id, design });
-        return;
-      }
-      if (typeof data.jobId !== "string") return;
-      const parent = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks");
-      if (data.type === "plyworks-jw") {
-        openApp("plyworks-jw", { parentId: parent?.id, query: data.jobId });
-        return;
-      }
-      if (data.type !== "plyworks-nesting") return;
-      openApp("plyworks-nesting", { parentId: parent?.id, query: data.jobId });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [openApp]);
-
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
     const z = zTop.current;
