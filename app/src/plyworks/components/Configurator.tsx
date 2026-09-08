@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useConfiguratorState } from "../hooks/useConfiguratorState";
+import { useProduce } from "../hooks/useProduce";
 import { useThreeEngine } from "../hooks/useThreeEngine";
 import { t } from "../lib/i18n";
 import { Toolbar } from "./Toolbar";
 import { SelectionPanel } from "./SelectionPanel";
-import { MaterialPicker } from "./MaterialPicker";
 import { HistoryLog } from "./HistoryLog";
+import { ProduceBanner } from "./ProduceBanner";
+import { TemplatePicker } from "./TemplatePicker";
+import { HelpOverlay } from "./HelpOverlay";
+import { HOST_HELP } from "../lib/look";
+import { PLYWORKS_TOUR } from "../lib/helpTour";
 import "../plyworks.css";
 
 /**
@@ -13,7 +18,7 @@ import "../plyworks.css";
  *
  * Drop this into any React app:
  *
- *   import { Configurator } from "../plyworks/components/Configurator";
+ *   import { Configurator } from "./components/Configurator";
  *   <Configurator />
  *
  * It owns its own state and Three.js lifecycle — no props needed.
@@ -24,6 +29,28 @@ export function Configurator() {
   const store = useConfiguratorState();
   const rootRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [helpIndex, setHelpIndex] = useState<number | null>(null);
+  const storeRef = useRef(store);
+  storeRef.current = store;
+  const helpStep = helpIndex != null ? PLYWORKS_TOUR[helpIndex] : null;
+
+  const postHelp = useCallback((action: "ready" | "done" | "stop") => {
+    if (window.parent === window) return;
+    window.parent.postMessage({ type: HOST_HELP, action }, "*");
+  }, []);
+
+  const stopHelp = useCallback((notify: "done" | "stop" | null) => {
+    setHelpIndex(null);
+    setTemplatesOpen(false);
+    if (notify) postHelp(notify);
+  }, [postHelp]);
+
+  const startHelp = useCallback(() => {
+    setHelpIndex(0);
+    setTemplatesOpen(false);
+    postHelp("ready");
+  }, [postHelp]);
 
   const onContextMenu = useCallback((info: { x: number; y: number; id: number | null }) => {
     const root = rootRef.current;
@@ -39,63 +66,122 @@ export function Configurator() {
   }, []);
 
   const { containerRef, resetView } = useThreeEngine(store, { onContextMenu });
+  const produce = useProduce(store.boards, store.kieferThickness, store.filmThickness);
 
   useEffect(() => {
-    if (!store.selId) setMenu(null);
-  }, [store.selId]);
+    if (!store.selIds.length) setMenu(null);
+  }, [store.selIds]);
 
   useEffect(() => {
-    if (!menu) return;
-    const onDown = (e: globalThis.PointerEvent) => {
-      if ((e.target as HTMLElement).closest(".pw-ctx")) return;
-      setMenu(null);
+    const onHelp = (e: Event) => {
+      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
+      if (action === "start") startHelp();
+      if (action === "stop") stopHelp(null);
     };
-    window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
-  }, [menu]);
+    window.addEventListener(HOST_HELP, onHelp);
+    return () => window.removeEventListener(HOST_HELP, onHelp);
+  }, [startHelp, stopHelp]);
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest("input, textarea")) return;
-    if (e.key === "Escape") {
-      setMenu(null);
-      return;
+  useEffect(() => {
+    if (!helpStep) return;
+    const current = storeRef.current;
+    if (helpStep.prepare === "templates") setTemplatesOpen(true);
+    else setTemplatesOpen(false);
+    if (helpStep.prepare === "selection") {
+      const first = current.boards[0];
+      if (first) current.select(first.id);
     }
-    if (e.key === "Delete" || e.key === "Backspace") {
-      if (!store.selectedBoard) return;
+  }, [helpStep]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest("input, textarea")) return;
+      if (e.key === "Escape") {
+        if (helpIndex != null) {
+          stopHelp("stop");
+          return;
+        }
+        if (templatesOpen) {
+          setTemplatesOpen(false);
+          return;
+        }
+        setMenu(null);
+        store.select(null);
+        return;
+      }
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!store.selectedBoards.length) return;
       e.preventDefault();
       store.deleteSelected();
       setMenu(null);
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-      e.preventDefault();
-      store.undo();
-    }
-  }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [store.selectedBoards, store.deleteSelected, store.select, templatesOpen, helpIndex, stopHelp]);
 
-  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest("input, textarea, button")) return;
-    e.currentTarget.focus();
-  }
+  useEffect(() => {
+    if (!menu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement).closest(".pw-ctx")) return;
+      setMenu(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [menu]);
 
   return (
     <div
       ref={rootRef}
       className="pw"
       tabIndex={0}
-      onKeyDown={onKeyDown}
-      onPointerDown={onPointerDown}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest("input, textarea, button")) return;
+        e.currentTarget.focus();
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
       }}
     >
       <div ref={containerRef} className="pw-canvas" />
-      <Toolbar store={store} onResetView={resetView} />
+      {templatesOpen && (
+        <div
+          className="pw-templates-back"
+          onPointerDown={() => {
+            if (helpIndex == null) setTemplatesOpen(false);
+          }}
+        />
+      )}
+      <Toolbar
+        store={store}
+        onResetView={resetView}
+        onProduce={produce.start}
+        produceBusy={produce.busy}
+        forceOpen={helpStep?.prepare === "toolbar"}
+        templatesOpen={templatesOpen}
+        onToggleTemplates={() => setTemplatesOpen((open) => !open)}
+      >
+        {templatesOpen ? (
+          <TemplatePicker
+            lang={store.lang}
+            onClose={() => setTemplatesOpen(false)}
+            onOverwrite={(id) => {
+              store.loadDesign(id);
+              setTemplatesOpen(false);
+              window.setTimeout(resetView, 0);
+            }}
+          />
+        ) : null}
+      </Toolbar>
       <SelectionPanel store={store} />
-      {store.mode === "real" && <MaterialPicker store={store} />}
-      <HistoryLog store={store} />
-      {menu && store.selectedBoard && (
+      <HistoryLog store={store} helpOpen={helpStep?.prepare === "history"} />
+      <ProduceBanner
+        busy={produce.busy}
+        message={produce.message}
+        report={produce.report}
+        kind={produce.kind}
+      />
+      {menu && store.selectedBoards.length > 0 && (
         <div
           className="pw-ctx"
           style={{ left: menu.x, top: menu.y }}
@@ -112,6 +198,17 @@ export function Configurator() {
             {String(t(store.lang, "del"))}
           </button>
         </div>
+      )}
+      {helpIndex != null && (
+        <HelpOverlay
+          index={helpIndex}
+          onBack={() => setHelpIndex((i) => Math.max(0, (i ?? 0) - 1))}
+          onStop={() => stopHelp("stop")}
+          onNext={() => {
+            if (helpIndex >= PLYWORKS_TOUR.length - 1) stopHelp("done");
+            else setHelpIndex(helpIndex + 1);
+          }}
+        />
       )}
     </div>
   );

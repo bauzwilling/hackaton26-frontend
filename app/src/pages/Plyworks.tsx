@@ -1,5 +1,6 @@
 import { EmbeddedApp } from "../components/EmbeddedApp";
 
+// Pipeline source from hackaton26-plyworks/front is in src/plyworks/; this page still iframes.
 export const PLYWORKS_URL = import.meta.env.VITE_PLYWORKS_URL || "http://localhost:5176";
 
 export function PlyworksPage({ design, helpBridge = false }: { design?: string; helpBridge?: boolean }) {

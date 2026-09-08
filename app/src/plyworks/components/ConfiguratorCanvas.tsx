@@ -8,5 +8,14 @@ interface Props {
 export function ConfiguratorCanvas({ store }: Props) {
   const { containerRef } = useThreeEngine(store);
 
-  return <div ref={containerRef} className="pw-canvas" />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+      }}
+    />
+  );
 }

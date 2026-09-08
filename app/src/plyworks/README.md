@@ -1,33 +1,27 @@
 # Plyworks
 
-Native plywood furniture configurator for Studio. Geometry, DXF/STL/STEP export, and the Three.js engine run in the browser — there is no separate Plyworks frontend or backend repo.
+Frontend source from `hackaton26-plyworks/front`, parked here the same way BoxOut and Simple Parts first landed. Studio still opens Plyworks as an iframe (`pages/Plyworks.tsx`, `VITE_PLYWORKS_URL`, default `http://localhost:5176`) until this module is mounted natively.
 
-Open it from Studio: `/?app=plyworks` (same deep-link as before).
+Do not import the pipeline files from Studio yet. JointWiz / nesting still need Vue (`dxf-vuer`), JSZip, and rhino3dm, which are not wired for this module. The older in-repo configurator (`PlyworksPage.tsx`, `MaterialPicker.tsx`, `types.ts`) stays unused while the iframe is the live window.
 
-This folder is self-contained. BoxOut and Simple Parts are separate native React modules; this app uses the host React + Three.js stack.
+These files are a look-only park of the existing Plyworks window (`hackaton26-plyworks/front`). They are not a second mill/produce pipeline in Studio, not a PlyworksAdapter, and not a native mount. JointWiz and nesting stay inside that existing-system app until a later port, the same as BoxOut and Simple Parts copy-only landings.
 
 ## Layout
 
 ```
 plyworks/
-  types.ts                 Board / material model
-  lib/geometry.ts          Snap, rotate, DXF / STL / STEP export
-  lib/i18n.ts              EN / DE / ES strings
-  lib/ThreeEngine.ts       Imperative Three.js renderer (not React)
-  hooks/                   Configurator state + engine lifecycle
-  components/              Toolbar, panels, canvas overlays
-  plyworks.css             Overlay UI (Figtree + host CSS variables)
-  PlyworksPage.tsx         Studio page wrapper
+  App.tsx                  Standalone router (configurator / jw / nesting)
+  components/              Configurator, JointWiz, nesting, produce banner
+  nesting-preview/         Vue DXF / curve viewers (iframe-era leftovers)
+  hooks/                   Configurator + produce job polling
+  lib/                     Three.js engine, geometry, produce API, rhino helpers
+  assets/icons/            Template picker SVGs
+  plyworks.css
+  README.md
 ```
 
-`useThreeEngine` is the only React bridge. Do not wrap `ThreeEngine` in R3F.
+Not copied: `main.tsx` / `index.html` (host already has `app/src/main.tsx`), the Flask back, Grasshopper definitions, or `plyworks-react/` (reference prototype).
 
-## Mount
+## Backend collision (when mounting later)
 
-Studio already renders `PlyworksPage` from `pages/Projects.tsx`. Point that export at this module:
-
-```tsx
-export { PlyworksPage } from "../plyworks";
-```
-
-Figtree loads from `plyworks.css`. No extra npm packages.
+This app fetches `/api/produce` and related job URLs. Those collide with Studio Concierge’s `/api` proxy (`:8000`). Give Plyworks its own prefix (for example `/api/plyworks`) before native mount, or point env at the deployed produce API. Default Flask port in the standalone app is `:5002`.

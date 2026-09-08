@@ -5,7 +5,7 @@
  * mesh-building logic.  It exposes a small API that the React wrapper
  * calls whenever state changes:
  *
- *   engine.rebuild(boards, selId, mode, matId, showDims)
+ *   engine.rebuild(boards, selIds, mode, showDims)
  *   engine.resetView(bbox)
  *   engine.resize()
  *   engine.dispose()
@@ -16,23 +16,41 @@
 
 import * as THREE from "three";
 import type { Board, Material, RenderMode } from "../types";
-import { MATERIALS, THICKNESS as T } from "../types";
-import { bbox, crossOverlap, contactSnap } from "./geometry";
+import { DEFAULT_LOOK, MATERIALS } from "../types";
+import { bbox as computeBBox, crossOverlap, contactSnap, thinField } from "./geometry";
+import { resolveBg } from "./look";
 
-function resolveBg(el: HTMLElement): string {
-  const probe = document.createElement("span");
-  probe.style.backgroundColor = "var(--bg, #f5ead8)";
-  el.appendChild(probe);
-  const color = getComputedStyle(probe).backgroundColor;
-  probe.remove();
-  return color || "#f5ead8";
+const FILM_EDGE = "#6e5340";
+const FILM_EDGE_SEL = "#8a5a32";
+const SKETCH_FACE = "#e8e4dc";
+const SKETCH_FACE_SEL = "#ffe1d0";
+const SKETCH_DILUTE = 0.42;
+
+function parseHex(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = parseHex(a);
+  const [br, bg, bb] = parseHex(b);
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`;
+}
+
+function sketchTint(base: string, selected: boolean): string {
+  return mixHex(selected ? SKETCH_FACE_SEL : SKETCH_FACE, base, SKETCH_DILUTE);
 }
 
 export interface EngineCallbacks {
-  onSelect: (id: number | null) => void;
+  onSelect: (id: number | null, additive?: boolean) => void;
   onMoveBoard: (id: number, axis: "x" | "y" | "z", value: number) => void;
   onResizeBoard: (id: number, field: "w" | "h" | "d", value: number) => void;
-  onCommit: (msg: string, beforeBoards: Board[]) => void;
+  onLog: (msg: string) => void;
   onContextMenu?: (info: { x: number; y: number; id: number | null }) => void;
 }
 
@@ -53,24 +71,16 @@ export class ThreeEngine {
 
   // Texture caches
   private plyTex: THREE.CanvasTexture | null = null;
-  private woodCache: Record<string, THREE.CanvasTexture> = {};
+  private woodGrain: THREE.CanvasTexture | null = null;
 
   // Snapshot of last-applied state (for dirty checking)
   private lastBoards: Board[] = [];
-  private lastSelId: number | null = null;
+  private lastSelIds: number[] = [];
   private lastMode: RenderMode = "comic";
-  private lastMat = "birch";
 
   // Drag state
-  private drag: {
-    h: { dim: "w" | "h" | "d"; ax: "x" | "y" | "z"; sign: number } | null;
-    mv: { ax: "x" | "y" | "z" } | null;
-    start: Board;
-    sx: number;
-    sy: number;
-  } | null = null;
-
-  private unbindPointer: (() => void) | null = null;
+  private drag: any = null;
+  private snapped = false;
 
   constructor(container: HTMLElement, callbacks: EngineCallbacks) {
     this.cb = callbacks;
@@ -151,16 +161,14 @@ export class ThreeEngine {
 
   rebuild(
     boards: Board[],
-    selId: number | null,
+    selIds: number[],
     mode: RenderMode,
-    matId: string,
     showDims: boolean
   ) {
     this.lastBoards = boards;
-    this.lastSelId = selId;
+    this.lastSelIds = selIds;
     this.lastMode = mode;
-    this.lastMat = matId;
-    this.applyMode(boards, selId, this.lastMode, this.lastMat, showDims);
+    this.applyMode(boards, selIds, mode, showDims);
   }
 
   resetView(bb: { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number }) {
@@ -206,8 +214,6 @@ export class ThreeEngine {
   dispose() {
     this.stopped = true;
     cancelAnimationFrame(this.animId);
-    this.unbindPointer?.();
-    this.unbindPointer = null;
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
@@ -215,8 +221,8 @@ export class ThreeEngine {
 
   // ── Internals ──
 
-  private mat(matId: string): Material {
-    return MATERIALS.find((m) => m.id === matId) || MATERIALS[0];
+  private mat(matId?: string): Material {
+    return MATERIALS.find((m) => m.id === matId) || MATERIALS.find((m) => m.id === DEFAULT_LOOK) || MATERIALS[0];
   }
 
   private plyEdgeTexture(): THREE.CanvasTexture {
@@ -238,30 +244,39 @@ export class ThreeEngine {
     return tex;
   }
 
-  private woodTexture(M: Material): THREE.CanvasTexture {
-    if (this.woodCache[M.id]) return this.woodCache[M.id];
+  /** Light plywood face grain — multiplied by the panel colour so wood still shows. */
+  private woodGrainTexture(): THREE.CanvasTexture {
+    if (this.woodGrain) return this.woodGrain;
     const cv = document.createElement("canvas");
-    cv.width = 512; cv.height = 512;
+    cv.width = 512;
+    cv.height = 512;
     const g = cv.getContext("2d")!;
-    g.fillStyle = M.base;
+    g.fillStyle = "#ffffff";
     g.fillRect(0, 0, 512, 512);
-    if (M.grain) {
-      for (let i = 0; i < 190; i++) {
-        const y = Math.random() * 512;
-        g.strokeStyle = M.grain.replace("A", (M.grainA * (0.3 + Math.random())).toFixed(3));
-        g.lineWidth = 0.6 + Math.random() * 2.4;
-        g.beginPath();
-        g.moveTo(0, y);
-        for (let x = 0; x <= 512; x += 32)
-          g.lineTo(x, y + Math.sin((x + i * 40) / 90) * 5 + (Math.random() - 0.5) * 3);
-        g.stroke();
+    for (let i = 0; i < 190; i++) {
+      const y = Math.random() * 512;
+      g.strokeStyle = `rgba(163,132,84,${(0.22 * (0.3 + Math.random())).toFixed(3)})`;
+      g.lineWidth = 0.6 + Math.random() * 2.4;
+      g.beginPath();
+      g.moveTo(0, y);
+      for (let x = 0; x <= 512; x += 32) {
+        g.lineTo(x, y + Math.sin((x + i * 40) / 90) * 5 + (Math.random() - 0.5) * 3);
       }
+      g.stroke();
     }
     const tex = new THREE.CanvasTexture(cv);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = 8;
-    this.woodCache[M.id] = tex;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.woodGrain = tex;
     return tex;
+  }
+
+  private kieferMap(w: number, h: number): THREE.CanvasTexture {
+    const tx = this.woodGrainTexture().clone();
+    tx.needsUpdate = true;
+    tx.repeat.set(Math.max(0.4, w * 1.6), Math.max(0.4, h * 1.6));
+    return tx;
   }
 
   private makeDimLabel(text: string, fill = "#201e1d"): THREE.Sprite {
@@ -329,9 +344,9 @@ export class ThreeEngine {
     this.group.add(spr);
   }
 
-  private addDims(boards: Board[], selId: number | null) {
+  private addDims(boards: Board[], selIds: number[]) {
     if (!boards.length) return;
-    const bb = bbox(boards);
+    const bb = computeBBox(boards);
     const x0 = bb.x0 / 1000, x1 = bb.x1 / 1000;
     const y0 = bb.y0 / 1000, y1 = bb.y1 / 1000;
     const z0 = bb.z0 / 1000, z1 = bb.z1 / 1000;
@@ -352,7 +367,7 @@ export class ThreeEngine {
       `${Math.round(bb.z1 - bb.z0)}`
     );
 
-    const sel = boards.find((b) => b.id === selId);
+    const sel = selIds.length === 1 ? boards.find((b) => b.id === selIds[0]) : undefined;
     if (!sel) return;
     const sx0 = (sel.x - sel.w / 2) / 1000, sx1 = (sel.x + sel.w / 2) / 1000;
     const sy0 = (sel.y - sel.h / 2) / 1000, sy1 = (sel.y + sel.h / 2) / 1000;
@@ -381,13 +396,12 @@ export class ThreeEngine {
 
   private applyMode(
     boards: Board[],
-    selId: number | null,
+    selIds: number[],
     mode: RenderMode,
-    matId: string,
     showDims: boolean
   ) {
     const comic = mode === "comic";
-    const M = this.mat(matId);
+    const selected = new Set(selIds);
 
     // Clear meshes
     while (this.group.children.length) {
@@ -403,12 +417,15 @@ export class ThreeEngine {
     // Build board meshes
     boards.forEach((b) => {
       const w = b.w / 1000, h = b.h / 1000, d = b.d / 1000;
-      const on = b.id === selId;
+      const on = selected.has(b.id);
       const geo = new THREE.BoxGeometry(w, h, d);
+      const film = b.material === "film";
+      const M = this.mat(b.look);
 
       if (comic) {
         const mat = new THREE.MeshLambertMaterial({
-          color: on ? "#ffe1d0" : "#e8e4dc",
+          map: film ? null : this.kieferMap(w, h),
+          color: sketchTint(M.base, on),
           polygonOffset: true,
           polygonOffsetFactor: 1,
           polygonOffsetUnits: 1,
@@ -419,38 +436,48 @@ export class ThreeEngine {
         this.group.add(mesh);
         const edges = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo),
-          new THREE.LineBasicMaterial({ color: on ? "#b2622d" : "#1a1a1a" })
+          new THREE.LineBasicMaterial({
+            color: film ? (on ? FILM_EDGE_SEL : FILM_EDGE) : on ? "#b2622d" : "#1a1a1a",
+          })
         );
         edges.position.copy(mesh.position);
         this.group.add(edges);
       } else {
-        // Realistic mode with plywood edge texture
-        let face: THREE.MeshStandardMaterial;
-        if (M.grain) {
-          const tx = this.woodTexture(M).clone();
-          tx.needsUpdate = true;
-          tx.repeat.set(Math.max(0.4, w * 1.6), Math.max(0.4, h * 1.6));
-          face = new THREE.MeshStandardMaterial({
-            map: tx, color: on ? "#ffb779" : "#ffffff", roughness: M.rough, metalness: 0.02,
+        const tint = on ? "#ffb779" : M.base;
+        let mesh: THREE.Mesh;
+        if (film) {
+          const wrap = new THREE.MeshStandardMaterial({
+            color: tint,
+            roughness: 0.36,
+            metalness: 0.04,
           });
+          mesh = new THREE.Mesh(geo, wrap);
         } else {
-          face = new THREE.MeshStandardMaterial({
-            color: on ? "#ffb779" : M.base, roughness: M.rough, metalness: 0.02,
+          const face = new THREE.MeshStandardMaterial({
+            map: this.kieferMap(w, h),
+            color: tint,
+            roughness: 0.68,
+            metalness: 0.02,
           });
+          const mkEdge = (rot: number, rw: number, rh: number) => {
+            const t2 = this.plyEdgeTexture().clone();
+            t2.needsUpdate = true;
+            t2.rotation = rot;
+            t2.center.set(0.5, 0.5);
+            t2.repeat.set(rw, rh);
+            return new THREE.MeshStandardMaterial({
+              map: t2,
+              color: tint,
+              roughness: 0.75,
+              metalness: 0.01,
+            });
+          };
+          const thin = w <= h && w <= d ? "x" : h <= d ? "y" : "z";
+          const px = thin === "x" ? face : mkEdge(Math.PI / 2, 1, Math.max(1, d * 34));
+          const py = thin === "y" ? face : mkEdge(0, Math.max(1, w * 34), 1);
+          const pz = thin === "z" ? face : mkEdge(Math.PI / 2, 1, Math.max(1, w * 34));
+          mesh = new THREE.Mesh(geo, [px, px, py, py, pz, pz]);
         }
-        const mkEdge = (rot: number, rw: number, rh: number) => {
-          const t2 = this.plyEdgeTexture().clone();
-          t2.needsUpdate = true; t2.rotation = rot; t2.center.set(0.5, 0.5);
-          t2.repeat.set(rw, rh);
-          return new THREE.MeshStandardMaterial({
-            map: t2, color: on ? "#ffb779" : "#ffffff", roughness: 0.75, metalness: 0.01,
-          });
-        };
-        const thin = w <= h && w <= d ? "x" : h <= d ? "y" : "z";
-        const px = thin === "x" ? face : mkEdge(Math.PI / 2, 1, Math.max(1, d * 34));
-        const py = thin === "y" ? face : mkEdge(0, Math.max(1, w * 34), 1);
-        const pz = thin === "z" ? face : mkEdge(Math.PI / 2, 1, Math.max(1, w * 34));
-        const mesh = new THREE.Mesh(geo, [px, px, py, py, pz, pz]);
         mesh.position.set(b.x / 1000, b.y / 1000, b.z / 1000);
         mesh.userData.id = b.id;
         mesh.castShadow = true;
@@ -458,7 +485,11 @@ export class ThreeEngine {
         this.group.add(mesh);
         const eg = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo),
-          new THREE.LineBasicMaterial({ color: M.edge, transparent: true, opacity: 0.35 })
+          new THREE.LineBasicMaterial({
+            color: film ? FILM_EDGE : M.edge,
+            transparent: true,
+            opacity: 0.35,
+          })
         );
         eg.position.copy(mesh.position);
         this.group.add(eg);
@@ -466,12 +497,14 @@ export class ThreeEngine {
     });
 
     // Selection handles (resize spheres + move arrows)
-    const sel = boards.find((b) => b.id === selId);
+    const sel = selIds.length === 1 ? boards.find((b) => b.id === selIds[0]) : undefined;
     if (sel) {
       const axes: ["w" | "h" | "d", "x" | "y" | "z", number][] = [
         ["w", "x", 1], ["w", "x", -1], ["h", "y", 1], ["h", "y", -1], ["d", "z", 1], ["d", "z", -1],
       ];
+      const locked = thinField(sel);
       axes.forEach(([dim, ax, sign]) => {
+        if (dim === locked) return;
         const handle = new THREE.Mesh(
           new THREE.SphereGeometry(0.026, 20, 14),
           new THREE.MeshBasicMaterial({ color: "#c67139", depthTest: false })
@@ -513,7 +546,7 @@ export class ThreeEngine {
     this.renderer.toneMapping = comic ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = comic ? 1 : 0.95;
 
-    if (showDims) this.addDims(boards, selId);
+    if (showDims) this.addDims(boards, selIds);
 
     this.draw();
   }
@@ -550,10 +583,10 @@ export class ThreeEngine {
   }
 
   private pick(e: PointerEvent) {
-    this.cb.onSelect(this.hitId(e));
+    this.cb.onSelect(this.hitId(e), e.shiftKey || e.ctrlKey || e.metaKey);
   }
 
-  private pickHandle(e: PointerEvent) {
+  private pickHandle(e: PointerEvent): any {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(this.ndc(e), this.cam);
     const hs = this.group.children.filter(
@@ -562,67 +595,60 @@ export class ThreeEngine {
     if (!hs.length) return null;
     const hit = ray.intersectObjects(hs, false)[0];
     if (!hit) return null;
-    const b = this.lastBoards.find((x) => x.id === this.lastSelId);
+    const primaryId = this.lastSelIds[this.lastSelIds.length - 1] ?? null;
+    const b = this.lastBoards.find((x) => x.id === primaryId);
     if (!b) return null;
     return {
-      h: (hit.object.userData.handle as { dim: "w" | "h" | "d"; ax: "x" | "y" | "z"; sign: number } | undefined) || null,
-      mv: (hit.object.userData.move as { ax: "x" | "y" | "z" } | undefined) || null,
+      h: hit.object.userData.handle || null,
+      mv: hit.object.userData.move || null,
       start: { ...b },
       sx: e.clientX,
       sy: e.clientY,
     };
   }
 
-  /** Inside Studio, only the selected window owns zoom/pan. Standalone has no `.win`. */
-  private viewportSelected(el: HTMLElement) {
-    const win = el.closest(".win");
-    return !win || win.classList.contains("is-selected");
-  }
-
   private bindPointer(dom: HTMLElement) {
-    let down: {
-      x: number; y: number; t: number; p: number; moved: number; pan: boolean; tgt: THREE.Vector3;
-    } | null = null;
-    const root = (dom.parentElement?.closest(".pw") as HTMLElement | null) ?? dom;
+    let down: any = null;
 
-    const onPointerDown = (e: PointerEvent) => {
-      if (!this.viewportSelected(dom)) return;
+    dom.addEventListener("pointerdown", (e) => {
       dom.setPointerCapture(e.pointerId);
+      if (e.button === 2) {
+        down = {
+          x: e.clientX, y: e.clientY,
+          t: this.orbit.theta, p: this.orbit.phi,
+          moved: 0, pan: false, ctx: true, tgt: this.orbit.target.clone(),
+        };
+        e.preventDefault();
+        return;
+      }
       const grab = this.pickHandle(e);
       if (grab) {
         this.drag = grab;
         dom.style.cursor = "ns-resize";
         return;
       }
-      const pan = e.button === 1 || e.button === 2 || e.shiftKey || e.metaKey;
+      const hit = this.hitId(e);
+      const pan = e.button === 1 || ((e.shiftKey || e.metaKey) && hit == null);
       down = {
         x: e.clientX, y: e.clientY,
         t: this.orbit.theta, p: this.orbit.phi,
-        moved: 0, pan, tgt: this.orbit.target.clone(),
+        moved: 0, pan, ctx: false, tgt: this.orbit.target.clone(),
       };
       dom.style.cursor = pan ? "move" : "grabbing";
       if (pan) e.preventDefault();
-    };
+    });
 
-    const onContextMenu = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
+    dom.addEventListener("pointermove", (e) => {
       if (this.drag) {
         this.handleDrag(e);
         return;
       }
       if (!down) {
-        if (this.viewportSelected(dom)) {
-          dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
-        } else {
-          dom.style.cursor = "default";
-        }
+        dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
         return;
       }
       down.moved = Math.max(down.moved, Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y));
+      if (down.ctx) return;
       if (down.pan) {
         const dx = e.clientX - down.x, dy = e.clientY - down.y;
         const scale = (this.orbit.r * 2 * Math.tan((this.cam.fov * Math.PI / 180) / 2)) / dom.clientHeight;
@@ -636,59 +662,48 @@ export class ThreeEngine {
       }
       this.orbit.theta = down.t - (e.clientX - down.x) * 0.008;
       this.orbit.phi = Math.min(1.6, Math.max(0.22, down.p - (e.clientY - down.y) * 0.006));
-    };
+    });
 
-    const onPointerUp = (e: PointerEvent) => {
+    dom.addEventListener("pointerup", (e) => {
       if (this.drag) {
-        this.finishDrag();
+        this.finishDrag(e);
         dom.style.cursor = "grab";
         return;
       }
       if (down && down.moved < 5) {
-        if (e.button === 0) this.pick(e);
+        const id = this.hitId(e);
+        const additive = e.ctrlKey || e.metaKey || e.shiftKey;
         if (e.button === 2) {
-          const id = this.hitId(e);
-          this.cb.onSelect(id);
+          const already = id != null && this.lastSelIds.includes(id);
+          if (!already) this.cb.onSelect(id, additive);
           this.cb.onContextMenu?.({ x: e.clientX, y: e.clientY, id });
+        } else {
+          this.cb.onSelect(id, additive);
         }
       }
       down = null;
       dom.style.cursor = "grab";
-    };
+    });
 
-    const onWheel = (e: WheelEvent) => {
-      if (!this.viewportSelected(dom)) return;
-      if ((e.target as HTMLElement).closest("input, textarea")) return;
+    dom.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      e.stopPropagation();
+    });
+
+    dom.addEventListener("wheel", (e) => {
+      e.preventDefault();
       this.orbit.r = Math.min(8, Math.max(1.4, this.orbit.r * (1 + Math.sign(e.deltaY) * 0.09)));
-    };
-
-    dom.addEventListener("pointerdown", onPointerDown);
-    dom.addEventListener("contextmenu", onContextMenu);
-    dom.addEventListener("pointermove", onPointerMove);
-    dom.addEventListener("pointerup", onPointerUp);
-    root.addEventListener("wheel", onWheel, { passive: false });
-
-    this.unbindPointer = () => {
-      dom.removeEventListener("pointerdown", onPointerDown);
-      dom.removeEventListener("contextmenu", onContextMenu);
-      dom.removeEventListener("pointermove", onPointerMove);
-      dom.removeEventListener("pointerup", onPointerUp);
-      root.removeEventListener("wheel", onWheel);
-    };
+    }, { passive: false });
   }
 
   private handleDrag(e: PointerEvent) {
     const d = this.drag;
-    if (!d) return;
     const b = d.start;
     const rect = this.renderer.domElement.getBoundingClientRect();
     const toPx = (v: THREE.Vector3) => {
       const p = v.clone().project(this.cam);
       return new THREE.Vector2(((p.x + 1) / 2) * rect.width, ((1 - p.y) / 2) * rect.height);
     };
-    const ax0 = d.h ? d.h.ax : d.mv!.ax;
+    const ax0 = d.h ? d.h.ax : d.mv.ax;
     const c = new THREE.Vector3(b.x / 1000, b.y / 1000, b.z / 1000);
     const axis = new THREE.Vector3(ax0 === "x" ? 1 : 0, ax0 === "y" ? 1 : 0, ax0 === "z" ? 1 : 0);
     const a = toPx(c.clone().add(axis.clone().multiplyScalar(0.1))).sub(toPx(c));
@@ -724,13 +739,16 @@ export class ThreeEngine {
           if (gap <= tolM && (!bestM || w < bestM.w)) bestM = { w, pos: p - s * half };
         }
       }
+      this.snapped = !!bestM;
       if (bestM) pos = Math.round(bestM.pos);
       this.cb.onMoveBoard(b.id, ax0 as "x" | "y" | "z", pos);
-    } else if (d.h) {
-      // Resize
+    } else {
+      // Resize — stock thickness is global, not dragged per part
+      if (d.h.dim === thinField(b)) return;
+      const minFace = 40;
       const delta = Math.round(move.dot(dirn) * mmPerPx) * d.h.sign;
-      const fixed = b[d.h.ax] - (d.h.sign * b[d.h.dim]) / 2;
-      let face = fixed + d.h.sign * Math.max(T, b[d.h.dim] + delta);
+      const fixed = b[d.h.ax as "x" | "y" | "z"] - (d.h.sign * b[d.h.dim as "w" | "h" | "d"]) / 2;
+      let face = fixed + d.h.sign * Math.max(minFace, b[d.h.dim as "w" | "h" | "d"] + delta);
       // Snap
       const dimOf = dimOfAx[d.h.ax];
       const tol = Math.max(14, Math.round(16 * mmPerPx));
@@ -738,50 +756,38 @@ export class ThreeEngine {
       for (const o of this.lastBoards) {
         if (o.id === b.id || !crossOverlap(b, o, d.h.ax)) continue;
         for (const p of [
-          o[d.h.ax] - o[dimOf] / 2,
-          o[d.h.ax] + o[dimOf] / 2,
+          o[d.h.ax as "x" | "y" | "z"] - o[dimOf] / 2,
+          o[d.h.ax as "x" | "y" | "z"] + o[dimOf] / 2,
         ]) {
           const gap = Math.abs(p - face);
           if (gap <= tol && (!best || gap < best.gap)) best = { p, gap };
         }
       }
+      this.snapped = !!best;
       if (best) face = best.p;
-      const size = Math.max(T, (face - fixed) * d.h.sign);
-      const shift = ((size - b[d.h.dim]) * d.h.sign) / 2;
-      this.cb.onResizeBoard(b.id, d.h.dim, size);
+      const size = Math.max(minFace, (face - fixed) * d.h.sign);
+      const shift = ((size - b[d.h.dim as "w" | "h" | "d"]) * d.h.sign) / 2;
+      this.cb.onResizeBoard(b.id, d.h.dim as "w" | "h" | "d", size);
       this.cb.onMoveBoard(
         b.id,
-        d.h.ax,
-        Math.round(b[d.h.ax] + shift)
+        d.h.ax as "x" | "y" | "z",
+        Math.round(b[d.h.ax as "x" | "y" | "z"] + shift)
       );
     }
   }
 
-  private finishDrag() {
+  private finishDrag(_e: PointerEvent) {
     const d0 = this.drag;
     this.drag = null;
-    if (!d0) return;
-    const start = d0.start;
     // Contact snap on release for moves
     if (d0.mv) {
-      const now = this.lastBoards.find((x) => x.id === start.id);
+      const now = this.lastBoards.find((x) => x.id === d0.start.id);
       if (now) {
-        const p = contactSnap(this.lastBoards, now, d0.mv.ax, now[d0.mv.ax]);
-        if (p !== null && p !== now[d0.mv.ax]) {
+        const p = contactSnap(this.lastBoards, now, d0.mv.ax, now[d0.mv.ax as "x" | "y" | "z"]);
+        if (p !== null && p !== now[d0.mv.ax as "x" | "y" | "z"]) {
           this.cb.onMoveBoard(now.id, d0.mv.ax, p);
         }
       }
     }
-    const now = this.lastBoards.find((x) => x.id === start.id);
-    if (!now) return;
-    const changed =
-      now.x !== start.x || now.y !== start.y || now.z !== start.z ||
-      now.w !== start.w || now.h !== start.h || now.d !== start.d;
-    if (!changed) return;
-    const before = this.lastBoards.map((b) => (b.id === start.id ? { ...start } : { ...b }));
-    const msg = d0.mv
-      ? `↔ ${start.name}`
-      : `⤢ ${start.name} · ${d0.h!.dim.toUpperCase()} ${Math.round(now[d0.h!.dim])}`;
-    this.cb.onCommit(msg, before);
   }
 }
