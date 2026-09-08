@@ -5,6 +5,7 @@ import {
   partsSnapshotFromRegistry,
   resolvePartByNr,
 } from '../metadata/partRegistry.js'
+import { partsApi } from '../../api.js'
 
 export function useChat(state, { pushMessage, FIELD_LABELS, showPartByNr, onMetadataModified, markModifiedPart, getPartRegistry }) {
   function registry() {
@@ -28,7 +29,7 @@ export function useChat(state, { pushMessage, FIELD_LABELS, showPartByNr, onMeta
   async function fetchChatIntent(text) {
     // WAITING BFF: POST /api/chat — Simple Parts Flask stand-in; the UI should call the Platform BFF
     // WAITING MODEL: Claude parses show_part / modify / bulk_modify; our structuring model should own that
-    const res = await fetch('/api/chat', {
+    const res = await fetch(partsApi('/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

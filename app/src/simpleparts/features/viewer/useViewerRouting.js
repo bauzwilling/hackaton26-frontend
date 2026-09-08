@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed } from '../../reactivity.js'
 
 /**
  * Derive which viewer surface to show (dxf-vuer vs threejs).
@@ -31,7 +31,7 @@ export function useViewerRouting(state) {
       && Boolean(state.previewNotice.value),
   )
 
-  /** @type {import('vue').ComputedRef<'nestingMesh' | 'inputMesh' | 'notice' | 'empty'>} */
+  /** @type {import('../../reactivity.js').ComputedRef<'nestingMesh' | 'inputMesh' | 'notice' | 'empty'>} */
   const activeViewer = computed(() => {
     if (showNestingMeshView.value) return 'nestingMesh'
     if (showMeshPreview.value) return 'inputMesh'

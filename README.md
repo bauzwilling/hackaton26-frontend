@@ -33,7 +33,7 @@ npm run dev
 
 Sign in with any password. Example: `lena@frischeis.example`.
 
-Plyworks is a native Three.js configurator in the Studio window (`/?app=plyworks`), not an iframe. Figtree is loaded only for that app. Boxouts and Simple Parts are unchanged.
+BoxOut, Simple Parts, and Plyworks now mount as native React modules in Studio rather than separate frontend iframes. Only Plyworks is allowed to compute in the browser (boundary-plan §3); BoxOut and Simple Parts still drive their standalone Flask apps as a temporary stand-in until the Platform BFF exists, and those call sites are marked `WAITING BFF`.
 
 ## Layout
 
@@ -45,6 +45,8 @@ app/                 Vite web app
     context/         Session and workspace state
     lib/             Auth, catalog, templates, concierge client
     pages/           Login and in-window apps
+    boxouts/         Native Door Box Out module
+    simpleparts/     Native Simple Parts module
     plyworks/        Native plywood configurator (Three.js, not an iframe)
     styles/          Theme and layout CSS
 server.py            Local FastAPI bridge to Claude

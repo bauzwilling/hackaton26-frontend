@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed } from '../../reactivity.js'
 
 export function useMetadataPanel(state) {
   const viewerClickForProperties = computed(

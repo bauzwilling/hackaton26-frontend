@@ -1,4 +1,4 @@
-import { computed, watch } from 'vue'
+import { computed, watch } from '../reactivity.js'
 import { createAppState, METADATA_MODIFIED_NEST_PROMPT, normalizeMaterialsCatalog, sheetDefaultsForMaterial, sheetFitsMaterial } from './shared/createAppState.js'
 import { createMessaging, safeFilename } from './shared/curveHelpers.js'
 import { useChat } from './chat/useChat.js'
@@ -37,6 +37,7 @@ import { useViewerRouting } from './viewer/useViewerRouting.js'
 import { buildPool } from './thinking/thinkingMessages.js'
 import { createThinkingRotator } from './thinking/createThinkingRotator.js'
 import { createThinkingChat } from './thinking/createThinkingChat.js'
+import { partsApi } from '../api.js'
 import {
   buildLeftoverNestFingerprint,
   buildNestFingerprint,
@@ -66,7 +67,7 @@ function buildLeftoverCompleteMessage(nestedCount, previouslyUnassignedCount) {
 async function fetchJobDxfText(jobId) {
   if (!jobId) return ''
   // WAITING BFF: GET /api/jobs/:id/download/preview — Simple Parts Flask stand-in
-  const res = await fetch(`/api/jobs/${jobId}/download/preview`)
+  const res = await fetch(partsApi(`/jobs/${jobId}/download/preview`))
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new Error(errBody.error || 'Failed to load nesting DXF')
@@ -171,7 +172,7 @@ export function useApp() {
   async function loadMaterialsCatalog() {
     try {
       // WAITING BFF: GET /api/materials — Simple Parts Flask stand-in; the UI should call the Platform BFF
-      const res = await fetch('/api/materials')
+      const res = await fetch(partsApi('/materials'))
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       state.materials.value = normalizeMaterialsCatalog(data)
@@ -1063,7 +1064,7 @@ export function useApp() {
 
     try {
       // WAITING BFF: POST /api/jobs/:id/nest-unassigned — Simple Parts Flask stand-in
-      const response = await fetch(`/api/jobs/${primaryJobId}/nest-unassigned`, {
+      const response = await fetch(partsApi(`/jobs/${primaryJobId}/nest-unassigned`), {
         method: 'POST',
         body: formData,
         signal,
@@ -1436,7 +1437,7 @@ export function useApp() {
       }
     }
     // WAITING BFF: POST /api/hops/solve — Simple Parts Flask stand-in; the UI should call the Platform BFF
-    const res = await fetch('/api/hops/solve', {
+    const res = await fetch(partsApi('/hops/solve'), {
       method: 'POST',
       body: formData,
       signal,

@@ -1,1 +1,2 @@
-// Simple Parts Vue source lives in this folder. Studio still mounts pages/Parts.tsx (iframe).
+export { SimplePartsPage } from "./SimplePartsPage";
+export type { ChatMessage, MaterialOption, MetadataOverrides } from "./types";

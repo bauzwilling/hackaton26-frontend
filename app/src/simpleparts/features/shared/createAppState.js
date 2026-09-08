@@ -1,5 +1,5 @@
-import { computed, ref } from 'vue'
-import { parseDxf } from 'dxf-vuer'
+import { computed, ref } from '../../reactivity.js'
+import { parseDxf } from 'dxf-render'
 
 export const FIELD_LABELS = { nr: 'Name', mat: 'Material', anz: 'Amount' }
 
@@ -120,7 +120,7 @@ export function createAppState() {
   const hasShownGreenHint = ref(false)
   const dxfInterpreted = ref(false)
   const sourceType = ref('dxf')
-  /** @type {import('vue').Ref<'2d' | '3d' | null>} */
+  /** @type {import('../../reactivity.js').Ref<'2d' | '3d' | null>} */
   const geometryMode = ref(null)
   const scanPageImages = ref([])
   const scanParts = ref([])
@@ -149,13 +149,13 @@ export function createAppState() {
   const activeMaterialConfirmId = ref(null)
   /** Active leftover same-vs-different material confirm bubble. */
   const activeLeftoverMaterialReuseId = ref(null)
-  /** @type {import('vue').Ref<Array<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> }>>} */
+  /** @type {import('../../reactivity.js').Ref<Array<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> }>>} */
   const materials = ref([])
-  /** @type {import('vue').Ref<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> } | null>} */
+  /** @type {import('../../reactivity.js').Ref<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> } | null>} */
   const pendingSheetMaterial = ref(null)
-  /** @type {import('vue').Ref<{ sheetX: number, sheetY: number, sheetThickness: number } | null>} */
+  /** @type {import('../../reactivity.js').Ref<{ sheetX: number, sheetY: number, sheetThickness: number } | null>} */
   const pendingLeftoverSheetSize = ref(null)
-  /** @type {import('vue').Ref<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> } | null>} */
+  /** @type {import('../../reactivity.js').Ref<{ id: string, label: string, allowedThicknessesMm: number[], allowedSizesMm: Array<{ x: number, y: number }> } | null>} */
   const pendingLeftoverSheetMaterial = ref(null)
   /** Groups chat bubbles for the initial nesting flow. */
   const initialNestProcessId = ref(null)
@@ -167,9 +167,9 @@ export function createAppState() {
   const fullSetNestProcessId = ref(null)
   const sheetSizeModifiedSinceNest = ref(false)
   const metadataModifiedSinceNest = ref(false)
-  /** @type {import('vue').Ref<null | 'initial' | 'leftover'>} Interrupted nest reveal; Continue reattaches. */
+  /** @type {import('../../reactivity.js').Ref<null | 'initial' | 'leftover'>} Interrupted nest reveal; Continue reattaches. */
   const nestRevealPaused = ref(null)
-  /** @type {import('vue').Ref<null | 'initial' | 'leftover'>} Live nest thinking turn (Stop afforded). */
+  /** @type {import('../../reactivity.js').Ref<null | 'initial' | 'leftover'>} Live nest thinking turn (Stop afforded). */
   const nestRevealLive = ref(null)
   const postNestMetadataEditing = ref(false)
   const nestingViewerKey = ref(0)
@@ -178,7 +178,7 @@ export function createAppState() {
   const inputPreviewPostInjectionNames = ref(null)
   const inputPreviewPostInjectionAmount = ref(null)
   const inputPreviewAnnotationDxf = ref(null)
-  /** @type {import('vue').Ref<Array<{ nr?: string, mat?: string, anz?: string }> | null>} */
+  /** @type {import('../../reactivity.js').Ref<Array<{ nr?: string, mat?: string, anz?: string }> | null>} */
   const meshDescriptorBaseMeta = ref(null)
   /** Last GH GeometryMode output (0 = flat pipeline, 1 = solid pipeline). */
   const lastHopsGeometryMode = ref(null)

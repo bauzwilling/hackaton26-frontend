@@ -6,6 +6,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   // TODO: point /api/app at the deployed BoxOut backend, not local Flask on :5000
   const boxoutBackend = env.VITE_BOXOUT_BACKEND_URL || 'http://127.0.0.1:5000'
+  // WAITING BFF: dev-only proxy to the Simple Parts Flask stand-in; boundary-plan §3 routes the UI through the Platform BFF instead, so this rule is removed with the mock.
+  const simplePartsBackend = env.VITE_SIMPLEPARTS_BACKEND_URL || 'http://127.0.0.1:5001'
 
   return {
     plugins: [react()],
@@ -15,6 +17,11 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        '/api/parts': {
+          target: simplePartsBackend,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/parts/, ''),
+        },
         '/api/app': {
           target: boxoutBackend,
           changeOrigin: true,

@@ -1,4 +1,4 @@
-const MAX_THINKING_LINES = 4
+const MAX_THINKING_LINES = 12
 
 /**
  * @param {number} durationMs
