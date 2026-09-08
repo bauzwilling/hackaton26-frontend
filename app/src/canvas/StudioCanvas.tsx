@@ -486,6 +486,7 @@ export function StudioCanvas() {
   return (
     <div
       className={`studio-layer${panning ? " is-panning" : ""}${marquee ? " is-marquee" : ""}`}
+      data-help="studio-canvas"
       ref={layer}
       tabIndex={0}
       style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
@@ -524,6 +525,7 @@ export function StudioCanvas() {
           return (
             <Window
               key={n.id}
+              nodeId={n.id}
               title={n.title}
               code={n.code}
               z={n.z}

@@ -4,6 +4,7 @@ import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
+import { tryHelpAsk, type HelpTopicId } from "../lib/help";
 import { useSession } from "./session";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
@@ -54,6 +55,7 @@ export type RequestEntry = {
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
+  helpTopics?: HelpTopicId[];
   pending?: boolean;
 };
 
@@ -137,7 +139,9 @@ type Ctx = {
   ingestFiles: (files: File[]) => void;
   confirmIntake: (entryId: string, app: WorkspaceApp) => void;
   restoreEntry: (entryId: string, viewport?: { width: number; height: number }) => void;
-  focusTargets: (ids: string[], viewport: { width: number; height: number }) => void;
+  focusTargets: (ids: string[], viewport: { width: number; height: number }, opts?: { maxZoom?: number }) => void;
+  ensureConcierge: () => string;
+  appendConciergeTurn: (query: string, reply: string, extras?: Partial<RequestEntry>) => string;
   focus: (id: string) => void;
   move: (id: string, x: number, y: number) => void;
   fit: (id: string, w: number, h: number) => void;
@@ -631,6 +635,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
     if (!q) return;
+    if (tryHelpAsk(q)) return;
     const conciergeId = ensureConcierge();
     const entryId = uid("e");
     const history = entriesRef.current
@@ -815,7 +820,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }));
   }, [openApp, ensureConcierge, session]);
 
-  const focusTargets = useCallback((ids: string[], viewport: { width: number; height: number }) => {
+  const appendConciergeTurn = useCallback((query: string, reply: string, extras?: Partial<RequestEntry>) => {
+    const conciergeId = ensureConcierge();
+    const entryId = extras?.id ?? uid("e");
+    const entry: RequestEntry = {
+      id: entryId,
+      at: Date.now(),
+      query,
+      routeLabel: extras?.routeLabel ?? "Concierge",
+      routeWhy: extras?.routeWhy ?? reply,
+      targetIds: extras?.targetIds ?? [conciergeId],
+      result: extras?.result ?? "text",
+      reply,
+      appId: extras?.appId,
+      design: extras?.design,
+      choices: extras?.choices,
+      helpTopics: extras?.helpTopics,
+      confirmApps: extras?.confirmApps,
+      pending: extras?.pending,
+    };
+    setEntries((list) => [...list, entry]);
+    setSelectedEntryId(entryId);
+    return entryId;
+  }, [ensureConcierge]);
+
+  const focusTargets = useCallback((ids: string[], viewport: { width: number; height: number }, opts?: { maxZoom?: number }) => {
     const live = nodesRef.current.filter((n) => ids.includes(n.id));
     if (!live.length) return;
     zTop.current += live.length;
@@ -832,7 +861,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const bw = Math.max(120, maxX - minX);
     const bh = Math.max(80, maxY - minY);
     const pad = 64;
-    const nextZoom = Math.min(FIT_ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
+    const cap = opts?.maxZoom ?? FIT_ZOOM_MAX;
+    const nextZoom = Math.min(cap, Math.max(ZOOM_MIN, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
     setZoom(nextZoom);
     setPan({
       x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
@@ -1038,6 +1068,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     confirmIntake,
     restoreEntry,
     focusTargets,
+    ensureConcierge,
+    appendConciergeTurn,
     focus,
     move,
     fit,
@@ -1051,7 +1083,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, focus, move, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, move, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

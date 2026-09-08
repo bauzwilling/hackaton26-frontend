@@ -7,6 +7,7 @@ import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyw
 import { ProjectsPage } from "../pages/Projects";
 import { RequestLog } from "./RequestLog";
 import { ConciergeChat } from "./Concierge";
+import { useHelpOptional } from "../context/help";
 
 function NotePanel({ node }: { node: WorkspaceNode }) {
   const { setNodeBody } = useWorkspace();
@@ -37,6 +38,7 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 }
 
 export const NodeBody = memo(function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
+  const help = useHelpOptional();
   if (node.kind === "log") return <RequestLog viewport={viewport} />;
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;
@@ -46,7 +48,11 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
   if (node.kind === "app") {
     if (node.appId === "boxouts") return <BoxoutsPage />;
     if (node.appId === "simpleparts") return <PartsPage />;
-    if (node.appId === "plyworks") return <PlyworksPage design={node.design} />;
+    if (node.appId === "plyworks") {
+      const bridged = help?.topic === "plyworks" && (help.phase === "iframe" || help.phase === "touring")
+        && (!help.appNodeId || help.appNodeId === node.id);
+      return <PlyworksPage design={node.design} helpBridge={bridged} />;
+    }
     if (node.appId === "plyworks-jw") {
       return <PlyworksJwPage jobId={node.query} />;
     }
