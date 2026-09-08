@@ -3,7 +3,6 @@
  * API base and poll interval come from VITE_* env (see lib/env.js).
  */
 
-import { markRaw } from 'vue'
 import rhino3dm from 'rhino3dm/rhino3dm.module.js'
 import rhino3dmWasm from 'rhino3dm/rhino3dm.wasm?url'
 
@@ -154,7 +153,7 @@ export function processSolveSnapshot(snapshot, acc) {
     if (cache.has(index) || !entry?.geometryPayload) continue
 
     const { doc, geometryCount } = createDocFromGhResponse(entry.geometryPayload)
-    cache.set(index, markRaw(doc))
+    cache.set(index, doc)
     addedGeometry += geometryCount
     if (entry.warnings?.length) {
       warnings.push(...entry.warnings.map((w) => `Row ${index + 1}: ${w}`))
@@ -293,5 +292,5 @@ export function createDocFromGhResponse(res) {
     }
   }
 
-  return { doc: markRaw(doc), geometryCount }
+  return { doc, geometryCount }
 }

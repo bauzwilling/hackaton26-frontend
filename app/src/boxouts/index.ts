@@ -1,1 +1,2 @@
-// Door Box Out Vue source lives in this folder. Studio still mounts pages/Boxouts.tsx (iframe).
+export { BoxoutsPage } from "./BoxoutsPage";
+export type { BoxParam, InputLists, SolveState } from "./types";

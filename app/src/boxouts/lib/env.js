@@ -3,6 +3,7 @@
  */
 
 /** API base path or URL for Flask routes (e.g. /api/app) */
+// TODO: point chat/CSV/solve at the deployed BoxOut API, not local Flask on :5000
 // WAITING BFF: this base is the Door Box-Out Flask stand-in; the UI should call the Platform BFF
 export function getApiBase() {
   const base = import.meta.env.VITE_API_BASE

@@ -1,28 +1,24 @@
 # Door Box Out
 
-Vue source from `boxout-front`, parked here the same way Plyworks lives under `app/src/plyworks/`. Studio still opens Door Box Out as an iframe (`pages/Boxouts.tsx`) until this module is mounted natively.
-
-Do not import these files from React yet. They need Vue, D3, ExcelJS, and rhino3dm, which are not on the host app.
+Native React Door Box Out module mounted directly inside Studio. It keeps the standalone app's chat, CSV/Excel/image intake, table editing, D3 plot, Grasshopper solve polling, rhino3dm/Three.js viewer, nesting counts and nesting preview.
 
 ## Layout
 
 ```
 boxouts/
-  BoxoutsApp.vue           Root conductor (chat, table, solve, viewer)
-  boxouts.css              App styles
-  components/              Sidebar, CSV table, D3 plot, 3D viewer, nesting
+  BoxoutsPage.tsx          React conductor (chat, table, solve, viewer)
+  types.ts                 Shared state and input types
+  boxouts.css              Original palette and responsive rules
+  boxouts-react.css        Native component layout and styles
+  components/              React chat, table, D3 plot, 3D viewer, nesting
   lib/                     CSV parse, solve client, Three.js scene, env
   README.md
 ```
 
-`lib/` is the `boxout-front/src/scripts/` folder. Imports are relative (no `@/` alias).
+`lib/` remains framework-neutral. `viewerScene.js` is the imperative Three.js engine; `Viewer3D.tsx` owns its React lifecycle.
 
-## Not copied
+## Backend
 
-- `main.js` / `index.html` — host already has `app/src/main.tsx`
-- Vite Vue plugin and `/api/app` proxy — host Vite is React-only today
-- Flask backend (`boxout-back`) — stays a separate service
+During local development, Vite proxies `/api/app` to `VITE_BOXOUT_BACKEND_URL` (default `http://127.0.0.1:5000`) and strips `/api/app`. The Flask backend remains a separate service.
 
-## Mount (later)
-
-Point `pages/Boxouts.tsx` at this module instead of `VITE_BOXOUT_URL`. Until then, `/?app=boxouts` still loads the iframe.
+The direct Flask/AI contracts are temporary and marked `WAITING BFF` / `WAITING MODEL`.
