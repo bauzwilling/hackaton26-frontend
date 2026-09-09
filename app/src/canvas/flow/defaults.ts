@@ -24,7 +24,7 @@ export const flowInteraction = {
   maxZoom: ZOOM_MAX,
   panOnDrag: [1, 2] as number[],
   panOnScroll: false,
-  /** Wheel zoom is handled by useSmoothWheelZoom for a lerped feel. */
+  /** Wheel zoom is handled by useFineWheelZoom (ZOOM_WHEEL_MULTIPLIER). */
   zoomOnScroll: false,
   zoomOnPinch: true,
   zoomOnDoubleClick: false,
