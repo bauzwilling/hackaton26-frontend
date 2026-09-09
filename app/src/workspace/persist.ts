@@ -48,6 +48,7 @@ export function loadWorkspacePersist(email: string): WorkspacePersist | null {
     if (!Array.isArray(data.nodes)) return null;
     const viewport = data.viewport
       ?? { x: data.pan?.x ?? 0, y: data.pan?.y ?? 0, zoom: data.zoom ?? 1 };
+    // Legacy `edges` were mixed system wires — never hydrate them; system edges stay derived.
     const userEdges = Array.isArray(data.userEdges) ? data.userEdges.filter(isUserEdge) : [];
     return {
       nodes: data.nodes,

@@ -96,19 +96,22 @@ export function toFlowNode(
   };
 }
 
-function boxOf(n: StudioFlowNode) {
+function boxOfWorkspace(n: WorkspaceNode) {
   return {
-    x: n.position.x,
-    y: n.position.y,
-    w: n.measured?.width ?? n.width ?? (n.data.kind === "note" ? 240 : 340),
-    h: n.measured?.height ?? n.height ?? 160,
+    x: n.x,
+    y: n.y,
+    w: n.w || (n.kind === "note" ? 240 : 340),
+    h: n.h || 160,
   };
 }
 
-export function toSystemFlowEdge(edge: SystemEdge, nodes: StudioFlowNode[]): Edge {
+/** Prefer workspace layout for handles so drag frames do not rebuild system edges. */
+export function toSystemFlowEdge(edge: SystemEdge, nodes: WorkspaceNode[]): Edge {
   const from = nodes.find((n) => n.id === edge.from);
   const to = nodes.find((n) => n.id === edge.to);
-  const handles = from && to ? pickHandles(boxOf(from), boxOf(to)) : { sourceHandle: "r", targetHandle: "l" };
+  const handles = from && to
+    ? pickHandles(boxOfWorkspace(from), boxOfWorkspace(to))
+    : { sourceHandle: "r", targetHandle: "l" };
   return {
     id: edge.id,
     source: edge.from,
@@ -123,6 +126,7 @@ export function toSystemFlowEdge(edge: SystemEdge, nodes: StudioFlowNode[]): Edg
     data: { hot: !!edge.hot },
   };
 }
+
 
 export function toUserFlowEdge(edge: UserEdge): Edge {
   return {

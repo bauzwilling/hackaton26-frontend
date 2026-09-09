@@ -5,7 +5,6 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
-  addEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -61,7 +60,7 @@ function StudioBoardInner() {
   const hadConcierge = useRef<boolean | null>(null);
   const [conciergeEnter, setConciergeEnter] = useState(false);
   const [askMenu, setAskMenu] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
-  const [selMenu, setSelMenu] = useState<{ x: number; y: number } | null>(null);
+  const [selMenu, setSelMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
   const layer = useRef<HTMLDivElement>(null);
 
@@ -121,15 +120,31 @@ function StudioBoardInner() {
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
-    const sys = systemEdges.map((e) => toSystemFlowEdge(e, nodes));
+    const sys = systemEdges.map((e) => toSystemFlowEdge(e, workspaceNodes));
     const user = userEdges.map(toUserFlowEdge);
     return [...sys, ...user];
-  }, [showWires, systemEdges, userEdges, nodes]);
+  }, [showWires, systemEdges, userEdges, workspaceNodes]);
 
   useEffect(() => {
     setEdges((prev) => {
       const selected = new Set(prev.filter((e) => e.selected).map((e) => e.id));
-      return derivedEdges.map((e) => ({ ...e, selected: selected.has(e.id) }));
+      const next = derivedEdges.map((e) => ({ ...e, selected: selected.has(e.id) }));
+      if (
+        prev.length === next.length
+        && prev.every((e, i) => (
+          e.id === next[i].id
+          && e.source === next[i].source
+          && e.target === next[i].target
+          && e.sourceHandle === next[i].sourceHandle
+          && e.targetHandle === next[i].targetHandle
+          && e.type === next[i].type
+          && e.animated === next[i].animated
+          && e.selected === next[i].selected
+        ))
+      ) {
+        return prev;
+      }
+      return next;
     });
   }, [derivedEdges, setEdges]);
 
@@ -170,8 +185,9 @@ function StudioBoardInner() {
   }, [measureHost]);
 
   const selectedNodes = nodes.filter((n) => n.selected);
-  const selectedWorkspace = selectedNodes
-    .map((n) => workspaceNodes.find((w) => w.id === n.id))
+  const menuIds = selMenu?.ids ?? selectedNodes.map((n) => n.id);
+  const selectedWorkspace = menuIds
+    .map((id) => workspaceNodes.find((w) => w.id === id))
     .filter((n): n is WorkspaceNode => !!n);
 
   const onConnect = useCallback((c: Connection) => {
@@ -183,8 +199,7 @@ function StudioBoardInner() {
       sourceHandle: c.sourceHandle ?? undefined,
       targetHandle: c.targetHandle ?? undefined,
     });
-    setEdges((eds) => addEdge({ ...c, type: "user" }, eds));
-  }, [addUserEdge, setEdges]);
+  }, [addUserEdge]);
 
   const onBeforeDelete: OnBeforeDelete<StudioFlowNode, Edge> = useCallback(async ({ nodes: gone, edges: goneEdges }) => {
     return {
@@ -257,15 +272,21 @@ function StudioBoardInner() {
     });
   }, [measureHost, screenToFlowPosition]);
 
-  const onNodeContextMenu = useCallback((e: ReactMouseEvent, _node: StudioFlowNode) => {
+  const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
     e.preventDefault();
-    if (!selectedNodes.length) return;
+    e.stopPropagation();
+    setAskMenu(null);
+    const ids = node.selected
+      ? nodes.filter((n) => n.selected).map((n) => n.id)
+      : [node.id];
+    if (!node.selected) {
+      setNodes((list) => list.map((n) => ({ ...n, selected: n.id === node.id })));
+    }
     measureHost();
     const box = layer.current?.getBoundingClientRect();
     if (!box) return;
-    setAskMenu(null);
-    setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top });
-  }, [measureHost, selectedNodes.length]);
+    setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top, ids });
+  }, [measureHost, nodes, setNodes]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
