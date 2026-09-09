@@ -18,6 +18,7 @@ import config
 
 KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
 KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
+KNOWN_KINDS = ("info", "open", "close", "get", "set", "clarify", "deny")
 
 
 def load_prompt_from_file(filename: str, marker: str) -> str:
@@ -128,6 +129,30 @@ def _normalize_confirm_apps(raw: Any, available_apps: List[str]) -> Optional[Lis
     return out or None
 
 
+def _normalize_kind(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    kind = str(raw).strip().lower()
+    if not kind or kind in ("null", "none"):
+        return None
+    return kind if kind in KNOWN_KINDS else None
+
+
+def _infer_kind(
+    kind: Optional[str],
+    app: Optional[str],
+    choices: Optional[List[str]],
+    confirm_apps: Optional[List[str]],
+) -> str:
+    if kind:
+        return kind
+    if confirm_apps or choices:
+        return "clarify"
+    if app:
+        return "open"
+    return "info"
+
+
 def route_message(
     user_message: str,
     history: List[Dict[str, str]] | None = None,
@@ -171,7 +196,9 @@ def route_message(
         if app is not None:
             choices = None
         confirm_apps = None
+    kind = _infer_kind(_normalize_kind(data.get("kind")), app, choices, confirm_apps)
     return {
+        "kind": kind,
         "reply": reply,
         "app": app,
         "design": design,

@@ -14,7 +14,8 @@
  *   POST /api/chats/{chatId}/attachments
  *   POST /api/actions/{actionId}/accept | dismiss
  *
- * The `{ reply, app, design, choices, confirmApps }` shape below is NOT the product contract.
+ * The `{ kind, reply, app, design, choices, confirmApps }` shape below is NOT the product contract.
+ * `kind` is additive labeling only until BFF SuggestedAction owns outcomes.
  * The BFF owns SuggestedAction (`actionId`, `type` such as `mill.start`, `label`), and a
  * proposal starts nothing until the user accepts it. Nothing outside this file
  * should learn the transport, so keep callers on askConcierge().
@@ -25,8 +26,13 @@ export type ConciergeTurn = { role: "user" | "assistant"; content: string };
 export const PLYWORKS_DESIGNS = ["shelf", "table", "stool", "bench"] as const;
 export type PlyworksDesign = (typeof PLYWORKS_DESIGNS)[number];
 
+/** Additive intent label — does not drive side effects yet (WAITING MODEL / BFF actions). */
+export const CONCIERGE_KINDS = ["info", "open", "close", "get", "set", "clarify", "deny"] as const;
+export type ConciergeKind = (typeof CONCIERGE_KINDS)[number];
+
 /** WAITING BFF: replaced by a streamed message plus BFF-owned SuggestedAction[]. */
 export type ConciergeResult = {
+  kind: ConciergeKind;
   reply: string;
   app: string | null;
   design: PlyworksDesign | null;
@@ -34,6 +40,25 @@ export type ConciergeResult = {
   /** Ambiguous app routing — UI shows chips; do not set together with `app`. */
   confirmApps: string[] | null;
 };
+
+function asKind(raw: unknown): ConciergeKind | null {
+  if (typeof raw !== "string") return null;
+  const id = raw.trim().toLowerCase();
+  return (CONCIERGE_KINDS as readonly string[]).includes(id) ? (id as ConciergeKind) : null;
+}
+
+/** Infer kind from routing fields when the model omits or invents one — keeps outcomes unchanged. */
+export function inferConciergeKind(result: {
+  kind?: ConciergeKind | null;
+  app: string | null;
+  choices: PlyworksDesign[] | null;
+  confirmApps: string[] | null;
+}): ConciergeKind {
+  if (result.kind) return result.kind;
+  if (result.confirmApps?.length || result.choices?.length) return "clarify";
+  if (result.app) return "open";
+  return "info";
+}
 
 function asDesign(raw: unknown): PlyworksDesign | null {
   if (typeof raw !== "string") return null;
@@ -88,6 +113,7 @@ export async function askConcierge(
     throw new Error(`Concierge request failed (${res.status})`);
   }
   const data = (await res.json()) as {
+    kind?: unknown;
     reply?: unknown;
     app?: unknown;
     design?: unknown;
@@ -115,5 +141,11 @@ export async function askConcierge(
     if (app) choices = null;
     confirmApps = null;
   }
-  return { reply, app, design, choices, confirmApps };
+  const kind = inferConciergeKind({
+    kind: asKind(data.kind),
+    app,
+    choices,
+    confirmApps,
+  });
+  return { kind, reply, app, design, choices, confirmApps };
 }

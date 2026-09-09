@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FIT_ZOOM_MAX, ZOOM_MIN, ZOOM_MAX } from "../canvas/flow/constants";
-import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
+import { askConcierge, inferConciergeKind, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
@@ -270,6 +270,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
         let confirmApps: WorkspaceApp[] | undefined;
+        // Additive only — do not branch open/confirm on kind.
+        const kind = result.kind ?? inferConciergeKind(result);
+        console.log(`kind: ${kind}`);
 
         if (confirm.length) {
           routeLabel = "Confirm";
@@ -297,6 +300,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           routeLabel,
           routeWhy,
           reply: result.reply,
+          kind,
           targetIds,
           design: result.design ?? undefined,
           choices: result.choices ?? undefined,
@@ -316,11 +320,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const confirmApps = (local.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         const choices = appId || confirmApps.length ? null : local.choices;
-        settle({
+        const routed = {
           app: confirmApps.length ? null : appId,
-          design: !confirmApps.length && appId === "plyworks" ? (local.design ?? "shelf") : null,
+          design: (!confirmApps.length && appId === "plyworks" ? (local.design ?? "shelf") : null) as PlyworksDesign | null,
           choices,
           confirmApps: confirmApps.length ? confirmApps : null,
+        };
+        settle({
+          kind: inferConciergeKind(routed),
+          ...routed,
           reply: confirmApps.length
             ? `That could be ${confirmApps.map(appLabel).join(" or ")}. Which should I send this to?`
             : appId
@@ -452,6 +460,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       design: extras?.design,
       choices: extras?.choices,
       helpTopics: extras?.helpTopics,
+      kind: extras?.kind,
       confirmApps: extras?.confirmApps,
       pending: extras?.pending,
     };
