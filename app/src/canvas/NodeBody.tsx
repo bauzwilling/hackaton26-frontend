@@ -37,7 +37,7 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
   );
 }
 
-export const NodeBody = memo(function NodeBody({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
+function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
   const help = useHelpOptional();
   const { openApp } = useWorkspace();
   const openDesign = useCallback((design: "shelf" | "table" | "stool" | "bench") => {
@@ -86,4 +86,22 @@ export const NodeBody = memo(function NodeBody({ node, viewport }: { node: Works
     }
   }
   return null;
-});
+}
+
+/** Ignore x/y/z/w/h so drag and auto-size do not remount embedded apps. */
+export const NodeBody = memo(NodeBodyImpl, (prev, next) => (
+  prev.viewport.width === next.viewport.width
+  && prev.viewport.height === next.viewport.height
+  && prev.node.id === next.node.id
+  && prev.node.kind === next.node.kind
+  && prev.node.appId === next.node.appId
+  && prev.node.body === next.node.body
+  && prev.node.query === next.node.query
+  && prev.node.design === next.node.design
+  && prev.node.title === next.node.title
+  && prev.node.code === next.node.code
+  && prev.node.parentId === next.node.parentId
+  && prev.node.routeLabel === next.node.routeLabel
+  && prev.node.routeWhy === next.node.routeWhy
+  && prev.node.confirmApps === next.node.confirmApps
+));

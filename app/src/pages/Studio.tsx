@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AskMenu } from "../canvas/AskMenu";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { Overview } from "../canvas/Overview";
-import { StudioCanvas } from "../canvas/StudioCanvas";
+import { StudioBoard } from "../canvas/StudioBoard";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
@@ -17,10 +16,8 @@ function isFileDrag(e: DragEvent) {
 
 export function StudioPage() {
   const { session } = useSession();
-  const { nodes, ask, openApp, announceOpen, ingestFiles, pan, zoom } = useWorkspace();
+  const { nodes, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
   const [params, setParams] = useSearchParams();
-  const [ctx, setCtx] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
-  const [host, setHost] = useState({ width: 1200, height: 700 });
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [dropping, setDropping] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -66,23 +63,6 @@ export function StudioPage() {
   const empty = nodes.length === 0;
   const conciergeUp = nodes.some((n) => n.id === CONCIERGE_ID && !n.hidden);
 
-  function onContext(e: MouseEvent<HTMLDivElement>) {
-    const t = e.target as HTMLElement;
-    if (t.closest("input, textarea, .overview, .request-log, .composer, .win-app, .help-fab, .help-card, .pan-hint")) return;
-    e.preventDefault();
-    if (root.current?.querySelector(".win.is-selected")) return;
-    const box = e.currentTarget.getBoundingClientRect();
-    setHost({ width: box.width, height: box.height });
-    setCtx({
-      x: e.clientX - box.left,
-      y: e.clientY - box.top,
-      world: {
-        x: (e.clientX - box.left - pan.x) / zoom,
-        y: (e.clientY - box.top - pan.y) / zoom,
-      },
-    });
-  }
-
   function onDragEnter(e: DragEvent<HTMLDivElement>) {
     if (!isFileDrag(e)) return;
     e.preventDefault();
@@ -119,13 +99,12 @@ export function StudioPage() {
       className={`studio${dropping ? " is-dropping" : ""}`}
       data-help="studio-drop"
       ref={root}
-      onContextMenu={onContext}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <StudioCanvas />
+      <StudioBoard />
       {!conciergeUp && (
         empty ? (
           <div className="hero-chat">
@@ -173,7 +152,6 @@ export function StudioPage() {
         </div>
       )}
       <Overview viewport={viewport} />
-      {ctx && <AskMenu at={ctx} host={host} world={ctx.world} onClose={() => setCtx(null)} />}
       <PanHint empty={empty} conciergeUp={conciergeUp} />
       <HelpFab />
     </div>
