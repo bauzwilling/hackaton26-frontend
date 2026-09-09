@@ -30,6 +30,7 @@ import { SelectionMenu } from "./SelectionMenu";
 import { defaultEdgeOptions, edgeTypes, flowInteraction, nodeTypes } from "./flow/defaults";
 import { GRID_GAP } from "./flow/constants";
 import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
+import { useSmoothWheelZoom } from "./flow/smoothZoom";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
 
 function StudioBoardInner() {
@@ -63,6 +64,11 @@ function StudioBoardInner() {
   const [selMenu, setSelMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
   const layer = useRef<HTMLDivElement>(null);
+
+  useSmoothWheelZoom(layer, {
+    minZoom: flowInteraction.minZoom,
+    maxZoom: flowInteraction.maxZoom,
+  });
 
   useEffect(() => {
     const has = workspaceNodes.some((n) => n.id === CONCIERGE_ID);
