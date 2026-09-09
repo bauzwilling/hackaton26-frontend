@@ -1,4 +1,4 @@
-import type { WorkspaceNode } from "../context/workspace";
+import type { WorkspaceNode } from "./document";
 import type { UserEdge } from "./topology";
 
 export type ViewportSnapshot = { x: number; y: number; zoom: number };

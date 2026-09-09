@@ -1,67 +1,71 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FIT_ZOOM_MAX, ZOOM_MIN, ZOOM_MAX } from "../canvas/flow/constants";
-import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
 import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
-import { tryHelpAsk, type HelpTopicId } from "../lib/help";
+import { tryHelpAsk } from "../lib/help";
 import { emptyPersist, loadWorkspacePersist, requestsKey, saveWorkspacePersist, type ViewportSnapshot } from "../workspace/persist";
 import { topology, type SystemEdge, type UserEdge } from "../workspace/topology";
+import {
+  CONCIERGE_ID,
+  FLASH_MS,
+  LOG_ID,
+  WORKSPACE_APPS,
+  appLabel,
+  canDeleteNode,
+  canDuplicateNode,
+  denyCopy,
+  entryIsLive,
+  entryOpenedApp,
+  entryWindowName,
+  isWorkspaceApp,
+  licensedApps,
+  loadEntries,
+  normalizeNode,
+  openable,
+  restrictedApps,
+  type NodeKind,
+  type RequestEntry,
+  type WorkspaceApp,
+  type WorkspaceEdge,
+  type WorkspaceNode,
+} from "../workspace/document";
+import {
+  addNoteNodes,
+  bumpZNode,
+  closeNode,
+  commitPositionNodes,
+  duplicateNodeCopies,
+  ensureConciergeNodes,
+  fitNode,
+  hideNode,
+  openAppNodes,
+  setLockedNodes,
+  setNodeBodyNodes,
+  tileNodes,
+  uid,
+  unrailConcierge,
+  withRail,
+} from "../workspace/commands";
 import { useSession } from "./session";
 
 export type { SystemEdge, UserEdge, ViewportSnapshot };
-export { ZOOM_MIN, ZOOM_MAX };
-
-export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
-
-export type WorkspaceNode = {
-  id: string;
-  kind: NodeKind;
-  title: string;
-  code: string;
-  appId?: WorkspaceApp;
-  query?: string;
-  body?: string;
-  parentId?: string;
-  routeLabel?: string;
-  routeWhy?: string;
-  confirmApps?: WorkspaceApp[];
-  design?: PlyworksDesign;
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-  h: number;
-  hidden: boolean;
-  autoSize?: boolean;
-  locked?: boolean;
-  /** Concierge only: keep me stacked under the request log until the user drags me off. */
-  railed?: boolean;
+export type { NodeKind, WorkspaceApp, WorkspaceNode, WorkspaceEdge, RequestEntry };
+export {
+  ZOOM_MIN,
+  ZOOM_MAX,
+  LOG_ID,
+  CONCIERGE_ID,
+  canDeleteNode,
+  canDuplicateNode,
+  WORKSPACE_APPS,
+  isWorkspaceApp,
+  appLabel,
+  entryOpenedApp,
+  entryWindowName,
+  entryIsLive,
 };
-
-export type WorkspaceEdge = { from: string; to: string; hot?: boolean };
-
-/** Session transcript. Later this is the API payload for a user chat thread. */
-export type RequestEntry = {
-  id: string;
-  at: number;
-  query: string;
-  routeLabel: string;
-  routeWhy: string;
-  targetIds: string[];
-  appId?: WorkspaceApp;
-  result: "app" | "text" | "denied";
-  reply?: string;
-  confirmApps?: WorkspaceApp[];
-  design?: PlyworksDesign;
-  choices?: PlyworksDesign[];
-  helpTopics?: HelpTopicId[];
-  pending?: boolean;
-};
-
-const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
 
 export type FitRequest = { ids: string[]; key: number; maxZoom?: number };
 
@@ -107,264 +111,6 @@ type Ctx = {
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
-
-export const LOG_ID = "request-log";
-export const CONCIERGE_ID = "concierge";
-
-export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
-  return n.kind === "app";
-}
-
-export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
-  return n.kind === "app" || n.kind === "note";
-}
-const RAIL_X = 20;
-const RAIL_W = 340;
-const LOG_W = 340;
-const APP_W = 1760;
-const IFRAME_H = 1040;
-const JW_SIZE = 1040;
-const NOTE_W = 240;
-const NOTE_H = 160;
-const FLASH_MS = 700;
-
-function isFixedSizeApp(app?: WorkspaceApp): boolean {
-  return app === "boxouts" || app === "simpleparts" || app === "plyworks" || app === "plyworks-jw" || app === "plyworks-nesting";
-}
-
-function appBox(app?: WorkspaceApp): { w: number; h: number } {
-  if (app === "plyworks-jw") return { w: JW_SIZE, h: JW_SIZE };
-  return { w: APP_W, h: IFRAME_H };
-}
-
-export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
-  { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
-  { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
-  { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
-  { id: "plyworks-jw", label: "Plyworks JointWiz", licensed: "plyworks" },
-  { id: "plyworks-nesting", label: "Plyworks nesting", licensed: "plyworks" },
-  { id: "projects", label: "Projects" },
-  { id: "orbit", label: "Orbit", perm: "orbit" },
-  { id: "admin", label: "Admin console", perm: "users", ready: false },
-];
-
-export function isWorkspaceApp(v: string): v is WorkspaceApp {
-  return WORKSPACE_APPS.some((a) => a.id === v);
-}
-
-function loadEntries(email: string): RequestEntry[] {
-  try {
-    const raw = localStorage.getItem(requestsKey(email));
-    if (!raw) return [];
-    const data = JSON.parse(raw) as RequestEntry[];
-    if (!Array.isArray(data)) return [];
-    return data.map(migrateEntry);
-  } catch {
-    return [];
-  }
-}
-
-function migrateEntry(e: RequestEntry): RequestEntry {
-  const mapped = (e.targetIds ?? []).map((id) => (id.startsWith("t-") ? CONCIERGE_ID : id));
-  const seen = new Set<string>();
-  const targetIds = mapped.filter((id) => {
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-  if ((e.result === "text" || !e.appId) && !targetIds.includes(CONCIERGE_ID)) {
-    targetIds.unshift(CONCIERGE_ID);
-  }
-  return {
-    ...e,
-    targetIds,
-    reply: e.pending ? "The request was interrupted. Try again." : (e.reply ?? e.routeWhy),
-    pending: false,
-  };
-}
-
-function uid(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
-}
-
-const GAP = 24;
-const EST_H: Record<NodeKind, number> = {
-  log: 280,
-  app: 640,
-  text: 200,
-  denied: 160,
-  request: 160,
-  menu: 200,
-  note: NOTE_H,
-};
-
-function boxOf(n: WorkspaceNode) {
-  return { x: n.x, y: n.y, w: n.w, h: Math.max(n.h, EST_H[n.kind] ?? 160) };
-}
-
-function hits(
-  a: { x: number; y: number; w: number; h: number },
-  b: { x: number; y: number; w: number; h: number },
-) {
-  return a.x < b.x + b.w + GAP && a.x + a.w + GAP > b.x && a.y < b.y + b.h + GAP && a.y + a.h + GAP > b.y;
-}
-
-function placeBeside(nodes: WorkspaceNode[], w: number, h: number, ignoreId?: string) {
-  const others = nodes.filter((n) => !n.hidden && n.id !== ignoreId).map(boxOf);
-  if (!others.length) return { x: 20, y: 20 };
-  const candidates: { x: number; y: number }[] = [];
-  for (const b of others) candidates.push({ x: b.x + b.w + GAP, y: b.y });
-  for (const b of others) candidates.push({ x: b.x, y: b.y + b.h + GAP });
-  const maxR = Math.max(...others.map((b) => b.x + b.w));
-  candidates.push({ x: maxR + GAP, y: 20 });
-  candidates.sort((a, b) => a.y - b.y || a.x - b.x);
-  for (const c of candidates) {
-    const rect = { x: Math.max(20, c.x), y: Math.max(20, c.y), w, h };
-    if (!others.some((b) => hits(rect, b))) return { x: rect.x, y: rect.y };
-  }
-  return { x: maxR + GAP, y: 20 };
-}
-
-function allowed(session: Session | null, app: WorkspaceApp) {
-  const meta = WORKSPACE_APPS.find((a) => a.id === app);
-  if (!meta) return false;
-  if (meta.licensed && !hasApp(session, meta.licensed)) return false;
-  if (meta.perm && !can(session, meta.perm)) return false;
-  return true;
-}
-
-/** License and role are not enough — an unbuilt app still must not open a window. */
-function openable(session: Session | null, app: WorkspaceApp) {
-  const meta = WORKSPACE_APPS.find((a) => a.id === app);
-  if (!meta || meta.ready === false) return false;
-  return allowed(session, app);
-}
-
-function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => a.id !== "plyworks-nesting" && a.id !== "plyworks-jw" && openable(session, a.id)).map((a) => a.id);
-}
-
-function restrictedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => !openable(session, a.id)).map((a) => a.id);
-}
-
-function denyCopy(session: Session | null, app: WorkspaceApp) {
-  const meta = WORKSPACE_APPS.find((a) => a.id === app);
-  const label = meta?.label ?? app;
-  if (meta?.ready === false) {
-    return { title: `${label} — not available`, body: `${label} is not available yet.` };
-  }
-  if (meta?.licensed && !hasApp(session, meta.licensed)) {
-    return {
-      title: `${label} — not licensed`,
-      body: session
-        ? `${label} is not on ${COMPANIES[session.company].name}'s plan.`
-        : `${label} is not available.`,
-    };
-  }
-  const body =
-    app === "orbit"
-      ? "CNC Orbit is only available to operators."
-      : app === "admin"
-        ? "The Admin console is only available to operators."
-        : `You do not have permission to open ${label}.`;
-  return { title: `${label} — no access`, body };
-}
-
-function logNode(): WorkspaceNode {
-  return {
-    id: LOG_ID,
-    kind: "log",
-    title: "Request log",
-    code: "LOG",
-    x: RAIL_X,
-    y: 20,
-    z: 8,
-    w: LOG_W,
-    h: EST_H.log,
-    hidden: false,
-    autoSize: true,
-  };
-}
-
-function normalizeNode(n: WorkspaceNode): WorkspaceNode {
-  const minW = n.kind === "note" ? 140 : 240;
-  const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
-  const iframe = isFixedSizeApp(n.appId);
-  const box = appBox(n.appId);
-  const square = n.appId === "plyworks-jw";
-  return {
-    ...n,
-    title: n.kind === "app" && label ? label : n.title,
-    autoSize: iframe ? false : true,
-    w: iframe ? (square ? box.w : Math.max(n.w || box.w, box.w)) : Math.max(n.w || minW, minW),
-    h: iframe ? (square ? box.h : Math.max(n.h || box.h, box.h)) : Math.max(n.h || 80, 80),
-  };
-}
-
-function conciergeNode(): WorkspaceNode {
-  return {
-    id: CONCIERGE_ID,
-    kind: "text",
-    title: "Concierge",
-    code: "F2F",
-    parentId: LOG_ID,
-    x: RAIL_X,
-    y: 20,
-    z: 9,
-    w: RAIL_W,
-    h: EST_H.text,
-    hidden: false,
-    autoSize: true,
-    railed: true,
-  };
-}
-
-/** Hugs the log's measured height; before the first fit, h is still the estimate. */
-function railY(log: WorkspaceNode) {
-  return log.y + log.h + GAP;
-}
-
-/** Pull the concierge back under the log after either one is resized or the log is moved. */
-function restack(list: WorkspaceNode[]): WorkspaceNode[] {
-  const log = list.find((n) => n.kind === "log");
-  const concierge = list.find((n) => n.id === CONCIERGE_ID);
-  if (!log || !concierge || !concierge.railed) return list;
-  const y = railY(log);
-  if (concierge.x === log.x && concierge.y === y) return list;
-  return list.map((n) => (n.id === CONCIERGE_ID ? { ...n, x: log.x, y } : n));
-}
-
-/**
- * The log and the concierge are one unit: log on top, concierge (which carries the
- * composer) directly beneath it. Everything that puts something on the board goes
- * through here, so the composer always has a home.
- */
-function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
-  const base = list.filter((n) => n.kind !== "request");
-  const log = base.find((n) => n.kind === "log");
-  const concierge = base.find((n) => n.id === CONCIERGE_ID);
-
-  if (log && concierge) {
-    return restack(base.map((n) => (
-      n.id === log.id || n.id === CONCIERGE_ID ? { ...n, hidden: false } : n
-    )));
-  }
-
-  if (log) {
-    return [...base.map((n) => (n.id === log.id ? { ...n, hidden: false } : n)), {
-      ...conciergeNode(),
-      x: log.x,
-      y: railY(log),
-    }];
-  }
-
-  const others = base.filter((n) => n.id !== CONCIERGE_ID);
-  const slot = placeBeside(others, RAIL_W, EST_H.log + GAP + EST_H.text);
-  const nextLog = { ...logNode(), x: slot.x, y: slot.y };
-  const nextConcierge = { ...(concierge ?? conciergeNode()), hidden: false, railed: true, x: slot.x, y: railY(nextLog) };
-  return [nextLog, ...others, nextConcierge];
-}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
@@ -437,7 +183,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const bumpZ = useCallback((id: string) => {
     zTop.current += 1;
-    setNodes((list) => list.map((n) => (n.id === id ? { ...n, z: zTop.current, hidden: false } : n)));
+    setNodes((list) => bumpZNode(list, id, zTop.current));
   }, []);
 
   const focus = useCallback((id: string) => {
@@ -445,66 +191,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [bumpZ]);
 
   const openApp = useCallback((app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => {
-    const meta = WORKSPACE_APPS.find((a) => a.id === app);
-    if (!meta || !openable(session, app)) return null;
-
-    const reuse = !JOB_APPS.includes(app);
-    const found = reuse ? nodesRef.current.find((n) => n.kind === "app" && n.appId === app) : undefined;
-    const id = found?.id ?? uid("a");
     zTop.current += 1;
     const z = zTop.current;
+    let opened: string | null = null;
     setNodes((list) => {
-      const base = withRail(list);
-      const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
-      if (current) {
-        const box = appBox(app);
-        return base.map((n) => {
-          if (n.id !== current.id) return n;
-          return {
-            ...n,
-            z,
-            hidden: false,
-            title: meta.label,
-            parentId: opts?.parentId ?? n.parentId,
-            query: opts?.query ?? n.query,
-            design: opts?.design ?? n.design,
-            ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
-          };
-        });
-      }
-      const iframe = isFixedSizeApp(app);
-      const box = appBox(app);
-      const appW = iframe ? box.w : APP_W;
-      const appH = iframe ? box.h : EST_H.app;
-      const slot = placeBeside(base, appW, appH);
-      const node: WorkspaceNode = {
-        id,
-        kind: "app",
-        title: meta.label,
-        code: `${meta.label.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        appId: app,
-        query: opts?.query,
-        design: opts?.design,
-        parentId: opts?.parentId,
-        x: slot.x,
-        y: slot.y,
-        z,
-        w: appW,
-        h: iframe ? box.h : 1,
-        hidden: false,
-        autoSize: !iframe,
-      };
-      return [...base, node];
+      const result = openAppNodes(list, session, app, z, opts);
+      if (!result) return list;
+      opened = result.id;
+      return result.nodes;
     });
-    return id;
+    return opened;
   }, [session]);
 
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
     const z = zTop.current;
-    setNodes((list) => withRail(list).map((n) => (
-      n.id === CONCIERGE_ID ? { ...n, z, hidden: false, parentId: n.parentId ?? LOG_ID } : n
-    )));
+    setNodes((list) => ensureConciergeNodes(list, z));
     return CONCIERGE_ID;
   }, []);
 
@@ -778,11 +480,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [entries, openApp, ensureConcierge, focusTargets]);
 
   const commitPositions = useCallback((positions: Record<string, { x: number; y: number }>) => {
-    setNodes((list) => restack(list.map((n) => {
-      const p = positions[n.id];
-      if (!p || n.locked) return n;
-      return { ...n, x: p.x, y: p.y };
-    })));
+    setNodes((list) => commitPositionNodes(list, positions));
   }, []);
 
   const commitViewport = useCallback((next: ViewportSnapshot) => {
@@ -803,60 +501,39 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const unrail = useCallback((id: string) => {
-    if (id !== CONCIERGE_ID) return;
-    setNodes((list) => list.map((n) => (n.id === CONCIERGE_ID ? { ...n, railed: false } : n)));
+    setNodes((list) => unrailConcierge(list, id));
   }, []);
 
   const addNote = useCallback((opts?: { x?: number; y?: number }) => {
-    const id = uid("n");
     zTop.current += 1;
+    let noteId = "";
     setNodes((list) => {
-      const slot = opts?.x != null && opts?.y != null
-        ? { x: opts.x, y: opts.y }
-        : placeBeside(list, NOTE_W, NOTE_H);
-      const note: WorkspaceNode = {
-        id,
-        kind: "note",
-        title: "Note",
-        code: "NOTE",
-        body: "",
-        x: slot.x,
-        y: slot.y,
-        z: zTop.current,
-        w: NOTE_W,
-        h: NOTE_H,
-        hidden: false,
-        autoSize: true,
-      };
-      return [...list, note];
+      const result = addNoteNodes(list, zTop.current, opts);
+      noteId = result.id;
+      return result.nodes;
     });
-    return id;
+    return noteId;
   }, []);
 
   const setNodeBody = useCallback((id: string, body: string) => {
-    setNodes((list) => list.map((n) => (n.id === id ? { ...n, body } : n)));
+    setNodes((list) => setNodeBodyNodes(list, id, body));
   }, []);
 
   const fit = useCallback((id: string, w: number, h: number) => {
-    setNodes((list) => restack(list.map((n) => {
-      if (n.id !== id || n.autoSize === false) return n;
-      const minW = n.kind === "note" ? 140 : 240;
-      const nw = Math.max(minW, Math.round(w));
-      const nh = Math.max(80, Math.round(h));
-      if (Math.abs(n.w - nw) < 2 && Math.abs(n.h - nh) < 2) return n;
-      return { ...n, w: nw, h: nh };
-    })));
+    setNodes((list) => fitNode(list, id, w, h));
   }, []);
 
   const close = useCallback((id: string) => {
-    const n = nodesRef.current.find((item) => item.id === id);
-    if (n && !canDeleteNode(n)) return;
-    setNodes((list) => list.filter((item) => item.id !== id));
-    setUserEdges((list) => list.filter((e) => e.from !== id && e.to !== id));
+    setUserEdges((edges) => {
+      const result = closeNode(nodesRef.current, edges, id);
+      if (!result) return edges;
+      setNodes(result.nodes);
+      return result.userEdges;
+    });
   }, []);
 
   const hide = useCallback((id: string) => {
-    setNodes((list) => list.map((n) => (n.id === id ? { ...n, hidden: true } : n)));
+    setNodes((list) => hideNode(list, id));
   }, []);
 
   const show = useCallback((id: string) => {
@@ -864,67 +541,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [bumpZ]);
 
   const setLocked = useCallback((ids: string[], locked: boolean) => {
-    const set = new Set(ids);
-    setNodes((list) => list.map((n) => (set.has(n.id) ? { ...n, locked } : n)));
+    setNodes((list) => setLockedNodes(list, ids, locked));
   }, []);
 
   const duplicateNodes = useCallback((ids: string[]) => {
-    const want = new Set(ids);
-    const sources = nodesRef.current.filter((n) => want.has(n.id) && canDuplicateNode(n) && !n.hidden);
-    if (!sources.length) return [] as string[];
-    const offset = 40;
-    let z = zTop.current;
-    const copies: WorkspaceNode[] = sources.map((n) => {
-      z += 1;
-      const prefix = n.kind === "note" ? "n" : "a";
-      const code = n.kind === "app"
-        ? `${n.title.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
-        : n.code;
-      return {
-        ...n,
-        id: uid(prefix),
-        code,
-        x: n.x + offset,
-        y: n.y + offset,
-        z,
-        locked: false,
-        hidden: false,
-        railed: false,
-      };
+    let copies: WorkspaceNode[] = [];
+    setNodes((list) => {
+      const result = duplicateNodeCopies(list, ids, zTop.current);
+      zTop.current = result.zTop;
+      copies = result.copies;
+      return result.nodes;
     });
-    zTop.current = z;
-    setNodes((list) => [...list, ...copies]);
     return copies.map((n) => n.id);
   }, []);
 
   const tile = useCallback((viewport: { width: number; height: number }) => {
-    setNodes((list) => {
-      const vis = list.filter((n) => !n.hidden && !n.locked);
-      if (!vis.length) return list;
-      const pad = 24;
-      const limit = Math.max(viewport.width, 400);
-      let x = pad;
-      let y = pad;
-      let rowH = 0;
-      const placed = new Map<string, { x: number; y: number }>();
-      for (const n of vis) {
-        const w = Math.max(n.w, 160);
-        const h = Math.max(n.h, 80);
-        if (x > pad && x + w + pad > limit) {
-          x = pad;
-          y += rowH + pad;
-          rowH = 0;
-        }
-        placed.set(n.id, { x, y });
-        x += w + pad;
-        rowH = Math.max(rowH, h);
-      }
-      return list.map((n) => {
-        const p = placed.get(n.id);
-        if (!p) return n;
-        return n.id === CONCIERGE_ID ? { ...n, x: p.x, y: p.y, railed: false } : { ...n, x: p.x, y: p.y };
-      });
-    });
+    setNodes((list) => tileNodes(list, viewport));
   }, []);
 
   const clearTranscript = useCallback(() => {
@@ -996,46 +628,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
 
+
 export function useWorkspace() {
   const ctx = useContext(WorkspaceCtx);
   if (!ctx) throw new Error("useWorkspace must be used inside WorkspaceProvider");
   return ctx;
-}
-
-export function appLabel(app: WorkspaceApp) {
-  if (app === "boxouts") return "Door Box Out";
-  if (app === "plyworks-jw") return "Plyworks JointWiz";
-  if (app === "plyworks-nesting") return "Plyworks nesting";
-  if (app === "projects") return "Projects";
-  if (app === "orbit") return "Orbit";
-  if (app === "admin") return "Admin console";
-  return APP_LABELS[app as AppId] ?? app;
-}
-
-/**
- * Did this ask successfully open an app? The request log records only those.
- * Plain answers and refusals ("no access", unsupported file) belong in the
- * concierge transcript, not in the record of what is on the board.
- */
-export function entryOpenedApp(entry: RequestEntry) {
-  return entry.result === "app" && entry.targetIds.some((id) => id !== CONCIERGE_ID);
-}
-
-/** Name of the window this ask put on the board — never the user's phrasing. */
-export function entryWindowName(entry: RequestEntry, nodes: WorkspaceNode[]) {
-  const id = entry.targetIds.find((tid) => tid !== CONCIERGE_ID);
-  const node = id ? nodes.find((n) => n.id === id) : undefined;
-  const label = entry.appId
-    ? appLabel(entry.appId)
-    : node?.appId
-      ? appLabel(node.appId)
-      : (node?.title || entry.routeLabel);
-  return node?.code ? `${label} · ${node.code}` : label;
-}
-
-export function entryIsLive(entry: RequestEntry, nodes: WorkspaceNode[]) {
-  const ids = entry.result === "app" || entry.result === "denied"
-    ? entry.targetIds.filter((id) => id !== CONCIERGE_ID)
-    : entry.targetIds;
-  return ids.some((id) => nodes.some((n) => n.id === id));
 }

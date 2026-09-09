@@ -1,4 +1,4 @@
-import type { RequestEntry, WorkspaceApp, WorkspaceNode } from "../context/workspace";
+import { JOB_APPS, type RequestEntry, type WorkspaceApp, type WorkspaceNode } from "./document";
 
 export type SystemEdge = {
   id: string;
@@ -14,8 +14,6 @@ export type UserEdge = {
   sourceHandle?: string;
   targetHandle?: string;
 };
-
-const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
 
 /** Derived routing wires: log chains, parentId, job→projects, apps→orbit. */
 export function topology(
