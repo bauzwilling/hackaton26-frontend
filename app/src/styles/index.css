@@ -527,6 +527,74 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   outline: none;
   cursor: default;
 }
+.studio-flow {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+.studio-flow .react-flow__node-studioWindow {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.studio-flow .react-flow__node-studioWindow.dragging {
+  cursor: grabbing;
+}
+.studio-window-node {
+  position: relative;
+}
+.win-flow {
+  position: relative;
+  left: auto;
+  top: auto;
+}
+.studio-handle {
+  width: 10px;
+  height: 10px;
+  background: var(--acc);
+  border: 2px solid var(--face);
+  opacity: 0;
+}
+.react-flow__node:hover .studio-handle,
+.react-flow__node.selected .studio-handle,
+.react-flow__handle-connecting,
+.studio-handle:hover {
+  opacity: 1;
+}
+.studio-flow-grid {
+  color: var(--grid);
+}
+.studio-minimap {
+  background: var(--face) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.studio-flow .react-flow__selection {
+  border: 1px solid var(--acc);
+  background: color-mix(in oklab, var(--acc) 14%, transparent);
+}
+.studio-flow .react-flow__edge-path.wire {
+  stroke: var(--acc);
+  stroke-width: calc(2.5 / var(--studio-zoom, 1));
+  fill: none;
+}
+.studio-flow .react-flow__edge-path.wire-system {
+  stroke-opacity: 0.55;
+}
+.studio-flow .react-flow__edge-path.wire-user {
+  stroke-opacity: 0.95;
+  stroke-width: calc(3 / var(--studio-zoom, 1));
+}
+.studio-flow .react-flow__edge-path.wire.is-hot {
+  stroke-width: calc(3.5 / var(--studio-zoom, 1));
+  stroke-opacity: 1;
+}
+.studio-flow .react-flow__connection-line {
+  stroke: var(--acc);
+  stroke-width: 2;
+}
 .studio-layer.is-marquee { cursor: crosshair; }
 .studio-layer.is-panning,
 .studio-layer.is-panning .win,

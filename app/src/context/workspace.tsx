@@ -1,18 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FIT_ZOOM_MAX, ZOOM_MIN, ZOOM_MAX } from "../canvas/flow/constants";
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
 import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk, type HelpTopicId } from "../lib/help";
+import { emptyPersist, loadWorkspacePersist, requestsKey, saveWorkspacePersist, type ViewportSnapshot } from "../workspace/persist";
+import { topology, type SystemEdge, type UserEdge } from "../workspace/topology";
 import { useSession } from "./session";
+
+export type { SystemEdge, UserEdge, ViewportSnapshot };
+export { ZOOM_MIN, ZOOM_MAX };
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
 export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
-
-export const ZOOM_MIN = 0.05;
-export const ZOOM_MAX = 12;
-const FIT_ZOOM_MAX = 1.15;
 
 export type WorkspaceNode = {
   id: string;
@@ -61,76 +63,19 @@ export type RequestEntry = {
 
 const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
 
-function buildWires(nodes: WorkspaceNode[], entries: RequestEntry[], selectedEntryId: string | null): WorkspaceEdge[] {
-  const vis = nodes.filter((n) => !n.hidden && n.kind !== "note");
-  const live = new Set(vis.map((n) => n.id));
-  const apps = vis.filter((n) => n.kind === "app");
-  const appBy = (id: WorkspaceApp) => apps.find((n) => n.appId === id);
-  const log = vis.find((n) => n.kind === "log");
-  const selected = selectedEntryId ? entries.find((e) => e.id === selectedEntryId) : null;
-  const hotTargets = new Set(selected?.targetIds ?? []);
-  const edges: WorkspaceEdge[] = [];
-  const seen = new Set<string>();
-
-  const add = (from: string, to: string, hot = false) => {
-    if (from === to || !live.has(from) || !live.has(to)) return;
-    const key = `${from}->${to}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    edges.push({ from, to, hot });
-  };
-
-  if (log) {
-    for (const entry of entries) {
-      const hot = entry.id === selectedEntryId;
-      const chain = entry.targetIds.filter((id) => live.has(id));
-      if (!chain.length) continue;
-      add(log.id, chain[0], hot);
-      for (let i = 1; i < chain.length; i++) add(chain[i - 1], chain[i], hot);
-    }
-  }
-
-  for (const n of vis) {
-    if (n.parentId) add(n.parentId, n.id, hotTargets.has(n.id));
-  }
-
-  const projects = appBy("projects");
-  if (projects) {
-    for (const n of apps) {
-      if (n.appId && JOB_APPS.includes(n.appId)) add(n.id, projects.id);
-    }
-  }
-
-  const orbit = appBy("orbit");
-  if (orbit) {
-    for (const n of apps) {
-      if (n.appId && n.appId !== "orbit" && n.appId !== "admin") add(n.id, orbit.id);
-    }
-  }
-
-  return edges;
-}
-
-type Persist = {
-  nodes: WorkspaceNode[];
-  edges: WorkspaceEdge[];
-  pan: { x: number; y: number };
-  zoom: number;
-  zTop: number;
-};
+export type FitRequest = { ids: string[]; key: number; maxZoom?: number };
 
 type Ctx = {
   nodes: WorkspaceNode[];
-  edges: WorkspaceEdge[];
+  edges: SystemEdge[];
+  userEdges: UserEdge[];
   entries: RequestEntry[];
   selectedEntryId: string | null;
   setSelectedEntryId: (id: string | null) => void;
-  pan: { x: number; y: number };
-  zoom: number;
+  viewport: ViewportSnapshot;
   overviewOpen: boolean;
   setOverviewOpen: (v: boolean) => void;
-  setPan: (p: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
-  setZoom: (z: number | ((prev: number) => number)) => void;
+  fitRequest: FitRequest | null;
   openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => string | null;
   announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
@@ -139,11 +84,15 @@ type Ctx = {
   ingestFiles: (files: File[]) => void;
   confirmIntake: (entryId: string, app: WorkspaceApp) => void;
   restoreEntry: (entryId: string, viewport?: { width: number; height: number }) => void;
-  focusTargets: (ids: string[], viewport: { width: number; height: number }, opts?: { maxZoom?: number }) => void;
+  focusTargets: (ids: string[], viewport?: { width: number; height: number }, opts?: { maxZoom?: number }) => void;
   ensureConcierge: () => string;
   appendConciergeTurn: (query: string, reply: string, extras?: Partial<RequestEntry>) => string;
   focus: (id: string) => void;
-  move: (id: string, x: number, y: number) => void;
+  commitPositions: (positions: Record<string, { x: number; y: number }>) => void;
+  commitViewport: (viewport: ViewportSnapshot) => void;
+  addUserEdge: (edge: UserEdge) => void;
+  removeUserEdges: (ids: string[]) => void;
+  unrail: (id: string) => void;
   fit: (id: string, w: number, h: number) => void;
   close: (id: string) => void;
   hide: (id: string) => void;
@@ -201,28 +150,6 @@ export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId
 
 export function isWorkspaceApp(v: string): v is WorkspaceApp {
   return WORKSPACE_APPS.some((a) => a.id === v);
-}
-
-// WAITING DATABASE: canvas layout on the user profile
-function persistKey(email: string) {
-  return `f2f.workspace.${email || "anon"}`;
-}
-
-// WAITING DATABASE: request log on the user profile
-function requestsKey(email: string) {
-  return `f2f.requests.${email || "anon"}`;
-}
-
-function loadPersist(email: string): Persist | null {
-  try {
-    const raw = localStorage.getItem(persistKey(email));
-    if (!raw) return null;
-    const data = JSON.parse(raw) as Persist;
-    if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) return null;
-    return data;
-  } catch {
-    return null;
-  }
 }
 
 function loadEntries(email: string): RequestEntry[] {
@@ -344,10 +271,6 @@ function denyCopy(session: Session | null, app: WorkspaceApp) {
   return { title: `${label} — no access`, body };
 }
 
-function emptyPersist(): Persist {
-  return { nodes: [], edges: [], pan: { x: 0, y: 0 }, zoom: 1, zTop: 10 };
-}
-
 function logNode(): WorkspaceNode {
   return {
     id: LOG_ID,
@@ -447,14 +370,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const email = session?.email ?? "anon";
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
-  const [edges, setEdges] = useState<WorkspaceEdge[]>([]);
+  const [userEdges, setUserEdges] = useState<UserEdge[]>([]);
   const [entries, setEntries] = useState<RequestEntry[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const [viewport, setViewport] = useState<ViewportSnapshot>({ x: 0, y: 0, zoom: 1 });
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [flashIds, setFlashIds] = useState<string[]>([]);
   const [flashKey, setFlashKey] = useState(0);
+  const [fitRequest, setFitRequest] = useState<FitRequest | null>(null);
   const zTop = useRef(10);
   const flashTimer = useRef<number | null>(null);
   const skipSave = useRef(0);
@@ -468,7 +391,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const saved = loadPersist(email) ?? emptyPersist();
+    const saved = loadWorkspacePersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
       .filter((n) => n.kind !== "request" && n.kind !== "denied" && (n.kind !== "text" || n.id === CONCIERGE_ID))
@@ -479,9 +402,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       })
       .map(normalizeNode);
     setNodes(cleaned);
-    setEdges(saved.edges);
-    setPan(saved.pan ?? { x: 0, y: 0 });
-    setZoom(saved.zoom ?? 1);
+    setUserEdges(saved.userEdges);
+    setViewport(saved.viewport ?? { x: 0, y: 0, zoom: 1 });
     zTop.current = saved.zTop ?? 10;
   }, [email]);
 
@@ -499,11 +421,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       skipSave.current -= 1;
       return;
     }
-    const data: Persist = { nodes, edges, pan, zoom, zTop: zTop.current };
-    try {
-      localStorage.setItem(persistKey(email), JSON.stringify(data));
-    } catch { /* ignore */ }
-  }, [email, nodes, edges, pan, zoom]);
+    const data = { nodes, userEdges, viewport, zTop: zTop.current };
+    saveWorkspacePersist(email, data);
+  }, [email, nodes, userEdges, viewport]);
 
   useEffect(() => {
     if (skipEntries.current > 0) {
@@ -820,7 +740,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return entryId;
   }, [ensureConcierge]);
 
-  const focusTargets = useCallback((ids: string[], viewport: { width: number; height: number }, opts?: { maxZoom?: number }) => {
+  const focusTargets = useCallback((ids: string[], _viewport?: { width: number; height: number }, opts?: { maxZoom?: number }) => {
     const live = nodesRef.current.filter((n) => ids.includes(n.id));
     if (!live.length) return;
     zTop.current += live.length;
@@ -830,20 +750,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       z += 1;
       return { ...n, hidden: false, z };
     }));
-    const minX = Math.min(...live.map((n) => n.x));
-    const minY = Math.min(...live.map((n) => n.y));
-    const maxX = Math.max(...live.map((n) => n.x + n.w));
-    const maxY = Math.max(...live.map((n) => n.y + n.h));
-    const bw = Math.max(120, maxX - minX);
-    const bh = Math.max(80, maxY - minY);
-    const pad = 64;
-    const cap = opts?.maxZoom ?? FIT_ZOOM_MAX;
-    const nextZoom = Math.min(cap, Math.max(ZOOM_MIN, Math.min(viewport.width / (bw + pad * 2), viewport.height / (bh + pad * 2))));
-    setZoom(nextZoom);
-    setPan({
-      x: viewport.width / 2 - (minX + bw / 2) * nextZoom,
-      y: viewport.height / 2 - (minY + bh / 2) * nextZoom,
-    });
+    setFitRequest({ ids, key: Date.now(), maxZoom: opts?.maxZoom ?? FIT_ZOOM_MAX });
     const flash = live
       .filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log")
       .map((n) => n.id);
@@ -870,11 +777,34 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [entries, openApp, ensureConcierge, focusTargets]);
 
-  const move = useCallback((id: string, x: number, y: number) => {
+  const commitPositions = useCallback((positions: Record<string, { x: number; y: number }>) => {
     setNodes((list) => restack(list.map((n) => {
-      if (n.id !== id || n.locked) return n;
-      return n.id === CONCIERGE_ID ? { ...n, x, y, railed: false } : { ...n, x, y };
+      const p = positions[n.id];
+      if (!p || n.locked) return n;
+      return { ...n, x: p.x, y: p.y };
     })));
+  }, []);
+
+  const commitViewport = useCallback((next: ViewportSnapshot) => {
+    setViewport(next);
+  }, []);
+
+  const addUserEdge = useCallback((edge: UserEdge) => {
+    setUserEdges((list) => {
+      if (edge.from === edge.to) return list;
+      if (list.some((e) => e.from === edge.from && e.to === edge.to)) return list;
+      return [...list, edge];
+    });
+  }, []);
+
+  const removeUserEdges = useCallback((ids: string[]) => {
+    const drop = new Set(ids);
+    setUserEdges((list) => list.filter((e) => !drop.has(e.id)));
+  }, []);
+
+  const unrail = useCallback((id: string) => {
+    if (id !== CONCIERGE_ID) return;
+    setNodes((list) => list.map((n) => (n.id === CONCIERGE_ID ? { ...n, railed: false } : n)));
   }, []);
 
   const addNote = useCallback((opts?: { x?: number; y?: number }) => {
@@ -922,7 +852,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const n = nodesRef.current.find((item) => item.id === id);
     if (n && !canDeleteNode(n)) return;
     setNodes((list) => list.filter((item) => item.id !== id));
-    setEdges((list) => list.filter((e) => e.from !== id && e.to !== id));
+    setUserEdges((list) => list.filter((e) => e.from !== id && e.to !== id));
   }, []);
 
   const hide = useCallback((id: string) => {
@@ -1010,31 +940,29 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } else {
       setNodes((list) => list.filter((n) => n.kind === "log" || n.id === CONCIERGE_ID));
     }
-    setEdges([]);
+    setUserEdges([]);
     setOverviewOpen(false);
-    setPan({ x: 0, y: 0 });
-    setZoom(1);
+    setViewport({ x: 0, y: 0, zoom: 1 });
     setFlashIds([]);
     zTop.current = 10;
   }, []);
 
   const wireEdges = useMemo(
-    () => buildWires(nodes, entries, selectedEntryId),
+    () => topology(nodes, entries, selectedEntryId),
     [nodes, entries, selectedEntryId],
   );
 
   const value = useMemo<Ctx>(() => ({
     nodes,
     edges: wireEdges,
+    userEdges,
     entries,
     selectedEntryId,
     setSelectedEntryId,
-    pan,
-    zoom,
+    viewport,
     overviewOpen,
     setOverviewOpen,
-    setPan,
-    setZoom,
+    fitRequest,
     openApp,
     announceOpen,
     addNote,
@@ -1047,7 +975,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     ensureConcierge,
     appendConciergeTurn,
     focus,
-    move,
+    commitPositions,
+    commitViewport,
+    addUserEdge,
+    removeUserEdges,
+    unrail,
     fit,
     close,
     hide,
@@ -1059,7 +991,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, entries, selectedEntryId, pan, zoom, overviewOpen, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, move, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, fitRequest, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

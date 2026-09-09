@@ -152,15 +152,16 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
   flash?: boolean; flashKey?: number;
   selected?: boolean; viewport?: boolean;
   nodeId?: string;
+  flow?: boolean;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
-  onDrag: (e: PointerEvent<HTMLDivElement>) => void;
+  onDrag?: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
   children: ReactNode;
@@ -184,25 +185,25 @@ export function Window({
   return (
     <Surface
       ref={ref}
-      className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${locked ? " is-locked" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}`}
+      className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${locked ? " is-locked" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}${flow ? " win-flow" : ""}`}
       data-node-id={nodeId}
       style={{
-        left: x,
-        top: y,
-        zIndex: z,
-        width,
+        left: flow ? undefined : x,
+        top: flow ? undefined : y,
+        zIndex: flow ? undefined : z,
+        width: flow ? "100%" : width,
         height: fit ? undefined : height,
         display: hidden ? "none" : undefined,
         transform: tilt && Math.abs(tilt) > 0.05 ? `rotate(${tilt.toFixed(2)}deg)` : undefined,
       }}
       onPointerDown={(e) => {
-        e.stopPropagation();
+        if (!flow) e.stopPropagation();
         if (e.button === 0) onFocus(e);
-        if (e.button !== 0 || locked) return;
+        if (flow || e.button !== 0 || locked) return;
         const t = e.target as HTMLElement;
         if (t.closest("button, input, textarea, a, select, .composer")) return;
         if (onGrab) onGrab(e);
-        else if (t.closest(".win-bar")) onDrag(e);
+        else if (t.closest(".win-bar")) onDrag?.(e);
       }}
     >
       <div className="win-bar">
@@ -217,7 +218,7 @@ export function Window({
           <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
         )}
       </div>
-      <div className="win-body">{children}</div>
+      <div className={`win-body${flow ? " nowheel nodrag nopan" : ""}`}>{children}</div>
       <div className="win-far-label" aria-hidden>
         <span className="win-far-title">{title}</span>
         {query ? <span className="win-far-query">{query}</span> : null}
@@ -250,7 +251,7 @@ function AccentDots() {
 function LookOverflow() {
   const {
     theme, setTheme,
-    showWires, setShowWires, showGrid, setShowGrid, bubbleMode, setBubbleMode,
+    showWires, setShowWires, showGrid, setShowGrid,
   } = useSession();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -299,7 +300,6 @@ function LookOverflow() {
             <div className="viz-label">Canvas</div>
             <Switch on={showWires} onToggle={() => setShowWires(!showWires)} label="Show wires" note={showWires ? "On" : "Off"} />
             <Switch on={showGrid} onToggle={() => setShowGrid(!showGrid)} label="Show grid" note={showGrid ? "On" : "Off"} />
-            <Switch on={bubbleMode} onToggle={() => setBubbleMode(!bubbleMode)} label="Bubble mode" note={bubbleMode ? "On" : "Off"} />
           </div>
         </Surface>
       )}

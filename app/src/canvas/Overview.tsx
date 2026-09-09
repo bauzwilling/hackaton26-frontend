@@ -5,7 +5,7 @@ import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace"
 import { DEFAULT_TEMPLATES, loadTemplates, saveTemplates, uidTemplate, type RequestTemplate } from "../lib/templates";
 
 export function Overview({ viewport }: { viewport: { width: number; height: number } }) {
-  const { nodes, entries, overviewOpen, setOverviewOpen, tile, show, hide, close, focus, clear, ask, addNote } = useWorkspace();
+  const { nodes, entries, overviewOpen, setOverviewOpen, tile, show, hide, close, focusTargets, clear, ask, addNote } = useWorkspace();
   const { session } = useSession();
   const email = session?.email ?? "anon";
   const [tplPanel, setTplPanel] = useState<"closed" | "menu" | "save" | "open">("closed");
@@ -148,7 +148,7 @@ export function Overview({ viewport }: { viewport: { width: number; height: numb
             {nodes.length === 0 && <li className="muted">Nothing open yet.</li>}
             {nodes.map((n) => (
               <li key={n.id}>
-                <button type="button" className="overview-item" onClick={() => { show(n.id); focus(n.id); }}>
+                <button type="button" className="overview-item" onClick={() => { show(n.id); focusTargets([n.id], viewport); }}>
                   <span className="win-dot" />
                   <span style={{ flex: 1, textAlign: "left" }}>
                     <strong>{n.title}</strong>
