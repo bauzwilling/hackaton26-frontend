@@ -26,10 +26,11 @@ import {
   type WorkspaceNode,
 } from "../context/workspace";
 import { AskMenu } from "./AskMenu";
+import { BoardHostProvider } from "./boardHost";
 import { SelectionMenu } from "./SelectionMenu";
 import { defaultEdgeOptions, edgeTypes, flowInteraction, nodeTypes } from "./flow/defaults";
 import { GRID_GAP } from "./flow/constants";
-import { toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
+import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
 
 function StudioBoardInner() {
@@ -85,18 +86,35 @@ function StudioBoardInner() {
       const draggingNow = dragging.current.size > 0;
       return workspaceNodes.map((n) => {
         const old = prev.get(n.id);
-        const keepPos = draggingNow && old;
         const mapped = toFlowNode(n, {
           selected: old?.selected,
           enter: conciergeEnter && n.id === CONCIERGE_ID,
           flash: flashIds.includes(n.id),
           flashKey,
         });
-        if (keepPos && old) {
+        if (old && draggingNow) {
           mapped.position = old.position;
           mapped.selected = old.selected;
         }
-        return mapped;
+        // RF owns live auto-size; keep measured box while workspace persist lags.
+        if (old && n.autoSize !== false) {
+          const rfW = old.width ?? old.measured?.width;
+          const rfH = old.height ?? old.measured?.height;
+          if (
+            rfW
+            && rfH
+            && (Math.abs(rfW - (mapped.width ?? 0)) > 2 || Math.abs(rfH - (mapped.height ?? 0)) > 2)
+            && (draggingNow || (old.position.x === mapped.position.x && old.position.y === mapped.position.y))
+          ) {
+            mapped.width = rfW;
+            mapped.height = rfH;
+            mapped.style = old.style;
+            mapped.measured = old.measured;
+          }
+        } else if (old?.measured) {
+          mapped.measured = old.measured;
+        }
+        return reuseFlowNode(old, mapped);
       });
     });
   }, [workspaceNodes, flashIds, flashKey, conciergeEnter, setNodes]);
@@ -270,106 +288,108 @@ function StudioBoardInner() {
   const menuLocked = selectedWorkspace.length > 0 && selectedWorkspace.every((n) => n.locked);
 
   return (
-    <div
-      className="studio-layer"
-      data-help="studio-canvas"
-      ref={layer}
-      style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
-    >
-      <ReactFlow<StudioFlowNode, Edge>
-        className="studio-flow"
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        defaultViewport={viewport}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        isValidConnection={(c) => c.source !== c.target}
-        onBeforeDelete={onBeforeDelete}
-        onNodesDelete={onNodesDelete}
-        onEdgesDelete={onEdgesDelete}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onMoveStart={onMoveStart}
-        onMove={onMove}
-        onMoveEnd={onMoveEnd}
-        onPaneContextMenu={onPaneContextMenu}
-        onNodeContextMenu={onNodeContextMenu}
-        onPaneClick={() => { setAskMenu(null); setSelMenu(null); }}
-        minZoom={flowInteraction.minZoom}
-        maxZoom={flowInteraction.maxZoom}
-        panOnDrag={flowInteraction.panOnDrag}
-        panOnScroll={flowInteraction.panOnScroll}
-        zoomOnScroll={flowInteraction.zoomOnScroll}
-        zoomOnPinch={flowInteraction.zoomOnPinch}
-        zoomOnDoubleClick={flowInteraction.zoomOnDoubleClick}
-        selectionOnDrag={flowInteraction.selectionOnDrag}
-        selectionMode={flowInteraction.selectionMode}
-        multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
-        deleteKeyCode={flowInteraction.deleteKeyCode}
-        connectionMode={flowInteraction.connectionMode}
-        snapToGrid={showGrid}
-        snapGrid={flowInteraction.snapGrid}
-        elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
-        onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-        nodesDraggable
-        elementsSelectable
-        selectNodesOnDrag={false}
-        connectionRadius={28}
-        fitView={false}
+    <BoardHostProvider value={host}>
+      <div
+        className="studio-layer"
+        data-help="studio-canvas"
+        ref={layer}
+        style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
       >
-        {showGrid && (
-          <Background
-            id="studio-grid"
-            variant={BackgroundVariant.Lines}
-            gap={GRID_GAP}
-            color="currentColor"
-            className="studio-flow-grid"
+        <ReactFlow<StudioFlowNode, Edge>
+          className="studio-flow"
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          defaultViewport={viewport}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          isValidConnection={(c) => c.source !== c.target}
+          onBeforeDelete={onBeforeDelete}
+          onNodesDelete={onNodesDelete}
+          onEdgesDelete={onEdgesDelete}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
+          onMoveStart={onMoveStart}
+          onMove={onMove}
+          onMoveEnd={onMoveEnd}
+          onPaneContextMenu={onPaneContextMenu}
+          onNodeContextMenu={onNodeContextMenu}
+          onPaneClick={() => { setAskMenu(null); setSelMenu(null); }}
+          minZoom={flowInteraction.minZoom}
+          maxZoom={flowInteraction.maxZoom}
+          panOnDrag={flowInteraction.panOnDrag}
+          panOnScroll={flowInteraction.panOnScroll}
+          zoomOnScroll={flowInteraction.zoomOnScroll}
+          zoomOnPinch={flowInteraction.zoomOnPinch}
+          zoomOnDoubleClick={flowInteraction.zoomOnDoubleClick}
+          selectionOnDrag={flowInteraction.selectionOnDrag}
+          selectionMode={flowInteraction.selectionMode}
+          multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
+          deleteKeyCode={flowInteraction.deleteKeyCode}
+          connectionMode={flowInteraction.connectionMode}
+          snapToGrid={showGrid}
+          snapGrid={flowInteraction.snapGrid}
+          elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
+          onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
+          nodesDraggable
+          elementsSelectable
+          selectNodesOnDrag={false}
+          connectionRadius={28}
+          fitView={false}
+        >
+          {showGrid && (
+            <Background
+              id="studio-grid"
+              variant={BackgroundVariant.Lines}
+              gap={GRID_GAP}
+              color="currentColor"
+              className="studio-flow-grid"
+            />
+          )}
+          <MiniMap
+            className="studio-minimap"
+            pannable
+            zoomable
+            nodeStrokeWidth={0}
+            nodeColor={(n) => {
+              const kind = (n.data as StudioFlowNode["data"]).kind;
+              if (kind === "note") return "#e07a22";
+              if (kind === "log" || kind === "text") return "#9aa0a6";
+              return "#c5c0b6";
+            }}
+          />
+        </ReactFlow>
+        {askMenu && (
+          <AskMenu
+            at={askMenu}
+            host={host}
+            world={askMenu.world}
+            onClose={() => setAskMenu(null)}
           />
         )}
-        <MiniMap
-          className="studio-minimap"
-          pannable
-          zoomable
-          nodeStrokeWidth={0}
-          nodeColor={(n) => {
-            const kind = (n.data as StudioFlowNode["data"]).kind;
-            if (kind === "note") return "#e07a22";
-            if (kind === "log" || kind === "text") return "#9aa0a6";
-            return "#c5c0b6";
-          }}
-        />
-      </ReactFlow>
-      {askMenu && (
-        <AskMenu
-          at={askMenu}
-          host={host}
-          world={askMenu.world}
-          onClose={() => setAskMenu(null)}
-        />
-      )}
-      {selMenu && (
-        <SelectionMenu
-          at={selMenu}
-          host={host}
-          canDelete={menuCanDelete}
-          canDuplicate={menuCanDuplicate}
-          locked={menuLocked}
-          onDelete={() => {
-            for (const n of selectedWorkspace) {
-              if (canDeleteNode(n)) close(n.id);
-            }
-          }}
-          onDuplicate={() => { duplicateNodes(selectedWorkspace.map((n) => n.id)); }}
-          onToggleLock={() => setLocked(selectedWorkspace.map((n) => n.id), !menuLocked)}
-          onClose={() => setSelMenu(null)}
-        />
-      )}
-    </div>
+        {selMenu && (
+          <SelectionMenu
+            at={selMenu}
+            host={host}
+            canDelete={menuCanDelete}
+            canDuplicate={menuCanDuplicate}
+            locked={menuLocked}
+            onDelete={() => {
+              for (const n of selectedWorkspace) {
+                if (canDeleteNode(n)) close(n.id);
+              }
+            }}
+            onDuplicate={() => { duplicateNodes(selectedWorkspace.map((n) => n.id)); }}
+            onToggleLock={() => setLocked(selectedWorkspace.map((n) => n.id), !menuLocked)}
+            onClose={() => setSelMenu(null)}
+          />
+        )}
+      </div>
+    </BoardHostProvider>
   );
 }
 
