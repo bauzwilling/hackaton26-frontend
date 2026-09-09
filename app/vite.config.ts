@@ -27,7 +27,8 @@ export default defineConfig(({ mode }) => {
         '/api/parts': {
           target: simplePartsBackend,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/parts/, ''),
+          // UI uses /api/parts to avoid Concierge /api; Flask still serves /api/*.
+          rewrite: (path) => path.replace(/^\/api\/parts/, '/api'),
         },
         '/api/app': {
           target: boxoutBackend,
