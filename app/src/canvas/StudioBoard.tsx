@@ -242,6 +242,7 @@ function StudioBoardInner() {
   }, [getNodes, commitPositions]);
 
   const onMoveStart = useCallback(() => {
+    // Right/middle pan must not open AskMenu on pointer-up contextmenu.
     panMoved.current = false;
   }, []);
 
