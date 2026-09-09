@@ -5,6 +5,7 @@
  * make the Studio unusable (msd-concierge-ui: "manufacturing stays usable without AI").
  *
  * WAITING BFF: the capability manifest is BFF-owned, so this alias table is a fixture.
+ * WAITING MODEL: stands in for the structuring model when /api/chat is unreachable.
  */
 import { PLYWORKS_DESIGNS, type PlyworksDesign } from "./concierge";
 
@@ -26,10 +27,14 @@ const DESIGN_ALIASES: { design: PlyworksDesign; patterns: RegExp[] }[] = [
 
 const VAGUE_FURNITURE = /\b(furniture|plywood|ply\s*wood)\b/i;
 
+/** Loose manufacturing language that could fit more than one job app. */
+const AMBIGUOUS_JOB = /\b(parts?\s+to\s+cut|cut\s+parts?|sheet\s+metal|laser\s+cut|cnc\s+parts?|boxes?\s+and\s+parts?)\b/i;
+
 export type LocalRoute = {
   app: string | null;
   design: PlyworksDesign | null;
   choices: PlyworksDesign[] | null;
+  confirmApps: string[] | null;
 };
 
 /** Returns a workspace app id when the text plainly names one, otherwise null. */
@@ -47,22 +52,25 @@ export function matchPlyworksDesign(message: string): PlyworksDesign | null {
   return null;
 }
 
-/** App + Plyworks design (or choice chips) when Claude is unreachable. */
+/** App + Plyworks design (or choice / confirm chips) when Claude is unreachable. */
 export function matchLocalRoute(message: string): LocalRoute {
   const named = matchApp(message);
   const design = matchPlyworksDesign(message);
 
   if (named && named !== "plyworks") {
-    return { app: named, design: null, choices: null };
+    return { app: named, design: null, choices: null, confirmApps: null };
   }
   if (design) {
-    return { app: "plyworks", design, choices: null };
+    return { app: "plyworks", design, choices: null, confirmApps: null };
   }
   if (named === "plyworks") {
-    return { app: "plyworks", design: "shelf", choices: null };
+    return { app: "plyworks", design: "shelf", choices: null, confirmApps: null };
   }
   if (VAGUE_FURNITURE.test(message)) {
-    return { app: null, design: null, choices: [...PLYWORKS_DESIGNS] };
+    return { app: null, design: null, choices: [...PLYWORKS_DESIGNS], confirmApps: null };
   }
-  return { app: null, design: null, choices: null };
+  if (AMBIGUOUS_JOB.test(message)) {
+    return { app: null, design: null, choices: null, confirmApps: ["boxouts", "simpleparts"] };
+  }
+  return { app: null, design: null, choices: null, confirmApps: null };
 }

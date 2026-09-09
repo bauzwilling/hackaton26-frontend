@@ -108,6 +108,26 @@ def _normalize_choices(raw: Any) -> Optional[List[str]]:
     return out or None
 
 
+def _normalize_confirm_apps(raw: Any, available_apps: List[str]) -> Optional[List[str]]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        return None
+    allowed = {a for a in available_apps if a in KNOWN_APPS}
+    out: List[str] = []
+    seen = set()
+    for item in items:
+        app = _normalize_app(item, list(allowed))
+        if app and app not in seen:
+            seen.add(app)
+            out.append(app)
+    return out or None
+
+
 def route_message(
     user_message: str,
     history: List[Dict[str, str]] | None = None,
@@ -137,11 +157,24 @@ def route_message(
     app = _normalize_app(data.get("app"), apps)
     design = _normalize_design(data.get("design"))
     choices = _normalize_choices(data.get("choices"))
-    if app == "plyworks":
+    confirm_apps = _normalize_confirm_apps(data.get("confirmApps"), apps)
+    if confirm_apps:
+        app = None
+        design = None
+        choices = None
+    elif app == "plyworks":
         design = design or "shelf"
         choices = None
+        confirm_apps = None
     else:
         design = None
         if app is not None:
             choices = None
-    return {"reply": reply, "app": app, "design": design, "choices": choices}
+        confirm_apps = None
+    return {
+        "reply": reply,
+        "app": app,
+        "design": design,
+        "choices": choices,
+        "confirmApps": confirm_apps,
+    }

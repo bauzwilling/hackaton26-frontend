@@ -49,6 +49,7 @@ class ChatResponse(BaseModel):
     app: Optional[str] = None
     design: Optional[str] = None
     choices: Optional[List[str]] = None
+    confirmApps: Optional[List[str]] = None
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -71,4 +72,5 @@ def chat(req: ChatRequest) -> ChatResponse:
         app=result.get("app"),
         design=result.get("design"),
         choices=result.get("choices"),
+        confirmApps=result.get("confirmApps"),
     )

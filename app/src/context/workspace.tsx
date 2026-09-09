@@ -262,19 +262,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void (async () => {
       /** Applies a reply plus its routing decision, whoever made that decision. */
       const settle = (result: ConciergeResult) => {
-        const appId = result.app && isWorkspaceApp(result.app) ? result.app : undefined;
+        const confirm = (result.confirmApps ?? [])
+          .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
+        const appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
         const targetIds: string[] = [conciergeId];
         let status: RequestEntry["result"] = "text";
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
+        let confirmApps: WorkspaceApp[] | undefined;
 
-        if (appId && openable(session, appId)) {
-          // WAITING BFF: the reply opens a window directly. The master plan is a
-          // SuggestedAction the user accepts, which the BFF validates before anything
-          // runs. Replace this block, not the transport, when actions arrive.
+        if (confirm.length) {
+          routeLabel = "Confirm";
+          routeWhy = "Need a confirmation before routing to an app";
+          confirmApps = confirm;
+        } else if (appId && openable(session, appId)) {
+          // WAITING BFF: SuggestedAction accept will gate this; still open so parallel app windows work.
           status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
+          // WAITING MODEL: later also forward the turn into that app's chat API
+          console.log(`sent to ${appLabel(appId)}`);
           const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
           const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
           if (appTarget) targetIds.push(appTarget);
@@ -293,6 +300,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           targetIds,
           design: result.design ?? undefined,
           choices: result.choices ?? undefined,
+          confirmApps,
           pending: false,
         } : e)));
       };
@@ -301,23 +309,29 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         settle(await askConcierge(q, history, apps, restricted));
       } catch {
         // No assistant reachable: fall back to a local name/design match so the board stays usable.
+        // WAITING MODEL: alias table stands in for the structuring model when the API is down.
         const local = matchLocalRoute(q);
         const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
-        const choices = appId ? null : local.choices;
+        const confirmApps = (local.confirmApps ?? [])
+          .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
+        const choices = appId || confirmApps.length ? null : local.choices;
         settle({
-          app: appId,
-          design: appId === "plyworks" ? (local.design ?? "shelf") : null,
+          app: confirmApps.length ? null : appId,
+          design: !confirmApps.length && appId === "plyworks" ? (local.design ?? "shelf") : null,
           choices,
-          reply: appId
-            ? appId === "plyworks"
-              ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
-              : `Opening ${appLabel(appId)} for you.`
-            : named
-              ? denyCopy(session, named).body
-              : choices
-                ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
-                : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+          confirmApps: confirmApps.length ? confirmApps : null,
+          reply: confirmApps.length
+            ? `That could be ${confirmApps.map(appLabel).join(" or ")}. Which should I send this to?`
+            : appId
+              ? appId === "plyworks"
+                ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
+                : `Opening ${appLabel(appId)} for you.`
+              : named
+                ? denyCopy(session, named).body
+                : choices
+                  ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
+                  : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
         });
       }
     })();
@@ -344,6 +358,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (verdict.kind === "route") {
         if (openable(session, verdict.appId)) {
           appId = verdict.appId;
+          // WAITING MODEL: later also forward the turn into that app's chat API
+          console.log(`sent to ${appLabel(verdict.appId)}`);
           const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
           if (appTarget) targetIds.push(appTarget);
           result = "app";
@@ -396,6 +412,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       } : e)));
       return;
     }
+    // WAITING MODEL: later also forward the turn into that app's chat API
+    console.log(`sent to ${appLabel(app)}`);
     const message = openingMessage(app, query);
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
     const appTarget = openApp(app, { parentId: conciergeId, query });
