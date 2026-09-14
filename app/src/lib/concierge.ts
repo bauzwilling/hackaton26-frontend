@@ -15,7 +15,7 @@
  *   POST /api/actions/{actionId}/accept | dismiss
  *
  * The `{ reply, app, design, choices, plyworksOps }` shape below is NOT the product contract.
- * `plyworksOps` is additive (Layer 1). Layer 2 applies it to the Plyworks store.
+ * `plyworksOps` is additive (Layer 1). Layer 2 applies it via plyworksSession.
  * The BFF owns SuggestedAction (`actionId`, `type` such as `mill.start`, `label`), and a
  * proposal starts nothing until the user accepts it. Nothing outside this file
  * should learn the transport, so keep callers on askConcierge().
