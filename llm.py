@@ -12,9 +12,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from anthropic import Anthropic
-
 import config
+from plyworks_ops import compact_plyworks_boards, normalize_plyworks_ops
 
 KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
 KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
@@ -58,10 +57,10 @@ def parse_json_object(response_text: str) -> Dict[str, Any]:
     raise ValueError("Claude did not return JSON")
 
 
-def call_claude_json(client: Anthropic, prompt: str) -> Dict[str, Any]:
+def call_claude_json(client, prompt: str) -> Dict[str, Any]:
     message = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=1024,
+        max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -113,11 +112,15 @@ def route_message(
     history: List[Dict[str, str]] | None = None,
     available_apps: List[str] | None = None,
     restricted_apps: List[str] | None = None,
+    plyworks_boards: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
+    from anthropic import Anthropic
+
     client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
     template = load_prompt_from_file("concierge.md", "CONCIERGE_PROMPT")
     apps = [a for a in (available_apps or []) if a in KNOWN_APPS]
     restricted = [a for a in (restricted_apps or []) if a in KNOWN_APPS]
+    boards = compact_plyworks_boards(plyworks_boards)
     turns = []
     for turn in history or []:
         role = str(turn.get("role") or "")
@@ -129,6 +132,7 @@ def route_message(
         .replace("{history}", json.dumps(turns[-16:]))
         .replace("{available_apps}", json.dumps(apps))
         .replace("{restricted_apps}", json.dumps(restricted))
+        .replace("{plyworks_boards}", json.dumps(boards))
     )
     data = call_claude_json(client, prompt)
     reply = str(data.get("reply") or "").strip()
@@ -137,6 +141,7 @@ def route_message(
     app = _normalize_app(data.get("app"), apps)
     design = _normalize_design(data.get("design"))
     choices = _normalize_choices(data.get("choices"))
+    plyworks_ops = normalize_plyworks_ops(data.get("plyworksOps"))
     if app == "plyworks":
         design = design or "shelf"
         choices = None
@@ -144,4 +149,10 @@ def route_message(
         design = None
         if app is not None:
             choices = None
-    return {"reply": reply, "app": app, "design": design, "choices": choices}
+    return {
+        "reply": reply,
+        "app": app,
+        "design": design,
+        "choices": choices,
+        "plyworksOps": plyworks_ops,
+    }
