@@ -4,7 +4,6 @@ import { NestingPage } from "./components/NestingPage";
 import { parseDesignId, type DesignId } from "./lib/designs";
 
 interface PlyworksPageProps {
-  sessionId?: string;
   design?: string;
   helpActive?: boolean;
   onHelpReady?: () => void;
@@ -14,8 +13,8 @@ interface PlyworksPageProps {
   onOpenNesting: (jobId: string) => void;
 }
 
-export function PlyworksPage({ design, sessionId, ...props }: PlyworksPageProps) {
-  return <Configurator sessionId={sessionId} design={parseDesignId(design)} {...props} />;
+export function PlyworksPage({ design, ...props }: PlyworksPageProps) {
+  return <Configurator design={parseDesignId(design)} {...props} />;
 }
 
 export function PlyworksJwPage({

@@ -1,12 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FIT_ZOOM_MAX, ZOOM_MIN, ZOOM_MAX } from "../canvas/flow/constants";
 import { askConcierge, type ConciergeResult, type PlyworksDesign } from "../lib/concierge";
-import {
-  applyPlyworksSessionOps,
-  setActivePlyworksSession,
-  snapshotPlyworksBoards,
-} from "../lib/plyworksSession";
-import type { PlyworksOp } from "../lib/plyworksOps";
 import { classifyFile, openingMessage } from "../lib/intake";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
@@ -117,20 +111,6 @@ type Ctx = {
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
-
-function plyworksAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
-  const apps = nodes.filter((n) => n.kind === "app" && n.appId === "plyworks");
-  if (!apps.length) return undefined;
-  const visible = apps.filter((n) => !n.hidden);
-  const pool = visible.length ? visible : apps;
-  return pool.slice().sort((a, b) => b.z - a.z)[0];
-}
-
-function designFromOps(ops: PlyworksOp[], fallback: ConciergeResult["design"]): PlyworksDesign {
-  const load = ops.find((op) => op.action === "load_design");
-  if (load && load.action === "load_design") return load.design;
-  return fallback ?? "shelf";
-}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
@@ -287,25 +267,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let status: RequestEntry["result"] = "text";
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
-        const ops = result.plyworksOps ?? null;
-
-        if (ops?.length) {
-          const existing = plyworksAppNode(nodesRef.current);
-          let plyId = existing?.id ?? null;
-          if (plyId) {
-            focus(plyId);
-            setActivePlyworksSession(plyId);
-          } else {
-            plyId = openApp("plyworks", {
-              parentId: conciergeId,
-              query: q,
-              design: designFromOps(ops, result.design),
-            });
-            if (plyId) setActivePlyworksSession(plyId);
-          }
-          if (plyId) targetIds.push(plyId);
-          applyPlyworksSessionOps(ops);
-        }
 
         if (appId && openable(session, appId)) {
           // WAITING BFF: the reply opens a window directly. The master plan is a
@@ -314,11 +275,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           status = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
           routeWhy = result.reply;
-          if (!(ops?.length && appId === "plyworks")) {
-            const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
-            const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
-            if (appTarget && !targetIds.includes(appTarget)) targetIds.push(appTarget);
-          }
+          const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
+          const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
+          if (appTarget) targetIds.push(appTarget);
         } else if (appId) {
           // Unavailable: no window. The concierge reply is the whole answer.
           routeWhy = result.reply;
@@ -339,7 +298,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
 
       try {
-        settle(await askConcierge(q, history, apps, restricted, snapshotPlyworksBoards()));
+        settle(await askConcierge(q, history, apps, restricted));
       } catch {
         // No assistant reachable: fall back to a local name/design match so the board stays usable.
         const local = matchLocalRoute(q);
@@ -362,7 +321,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         });
       }
     })();
-  }, [openApp, ensureConcierge, session, focus]);
+  }, [openApp, ensureConcierge, session]);
 
   const ingestFiles = useCallback((files: File[]) => {
     const list = Array.from(files).filter(Boolean);

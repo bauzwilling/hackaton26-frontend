@@ -63,7 +63,6 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
         && (!help.appNodeId || help.appNodeId === node.id);
       return (
         <PlyworksPage
-          sessionId={node.id}
           design={node.design}
           helpActive={bridged && help?.phase === "iframe"}
           onHelpReady={help?.onPlyworksReady}

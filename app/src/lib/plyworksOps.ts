@@ -1,11 +1,9 @@
 /**
  * Plyworks edit intents returned by Concierge.
  *
- * Layer 1: the chat contract. Layer 2 calls applyPlyworksOps against the
- * native Studio configurator store (see plyworksSession.ts).
+ * Layer 1: the chat contract. Layer 2 (on native Studio) calls applyPlyworksOps
+ * against the configurator store. Until then this helper is unused.
  */
-
-import { flushSync } from "react-dom";
 
 export const PLYWORKS_OP_ACTIONS = ["add", "rotate", "delete", "load_design"] as const;
 export type PlyworksOpAction = (typeof PLYWORKS_OP_ACTIONS)[number];
@@ -41,34 +39,13 @@ export type PlyworksBoardSnapshot = {
 
 /** Configurator methods Layer 2 will pass in. loadDesign is optional on older stores. */
 export type PlyworksOpStore = {
-  boards: Array<PlyworksBoardSnapshot & { name: string }>;
+  boards: Array<{ id: number; name: string }>;
   select: (id: number | null) => void;
   addBoard: (kind: PlyworksOpKind) => void;
   rotate: (axis: PlyworksOpAxis) => void;
   deleteSelected: () => void;
   loadDesign?: (design: PlyworksDesignId) => void;
 };
-
-const SNAPSHOT_DIMS = ["w", "h", "d", "x", "y", "z"] as const;
-
-export function compactPlyworksBoards(raw: unknown): PlyworksBoardSnapshot[] {
-  if (!Array.isArray(raw)) return [];
-  const out: PlyworksBoardSnapshot[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const rec = item as Record<string, unknown>;
-    if (typeof rec.id !== "number" || !Number.isFinite(rec.id)) continue;
-    const board: PlyworksBoardSnapshot = { id: Math.round(rec.id) };
-    if (typeof rec.name === "string" && rec.name.trim()) board.name = rec.name.trim();
-    for (const key of SNAPSHOT_DIMS) {
-      const value = rec[key];
-      if (typeof value === "number" && Number.isFinite(value)) board[key] = value;
-    }
-    if (typeof rec.material === "string" && rec.material.trim()) board.material = rec.material.trim();
-    out.push(board);
-  }
-  return out;
-}
 
 function asDesign(raw: unknown): PlyworksDesignId | null {
   if (typeof raw !== "string") return null;
@@ -150,20 +127,20 @@ function resolveTarget(
   return null;
 }
 
-/** Run normalized ops against a configurator store. */
+/** Run normalized ops against a configurator store. Unused until Layer 2. */
 export function applyPlyworksOps(store: PlyworksOpStore, ops: PlyworksOp[]): void {
   for (const op of ops) {
     if (op.action === "add") {
-      flushSync(() => store.addBoard(op.kind));
+      store.addBoard(op.kind);
       continue;
     }
     if (op.action === "load_design") {
-      if (store.loadDesign) flushSync(() => store.loadDesign?.(op.design));
+      store.loadDesign?.(op.design);
       continue;
     }
     const id = resolveTarget(store.boards, op.target);
-    if (id != null) flushSync(() => store.select(id));
-    if (op.action === "rotate") flushSync(() => store.rotate(op.axis));
-    if (op.action === "delete") flushSync(() => store.deleteSelected());
+    if (id != null) store.select(id);
+    if (op.action === "rotate") store.rotate(op.axis);
+    if (op.action === "delete") store.deleteSelected();
   }
 }
