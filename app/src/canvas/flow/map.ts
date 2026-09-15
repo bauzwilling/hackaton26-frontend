@@ -29,6 +29,7 @@ export function sameStudioData(a: StudioNodeData, b: StudioNodeData) {
     && a.flash === b.flash
     && a.flashKey === b.flashKey
     && a.enter === b.enter
+    && a.preview === b.preview
     && sameConfirmApps(a.confirmApps, b.confirmApps)
   );
 }
@@ -58,7 +59,7 @@ export function reuseFlowNode(prev: StudioFlowNode | undefined, next: StudioFlow
 
 export function toFlowNode(
   n: WorkspaceNode,
-  extras: Partial<Pick<StudioNodeData, "enter" | "flash" | "flashKey">> & { selected?: boolean } = {},
+  extras: Partial<Pick<StudioNodeData, "enter" | "flash" | "flashKey" | "preview">> & { selected?: boolean } = {},
 ): StudioFlowNode {
   const data: StudioNodeData = {
     kind: n.kind,
@@ -78,6 +79,7 @@ export function toFlowNode(
     flash: extras.flash,
     flashKey: extras.flashKey,
     enter: extras.enter,
+    preview: extras.preview,
   };
   return {
     id: n.id,

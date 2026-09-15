@@ -114,7 +114,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "overview",
     title: "All windows",
-    body: "Overview lists every window. Arrange tiles them, hide tucks one away, and templates replay a view.",
+    body: "Windows lists every open app. Hover a row to find it on the canvas, click to zoom, then hide or close from the row.",
     anchor: { type: "help", id: "overview" },
     prepare: "overview-open",
     pad: 10,
@@ -129,8 +129,8 @@ export const STUDIO_TOUR: HelpStep[] = [
   },
   {
     id: "look",
-    title: "Look",
-    body: "Theme, accent colour, and canvas options (wires, grid, bubble mode) live up here.",
+    title: "Settings",
+    body: "Theme, accent colour, and canvas options (wires, grid) live in Settings up here.",
     anchor: { type: "help", id: "chrome-look" },
     prepare: "look-open",
     pad: 10,

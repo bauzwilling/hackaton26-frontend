@@ -93,9 +93,25 @@ export function lookTokens(theme: Theme, accent: AccentId) {
   };
 }
 
-function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean) {
+export const THEME_DISSOLVE_MS = 500;
+
+let dissolveTimer = 0;
+
+function beginThemeDissolve() {
+  if (typeof window === "undefined") return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const root = document.documentElement;
+  root.classList.add("theme-dissolve");
+  window.clearTimeout(dissolveTimer);
+  dissolveTimer = window.setTimeout(() => {
+    root.classList.remove("theme-dissolve");
+  }, THEME_DISSOLVE_MS);
+}
+
+function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean, dissolve = false) {
   const t = lookTokens(theme, accent);
   const root = document.documentElement;
+  if (dissolve) beginThemeDissolve();
   root.dataset.theme = theme;
   root.dataset.accent = accent;
   if (bubbleMode) root.dataset.bubble = "on";
@@ -106,7 +122,7 @@ function applyLook(theme: Theme, accent: AccentId, bubbleMode: boolean) {
   root.style.setProperty("--bg", t.bg);
   root.style.setProperty("--grid", t.grid);
   root.style.setProperty("--face2", t.face2);
-  if (document.body) document.body.style.backgroundColor = t.bg;
+  if (document.body) document.body.style.removeProperty("background-color");
 }
 
 function lookFor(session: Session | null): Appearance {
@@ -135,7 +151,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const patch = useCallback((partial: Partial<Appearance>) => {
     setLook((prev) => {
       const next = { ...prev, ...partial };
-      applyLook(next.theme, next.accent, next.bubbleMode);
+      applyLook(
+        next.theme,
+        next.accent,
+        next.bubbleMode,
+        partial.theme !== undefined && partial.theme !== prev.theme,
+      );
       const email = sessionRef.current?.email;
       // WAITING DATABASE: persist look on the signed-in user's profile
       if (email) saveProfileAppearance(email, next);

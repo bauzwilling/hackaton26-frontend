@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } 
 import { motion, useReducedMotion } from "framer-motion";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
-import { Overview } from "../canvas/Overview";
 import { StudioBoard } from "../canvas/StudioBoard";
 import { Composer } from "../components/Composer";
 import { LAND_FADE, Surface } from "../components/kit";
@@ -74,7 +73,6 @@ export function StudioPage() {
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const { nodes, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
   const [params, setParams] = useSearchParams();
-  const [viewport, setViewport] = useState({ width: 1200, height: 700 });
   const [dropping, setDropping] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
@@ -90,19 +88,6 @@ export function StudioPage() {
     next.delete("app");
     setParams(next, { replace: true });
   }, [params, openApp, announceOpen, ask, setParams]);
-
-  useEffect(() => {
-    const el = root.current;
-    if (!el) return;
-    const measure = () => {
-      const box = el.getBoundingClientRect();
-      setViewport({ width: box.width, height: box.height });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     const block = (e: globalThis.DragEvent) => {
@@ -230,7 +215,6 @@ export function StudioPage() {
           </Surface>
         </div>
       )}
-      <Overview viewport={viewport} />
       <PanHint empty={empty} conciergeUp={conciergeUp} />
       <HelpFab />
     </motion.div>

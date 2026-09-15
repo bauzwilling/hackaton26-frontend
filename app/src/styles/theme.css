@@ -1,3 +1,17 @@
+@property --bg { syntax: "<color>"; inherits: true; initial-value: #f4f1ea; }
+@property --face { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --face2 { syntax: "<color>"; inherits: true; initial-value: #faf8f4; }
+@property --ink { syntax: "<color>"; inherits: true; initial-value: #1a1916; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: #6b6560; }
+@property --acc { syntax: "<color>"; inherits: true; initial-value: #e07a22; }
+@property --acc-deep { syntax: "<color>"; inherits: true; initial-value: #c45f10; }
+@property --acc-lite { syntax: "<color>"; inherits: true; initial-value: #f4b57a; }
+@property --grid { syntax: "<color>"; inherits: true; initial-value: #d9cbb4; }
+@property --hi { syntax: "<color>"; inherits: true; initial-value: rgba(255, 255, 255, 0.95); }
+@property --lo { syntax: "<color>"; inherits: true; initial-value: rgba(40, 32, 24, 0.08); }
+@property --drop { syntax: "<color>"; inherits: true; initial-value: rgba(40, 32, 24, 0.12); }
+@property --line { syntax: "<color>"; inherits: true; initial-value: rgba(26, 25, 22, 0.12); }
+
 :root {
   --bg: #f4f1ea;
   --face: #ffffff;
@@ -22,6 +36,26 @@
   --font: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --radius: 14px;
   color-scheme: light;
+}
+
+html.theme-dissolve {
+  transition:
+    --bg 500ms ease,
+    --face 500ms ease,
+    --face2 500ms ease,
+    --ink 500ms ease,
+    --muted 500ms ease,
+    --acc 500ms ease,
+    --acc-deep 500ms ease,
+    --acc-lite 500ms ease,
+    --grid 500ms ease,
+    --hi 500ms ease,
+    --lo 500ms ease,
+    --drop 500ms ease,
+    --line 500ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-dissolve { transition: none; }
 }
 
 html[data-theme="dark"] {

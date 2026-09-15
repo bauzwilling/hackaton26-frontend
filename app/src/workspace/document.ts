@@ -80,7 +80,7 @@ export const EST_H: Record<NodeKind, number> = {
 };
 
 export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
-  return n.kind === "app";
+  return n.kind === "app" || n.kind === "note";
 }
 
 export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {

@@ -15,7 +15,7 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useSession } from "../context/session";
+import { lookTokens, useSession } from "../context/session";
 import {
   canDeleteNode,
   canDuplicateNode,
@@ -41,6 +41,7 @@ function StudioBoardInner() {
     viewport,
     flashIds,
     flashKey,
+    previewId,
     fitRequest,
     close,
     duplicateNodes,
@@ -51,7 +52,8 @@ function StudioBoardInner() {
     removeUserEdges,
     unrail,
   } = useWorkspace();
-  const { showWires, showGrid } = useSession();
+  const { showWires, showGrid, accent, theme } = useSession();
+  const previewFill = lookTokens(theme, accent).acc;
   const { fitView, screenToFlowPosition, getNodes, setViewport } = useReactFlow();
   const { zoom } = useViewport();
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioFlowNode>([]);
@@ -96,6 +98,7 @@ function StudioBoardInner() {
           enter: conciergeEnter && n.id === CONCIERGE_ID,
           flash: flashIds.includes(n.id),
           flashKey,
+          preview: previewId === n.id,
         });
         if (old && draggingNow) {
           mapped.position = old.position;
@@ -122,7 +125,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, previewId, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -382,12 +385,19 @@ function StudioBoardInner() {
             className="studio-minimap"
             pannable
             zoomable
-            nodeStrokeWidth={0}
+            nodeStrokeWidth={2}
             nodeColor={(n) => {
-              const kind = (n.data as StudioFlowNode["data"]).kind;
+              const data = n.data as StudioFlowNode["data"];
+              if (n.selected || data.preview) return previewFill;
+              const kind = data.kind;
               if (kind === "note") return "#e07a22";
               if (kind === "log" || kind === "text") return "#9aa0a6";
               return "#c5c0b6";
+            }}
+            nodeStrokeColor={(n) => {
+              const data = n.data as StudioFlowNode["data"];
+              if (n.selected || data.preview) return previewFill;
+              return "transparent";
             }}
           />
         </ReactFlow>

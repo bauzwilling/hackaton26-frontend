@@ -31,6 +31,7 @@ export type StudioNodeData = {
   flash?: boolean;
   flashKey?: number;
   enter?: boolean;
+  preview?: boolean;
 };
 
 export type StudioFlowNode = Node<StudioNodeData, "studioWindow">;
@@ -124,7 +125,7 @@ function StudioWindowNodeImpl({
         enter={data.enter}
         flash={data.flash}
         flashKey={data.flashKey}
-        selected={selected}
+        selected={selected || !!data.preview}
         viewport={false}
         onFocus={() => focus(id)}
         onClose={canClose ? () => close(id) : undefined}

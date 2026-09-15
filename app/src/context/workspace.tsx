@@ -79,6 +79,8 @@ type Ctx = {
   viewport: ViewportSnapshot;
   overviewOpen: boolean;
   setOverviewOpen: (v: boolean) => void;
+  previewId: string | null;
+  setPreviewId: (id: string | null) => void;
   fitRequest: FitRequest | null;
   openApp: (app: WorkspaceApp, opts?: { parentId?: string; query?: string; design?: PlyworksDesign }) => string | null;
   announceOpen: (app: WorkspaceApp, appTarget: string | null) => void;
@@ -121,6 +123,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportSnapshot>({ x: 0, y: 0, zoom: 1 });
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [flashIds, setFlashIds] = useState<string[]>([]);
   const [flashKey, setFlashKey] = useState(0);
   const [fitRequest, setFitRequest] = useState<FitRequest | null>(null);
@@ -132,6 +135,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const entriesRef = useRef<RequestEntry[]>([]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { entriesRef.current = entries; }, [entries]);
+  useEffect(() => {
+    if (!overviewOpen) setPreviewId(null);
+  }, [overviewOpen]);
   useEffect(() => () => {
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
   }, []);
@@ -601,6 +607,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     setUserEdges([]);
     setOverviewOpen(false);
+    setPreviewId(null);
     setViewport({ x: 0, y: 0, zoom: 1 });
     setFlashIds([]);
     zTop.current = 10;
@@ -621,6 +628,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     viewport,
     overviewOpen,
     setOverviewOpen,
+    previewId,
+    setPreviewId,
     fitRequest,
     openApp,
     announceOpen,
@@ -650,7 +659,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearTranscript,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, fitRequest, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
+  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
