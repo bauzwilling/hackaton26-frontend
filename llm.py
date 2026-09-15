@@ -12,9 +12,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from anthropic import Anthropic
-
 import config
+from plyworks_ops import compact_plyworks_boards, normalize_plyworks_ops
 
 KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
 KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
@@ -59,10 +58,10 @@ def parse_json_object(response_text: str) -> Dict[str, Any]:
     raise ValueError("Claude did not return JSON")
 
 
-def call_claude_json(client: Anthropic, prompt: str) -> Dict[str, Any]:
+def call_claude_json(client, prompt: str) -> Dict[str, Any]:
     message = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=1024,
+        max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -143,11 +142,14 @@ def _infer_kind(
     app: Optional[str],
     choices: Optional[List[str]],
     confirm_apps: Optional[List[str]],
+    plyworks_ops: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     if kind:
         return kind
     if confirm_apps or choices:
         return "clarify"
+    if plyworks_ops:
+        return "set"
     if app:
         return "open"
     return "info"
@@ -158,11 +160,15 @@ def route_message(
     history: List[Dict[str, str]] | None = None,
     available_apps: List[str] | None = None,
     restricted_apps: List[str] | None = None,
+    plyworks_boards: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
+    from anthropic import Anthropic
+
     client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
     template = load_prompt_from_file("concierge.md", "CONCIERGE_PROMPT")
     apps = [a for a in (available_apps or []) if a in KNOWN_APPS]
     restricted = [a for a in (restricted_apps or []) if a in KNOWN_APPS]
+    boards = compact_plyworks_boards(plyworks_boards)
     turns = []
     for turn in history or []:
         role = str(turn.get("role") or "")
@@ -174,6 +180,7 @@ def route_message(
         .replace("{history}", json.dumps(turns[-16:]))
         .replace("{available_apps}", json.dumps(apps))
         .replace("{restricted_apps}", json.dumps(restricted))
+        .replace("{plyworks_boards}", json.dumps(boards))
     )
     data = call_claude_json(client, prompt)
     reply = str(data.get("reply") or "").strip()
@@ -183,10 +190,12 @@ def route_message(
     design = _normalize_design(data.get("design"))
     choices = _normalize_choices(data.get("choices"))
     confirm_apps = _normalize_confirm_apps(data.get("confirmApps"), apps)
+    plyworks_ops = normalize_plyworks_ops(data.get("plyworksOps"))
     if confirm_apps:
         app = None
         design = None
         choices = None
+        plyworks_ops = None
     elif app == "plyworks":
         design = design or "shelf"
         choices = None
@@ -195,8 +204,11 @@ def route_message(
         design = None
         if app is not None:
             choices = None
+            plyworks_ops = None
         confirm_apps = None
-    kind = _infer_kind(_normalize_kind(data.get("kind")), app, choices, confirm_apps)
+    kind = _infer_kind(
+        _normalize_kind(data.get("kind")), app, choices, confirm_apps, plyworks_ops
+    )
     return {
         "kind": kind,
         "reply": reply,
@@ -204,4 +216,5 @@ def route_message(
         "design": design,
         "choices": choices,
         "confirmApps": confirm_apps,
+        "plyworksOps": plyworks_ops,
     }

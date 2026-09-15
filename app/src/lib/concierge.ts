@@ -14,17 +14,26 @@
  *   POST /api/chats/{chatId}/attachments
  *   POST /api/actions/{actionId}/accept | dismiss
  *
- * The `{ kind, reply, app, design, choices, confirmApps }` shape below is NOT the product contract.
- * `kind` is additive labeling only until BFF SuggestedAction owns outcomes.
- * The BFF owns SuggestedAction (`actionId`, `type` such as `mill.start`, `label`), and a
- * proposal starts nothing until the user accepts it. Nothing outside this file
- * should learn the transport, so keep callers on askConcierge().
+ * The `{ kind, reply, app, design, choices, confirmApps, plyworksOps }` shape below is
+ * NOT the product contract. `kind` and `confirmApps` are additive routing labels until
+ * BFF SuggestedAction owns outcomes. `plyworksOps` is additive (Layer 1); Layer 2 applies
+ * it to the Plyworks store. The BFF owns SuggestedAction (`actionId`, `type` such as
+ * `mill.start`, `label`), and a proposal starts nothing until the user accepts it.
+ * Nothing outside this file should learn the transport, so keep callers on askConcierge().
  */
+
+import {
+  asPlyworksOps,
+  PLYWORKS_DESIGNS,
+  type PlyworksBoardSnapshot,
+  type PlyworksDesignId,
+  type PlyworksOp,
+} from "./plyworksOps";
 
 export type ConciergeTurn = { role: "user" | "assistant"; content: string };
 
-export const PLYWORKS_DESIGNS = ["shelf", "table", "stool", "bench"] as const;
-export type PlyworksDesign = (typeof PLYWORKS_DESIGNS)[number];
+export { PLYWORKS_DESIGNS };
+export type PlyworksDesign = PlyworksDesignId;
 
 /** Additive intent label — does not drive side effects yet (WAITING MODEL / BFF actions). */
 export const CONCIERGE_KINDS = ["info", "open", "close", "get", "set", "clarify", "deny"] as const;
@@ -39,6 +48,8 @@ export type ConciergeResult = {
   choices: PlyworksDesign[] | null;
   /** Ambiguous app routing — UI shows chips; do not set together with `app`. */
   confirmApps: string[] | null;
+  /** Additive; Layer 2 applies these. Absent on local fallbacks. */
+  plyworksOps?: PlyworksOp[] | null;
 };
 
 function asKind(raw: unknown): ConciergeKind | null {
@@ -53,9 +64,11 @@ export function inferConciergeKind(result: {
   app: string | null;
   choices: PlyworksDesign[] | null;
   confirmApps: string[] | null;
+  plyworksOps?: PlyworksOp[] | null;
 }): ConciergeKind {
   if (result.kind) return result.kind;
   if (result.confirmApps?.length || result.choices?.length) return "clarify";
+  if (result.plyworksOps?.length) return "set";
   if (result.app) return "open";
   return "info";
 }
@@ -103,11 +116,12 @@ export async function askConcierge(
   history: ConciergeTurn[],
   apps: string[],
   restricted: string[] = [],
+  plyworksBoards: PlyworksBoardSnapshot[] = [],
 ): Promise<ConciergeResult> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, apps, restricted }),
+    body: JSON.stringify({ message, history, apps, restricted, plyworksBoards }),
   });
   if (!res.ok) {
     throw new Error(`Concierge request failed (${res.status})`);
@@ -119,6 +133,7 @@ export async function askConcierge(
     design?: unknown;
     choices?: unknown;
     confirmApps?: unknown;
+    plyworksOps?: unknown;
   };
   const reply = typeof data.reply === "string" ? data.reply.trim() : "";
   if (!reply) throw new Error("Concierge returned an empty reply");
@@ -128,17 +143,22 @@ export async function askConcierge(
   let design = asDesign(data.design);
   let choices = asChoices(data.choices);
   let confirmApps = asConfirmApps(data.confirmApps, allowed);
+  let plyworksOps = asPlyworksOps(data.plyworksOps);
   if (confirmApps?.length) {
     app = null;
     design = null;
     choices = null;
+    plyworksOps = null;
   } else if (app === "plyworks") {
     design = design ?? "shelf";
     choices = null;
     confirmApps = null;
   } else {
     design = null;
-    if (app) choices = null;
+    if (app) {
+      choices = null;
+      plyworksOps = null;
+    }
     confirmApps = null;
   }
   const kind = inferConciergeKind({
@@ -146,6 +166,7 @@ export async function askConcierge(
     app,
     choices,
     confirmApps,
+    plyworksOps,
   });
-  return { kind, reply, app, design, choices, confirmApps };
+  return { kind, reply, app, design, choices, confirmApps, plyworksOps };
 }

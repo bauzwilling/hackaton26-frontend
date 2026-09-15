@@ -12,7 +12,7 @@ this exists: it is reached only through the Vite proxy rule for /api.
 See docs/model-integration.md.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 
 from fastapi import FastAPI, HTTPException
@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     history: List[HistoryTurn] = Field(default_factory=list)
     apps: List[str] = Field(default_factory=list)
     restricted: List[str] = Field(default_factory=list)
+    plyworksBoards: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -51,6 +52,7 @@ class ChatResponse(BaseModel):
     design: Optional[str] = None
     choices: Optional[List[str]] = None
     confirmApps: Optional[List[str]] = None
+    plyworksOps: Optional[List[Dict[str, Any]]] = None
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -64,6 +66,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             history=[t.model_dump() for t in req.history],
             available_apps=req.apps,
             restricted_apps=req.restricted,
+            plyworks_boards=req.plyworksBoards,
         )
     except Exception as exc:
         log.exception("Concierge route failed")
@@ -75,4 +78,5 @@ def chat(req: ChatRequest) -> ChatResponse:
         design=result.get("design"),
         choices=result.get("choices"),
         confirmApps=result.get("confirmApps"),
+        plyworksOps=result.get("plyworksOps"),
     )
