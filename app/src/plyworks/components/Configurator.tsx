@@ -108,9 +108,8 @@ export function Configurator({
       deleteSelected: () => storeRef.current.deleteSelected(),
       loadDesign: (next) => storeRef.current.loadDesign(next),
     });
-    const t = window.setTimeout(() => flushPlyworksOps(), 0);
+    flushPlyworksOps();
     return () => {
-      window.clearTimeout(t);
       bindPlyworksStore(sessionId, null);
     };
   }, [sessionId]);
