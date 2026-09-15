@@ -8,10 +8,30 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { COMPANIES, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, useSession, type AccentId } from "../context/session";
 import { useWorkspace } from "../context/workspace";
+
+export const LAYOUT_MARK = "f2f-mark";
+export const LAYOUT_WORD = "f2f-wordmark";
+export const LAYOUT_KICKER = "f2f-kicker";
+export const LAYOUT_DOT = "f2f-network-dot";
+export const LAYOUT_CHROME = "f2f-chrome";
+
+export const LAYOUT_MOVE = {
+  type: "tween" as const,
+  duration: 1,
+  ease: [0.4, 0, 0.2, 1] as const,
+};
+
+export const LAND_FADE = {
+  type: "tween" as const,
+  delay: 0.2,
+  duration: 0.8,
+  ease: "easeOut" as const,
+};
 
 export type Relief = "raised" | "inset" | "accent" | "ghost";
 
@@ -47,14 +67,41 @@ function BrandMark() {
   );
 }
 
-export function Brand({ kicker = "Manufacturing as a service" }: { kicker?: string }) {
+export function Brand({
+  kicker = "Manufacturing as a service",
+  afterTitle,
+}: {
+  kicker?: string;
+  afterTitle?: ReactNode;
+}) {
+  const reduce = useReducedMotion();
+  const layout = reduce ? { duration: 0 } : LAYOUT_MOVE;
   return (
     <span className="chrome-brand">
-      <BrandMark />
+      <motion.span layout layoutId={LAYOUT_MARK} className="chrome-mark-wrap" transition={{ layout }}>
+        <BrandMark />
+      </motion.span>
       <span>
-        <div className="chrome-title">FILE <span>→</span> FACTORY</div>
-        <div className="chrome-kicker">{kicker}</div>
+        <div className="chrome-title">
+          <motion.span layout layoutId={LAYOUT_WORD} className="chrome-title-word" transition={{ layout }}>
+            FILE <span className="chrome-title-arrow">→</span> FACTORY
+          </motion.span>
+          {afterTitle}
+        </div>
+        <motion.div layout layoutId={LAYOUT_KICKER} className="chrome-kicker" transition={{ layout }}>
+          {kicker}
+        </motion.div>
       </span>
+    </span>
+  );
+}
+
+export function NetworkDot() {
+  return (
+    <span className="chrome-status-dot" aria-hidden>
+      <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2.5 6.5l2.5 2.5 4.5-5.5" />
+      </svg>
     </span>
   );
 }
@@ -339,26 +386,32 @@ export function Chrome({
   session: Session | null;
   onSignOut: () => void;
 }) {
+  const reduce = useReducedMotion();
+  const layout = reduce ? { duration: 0 } : LAYOUT_MOVE;
+  const land = reduce ? { duration: 0 } : LAND_FADE;
+
   return (
-    <header className="chrome">
-      <Link to={session ? "/" : "/login"} aria-label="File to Factory home"><Brand /></Link>
-      <div className="chrome-actions">
+    <div className="chrome-stack">
+      <motion.div layout layoutId={LAYOUT_CHROME} className="chrome-plate" transition={{ layout }} />
+      <header className="chrome">
+        <Link to={session ? "/" : "/login"} aria-label="File to Factory home"><Brand /></Link>
+        <div className="chrome-actions">
         <div className="chrome-look">
           <div className="chrome-status">
-            <span className="chrome-status-dot" aria-hidden>
-              <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" />
-              </svg>
-            </span>
-            Decentralized network online
+            <motion.span layout layoutId={LAYOUT_DOT} className="chrome-network-dot" transition={{ layout }}>
+              <NetworkDot />
+            </motion.span>
+            <motion.span initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
+              Decentralized network online
+            </motion.span>
           </div>
-          <div className="chrome-look-row" data-help="chrome-look">
+          <motion.div className="chrome-look-row" data-help="chrome-look" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
             {session && <WindowsToggle />}
             <LookOverflow />
-          </div>
+          </motion.div>
         </div>
         {session && (
-          <div className="user-chip">
+          <motion.div className="user-chip" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
             <span className="avatar">{session.name[0]}</span>
             <span>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{session.name}</div>
@@ -369,10 +422,11 @@ export function Chrome({
             <Surface as="button" type="button" relief="ghost" className="user-chip-out" onClick={onSignOut}>
               Sign out
             </Surface>
-          </div>
+          </motion.div>
         )}
-      </div>
-    </header>
+        </div>
+      </header>
+    </div>
   );
 }
 

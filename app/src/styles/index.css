@@ -92,17 +92,26 @@ button.sf:disabled:active { transform: none; }
   background: color-mix(in oklab, var(--acc) 10%, var(--face));
 }
 
+.chrome-stack {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 60;
+}
+.chrome-plate {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--acc) 8%, var(--face));
+  border-bottom: 1px solid color-mix(in oklab, var(--acc) 22%, var(--line));
+}
 .chrome {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 14px 24px;
   padding: 18px 28px 16px;
-  flex-shrink: 0;
   position: relative;
-  z-index: 60;
-  background: color-mix(in oklab, var(--acc) 8%, var(--face));
-  border-bottom: 1px solid color-mix(in oklab, var(--acc) 22%, var(--line));
+  background: transparent;
 }
 .chrome-brand {
   display: flex;
@@ -113,6 +122,11 @@ button.sf:disabled:active { transform: none; }
   border: none;
   box-shadow: none;
 }
+.chrome-mark-wrap {
+  display: flex;
+  flex: none;
+  line-height: 0;
+}
 .chrome-mark {
   width: 36px;
   height: 36px;
@@ -120,14 +134,24 @@ button.sf:disabled:active { transform: none; }
   color: var(--ink);
   display: block;
 }
+.chrome-title-word { display: inline-block; }
 .chrome-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
   text-transform: uppercase;
 }
-.chrome-title span { color: var(--acc); }
+.chrome-title-arrow { color: var(--acc); }
+.chrome-network-dot,
+.login-network-dot {
+  display: inline-flex;
+  line-height: 0;
+  flex: none;
+}
 .chrome-kicker {
   margin-top: 6px;
   font-size: 12px;
@@ -964,6 +988,7 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   width: min(400px, 100%);
 }
 .login-brand { margin-bottom: 22px; }
+.login-network-dot { cursor: default; }
 .sf.login-card {
   padding: 28px 28px 24px;
   background: color-mix(in oklab, var(--face) 52%, transparent);
@@ -1000,7 +1025,7 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .login-help {
   align-self: flex-start;
   height: auto;
-  margin: -4px 0 16px;
+  margin: -4px 0 10px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1012,16 +1037,44 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   text-underline-offset: 3px;
 }
 .login-help:hover { color: var(--ink); }
+.login-error-slot {
+  display: grid;
+  align-items: start;
+  min-height: 5.25rem;
+  margin: 0 0 14px;
+}
 .login-error {
-  margin-bottom: 14px;
+  margin: 0;
   padding: 12px 14px;
   color: var(--acc-deep);
   font-size: 14px;
+  line-height: 1.4;
 }
 .login-submit {
   width: 100%;
   height: 44px;
   font-weight: 700;
+}
+.login-submit:disabled {
+  opacity: 1;
+}
+.login-submit-spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in oklab, #fff 32%, transparent);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.65s linear infinite;
+}
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+.login-samples-wrap.is-busy {
+  pointer-events: none;
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-submit-spin { animation: none; }
 }
 .sf.login-samples {
   margin-top: 18px;

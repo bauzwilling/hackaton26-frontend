@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { Overview } from "../canvas/Overview";
 import { StudioBoard } from "../canvas/StudioBoard";
 import { Composer } from "../components/Composer";
-import { Surface } from "../components/kit";
+import { LAND_FADE, Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { appLabel, CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
@@ -16,6 +17,7 @@ function isFileDrag(e: DragEvent) {
 
 export function StudioPage() {
   const { session } = useSession();
+  const reduce = useReducedMotion();
   const { nodes, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
@@ -95,10 +97,13 @@ export function StudioPage() {
   }
 
   return (
-    <div
+    <motion.div
       className={`studio${dropping ? " is-dropping" : ""}`}
       data-help="studio-drop"
       ref={root}
+      initial={reduce ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={reduce ? { duration: 0 } : LAND_FADE}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -154,6 +159,6 @@ export function StudioPage() {
       <Overview viewport={viewport} />
       <PanHint empty={empty} conciergeUp={conciergeUp} />
       <HelpFab />
-    </div>
+    </motion.div>
   );
 }
