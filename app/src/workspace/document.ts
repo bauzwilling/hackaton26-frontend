@@ -1,5 +1,5 @@
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
-import type { PlyworksDesign } from "../lib/concierge";
+import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
 
@@ -44,6 +44,8 @@ export type RequestEntry = {
   appId?: WorkspaceApp;
   result: "app" | "text" | "denied";
   reply?: string;
+  /** Additive intent label from concierge — not used for side effects yet. */
+  kind?: ConciergeKind;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];

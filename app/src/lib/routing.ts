@@ -5,8 +5,9 @@
  * make the Studio unusable (msd-concierge-ui: "manufacturing stays usable without AI").
  *
  * WAITING BFF: the capability manifest is BFF-owned, so this alias table is a fixture.
+ * WAITING MODEL: stands in for the structuring model when /api/chat is unreachable.
  */
-import { PLYWORKS_DESIGNS, type PlyworksDesign } from "./concierge";
+import { inferConciergeKind, PLYWORKS_DESIGNS, type ConciergeKind, type PlyworksDesign } from "./concierge";
 
 const APP_ALIASES: { app: string; patterns: RegExp[] }[] = [
   { app: "boxouts", patterns: [/\bdoor\s*box\s*-?\s*outs?\b/i, /\bbox\s*-?\s*outs?\b/i] },
@@ -26,11 +27,20 @@ const DESIGN_ALIASES: { design: PlyworksDesign; patterns: RegExp[] }[] = [
 
 const VAGUE_FURNITURE = /\b(furniture|plywood|ply\s*wood)\b/i;
 
+/** Loose manufacturing language that could fit more than one job app. */
+const AMBIGUOUS_JOB = /\b(parts?\s+to\s+cut|cut\s+parts?|sheet\s+metal|laser\s+cut|cnc\s+parts?|boxes?\s+and\s+parts?)\b/i;
+
 export type LocalRoute = {
+  kind: ConciergeKind;
   app: string | null;
   design: PlyworksDesign | null;
   choices: PlyworksDesign[] | null;
+  confirmApps: string[] | null;
 };
+
+function withKind(route: Omit<LocalRoute, "kind">): LocalRoute {
+  return { ...route, kind: inferConciergeKind(route) };
+}
 
 /** Returns a workspace app id when the text plainly names one, otherwise null. */
 export function matchApp(message: string): string | null {
@@ -47,22 +57,25 @@ export function matchPlyworksDesign(message: string): PlyworksDesign | null {
   return null;
 }
 
-/** App + Plyworks design (or choice chips) when Claude is unreachable. */
+/** App + Plyworks design (or choice / confirm chips) when Claude is unreachable. */
 export function matchLocalRoute(message: string): LocalRoute {
   const named = matchApp(message);
   const design = matchPlyworksDesign(message);
 
   if (named && named !== "plyworks") {
-    return { app: named, design: null, choices: null };
+    return withKind({ app: named, design: null, choices: null, confirmApps: null });
   }
   if (design) {
-    return { app: "plyworks", design, choices: null };
+    return withKind({ app: "plyworks", design, choices: null, confirmApps: null });
   }
   if (named === "plyworks") {
-    return { app: "plyworks", design: "shelf", choices: null };
+    return withKind({ app: "plyworks", design: "shelf", choices: null, confirmApps: null });
   }
   if (VAGUE_FURNITURE.test(message)) {
-    return { app: null, design: null, choices: [...PLYWORKS_DESIGNS] };
+    return withKind({ app: null, design: null, choices: [...PLYWORKS_DESIGNS], confirmApps: null });
   }
-  return { app: null, design: null, choices: null };
+  if (AMBIGUOUS_JOB.test(message)) {
+    return withKind({ app: null, design: null, choices: null, confirmApps: ["boxouts", "simpleparts"] });
+  }
+  return withKind({ app: null, design: null, choices: null, confirmApps: null });
 }

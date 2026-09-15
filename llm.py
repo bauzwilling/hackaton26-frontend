@@ -17,6 +17,7 @@ from plyworks_ops import compact_plyworks_boards, normalize_plyworks_ops
 
 KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
 KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
+KNOWN_KINDS = ("info", "open", "close", "get", "set", "clarify", "deny")
 
 
 def load_prompt_from_file(filename: str, marker: str) -> str:
@@ -107,6 +108,53 @@ def _normalize_choices(raw: Any) -> Optional[List[str]]:
     return out or None
 
 
+def _normalize_confirm_apps(raw: Any, available_apps: List[str]) -> Optional[List[str]]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        return None
+    allowed = {a for a in available_apps if a in KNOWN_APPS}
+    out: List[str] = []
+    seen = set()
+    for item in items:
+        app = _normalize_app(item, list(allowed))
+        if app and app not in seen:
+            seen.add(app)
+            out.append(app)
+    return out or None
+
+
+def _normalize_kind(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    kind = str(raw).strip().lower()
+    if not kind or kind in ("null", "none"):
+        return None
+    return kind if kind in KNOWN_KINDS else None
+
+
+def _infer_kind(
+    kind: Optional[str],
+    app: Optional[str],
+    choices: Optional[List[str]],
+    confirm_apps: Optional[List[str]],
+    plyworks_ops: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    if kind:
+        return kind
+    if confirm_apps or choices:
+        return "clarify"
+    if plyworks_ops:
+        return "set"
+    if app:
+        return "open"
+    return "info"
+
+
 def route_message(
     user_message: str,
     history: List[Dict[str, str]] | None = None,
@@ -141,18 +189,32 @@ def route_message(
     app = _normalize_app(data.get("app"), apps)
     design = _normalize_design(data.get("design"))
     choices = _normalize_choices(data.get("choices"))
+    confirm_apps = _normalize_confirm_apps(data.get("confirmApps"), apps)
     plyworks_ops = normalize_plyworks_ops(data.get("plyworksOps"))
-    if app == "plyworks":
+    if confirm_apps:
+        app = None
+        design = None
+        choices = None
+        plyworks_ops = None
+    elif app == "plyworks":
         design = design or "shelf"
         choices = None
+        confirm_apps = None
     else:
         design = None
         if app is not None:
             choices = None
+            plyworks_ops = None
+        confirm_apps = None
+    kind = _infer_kind(
+        _normalize_kind(data.get("kind")), app, choices, confirm_apps, plyworks_ops
+    )
     return {
+        "kind": kind,
         "reply": reply,
         "app": app,
         "design": design,
         "choices": choices,
+        "confirmApps": confirm_apps,
         "plyworksOps": plyworks_ops,
     }

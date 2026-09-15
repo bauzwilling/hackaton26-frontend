@@ -24,6 +24,6 @@ Sample CAD and the input-requirements PDF live in `app/public/input-requirements
 
 Per boundary-plan §3 the UI may only talk to the Platform BFF and **must never call Simple Parts**. That BFF does not exist yet, so this window still drives the standalone Flask app directly. Every one of those calls is a temporary mock.
 
-`/api/parts` is only a local dev prefix so those mock calls stop colliding with Studio Concierge on `/api` → `:8000`; Vite strips the prefix and proxies to `VITE_SIMPLEPARTS_BACKEND_URL` (default `http://127.0.0.1:5001`). It is not a platform route and nothing should depend on it.
+`/api/parts` is only a local dev prefix so those mock calls stop colliding with Studio Concierge on `/api` → `:8000`; Vite rewrites `/api/parts` → `/api` and proxies to `VITE_SIMPLEPARTS_BACKEND_URL` (default `http://127.0.0.1:5001`). It is not a platform route and nothing should depend on it.
 
 When the BFF lands, `partsApi()` and the proxy rule both go away: chat, run status, and artifacts move to the platform endpoints in boundary-plan §18, and Simple Parts sits behind the BFF via `SimplePartsAdapter` (§12). Per msd-simple-parts-ui, the window stays; only the transport and the local quote/production fakes are replaced. Call sites carry `WAITING BFF` / `WAITING MODEL`.

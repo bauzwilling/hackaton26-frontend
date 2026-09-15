@@ -46,10 +46,12 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    kind: Optional[str] = None
     reply: str
     app: Optional[str] = None
     design: Optional[str] = None
     choices: Optional[List[str]] = None
+    confirmApps: Optional[List[str]] = None
     plyworksOps: Optional[List[Dict[str, Any]]] = None
 
 
@@ -70,9 +72,11 @@ def chat(req: ChatRequest) -> ChatResponse:
         log.exception("Concierge route failed")
         raise HTTPException(status_code=502, detail="The assistant could not reply.") from exc
     return ChatResponse(
+        kind=result.get("kind"),
         reply=result["reply"],
         app=result.get("app"),
         design=result.get("design"),
         choices=result.get("choices"),
+        confirmApps=result.get("confirmApps"),
         plyworksOps=result.get("plyworksOps"),
     )

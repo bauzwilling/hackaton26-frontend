@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import SidebarComponent from "./components/SidebarComponent";
 import ThreeMeshViewer, { type ThreeMeshViewerHandle } from "./components/ThreeMeshViewer";
 import NestingResultModalComponent from "./components/NestingResultModalComponent";
@@ -11,6 +12,9 @@ export function SimplePartsPage() {
   const preview = app.summonedPreview.value;
   const leftover = app.leftoverNestPreview.value;
   const activeViewer = app.activeViewer.value;
+  const setMeshViewer = useCallback((viewer: ThreeMeshViewerHandle | null) => {
+    app.meshViewerRef.value = viewer;
+  }, [app]);
 
   return (
     <div className="simpleparts-app">
@@ -54,7 +58,7 @@ export function SimplePartsPage() {
           )}
           {activeViewer === "nestingMesh" && (
             <ThreeMeshViewer
-              ref={(viewer: ThreeMeshViewerHandle | null) => { app.meshViewerRef.value = viewer; }}
+              ref={setMeshViewer}
               key={preview?.jobId ?? app.nestingViewerKey.value}
               meshes={preview?.assignedMeshes3d ?? []}
               unassignedMeshes={preview?.unassignedMeshes3d ?? []}
@@ -71,7 +75,7 @@ export function SimplePartsPage() {
           )}
           {activeViewer === "inputMesh" && (
             <ThreeMeshViewer
-              ref={(viewer: ThreeMeshViewerHandle | null) => { app.meshViewerRef.value = viewer; }}
+              ref={setMeshViewer}
               key={`input-preview-${app.nestingViewerKey.value}`}
               meshes={app.meshPreview.value ?? []}
               annotationDxf={app.annotationOverlayDxf.value}
