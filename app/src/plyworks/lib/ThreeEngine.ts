@@ -102,7 +102,8 @@ export class ThreeEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.95;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // three@0.185+: PCFSoftShadowMap removed; PCFShadowMap is the soft filter.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.display = "block";
     this.renderer.domElement.style.cursor = "grab";

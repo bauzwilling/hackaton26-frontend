@@ -126,7 +126,8 @@ export function createAppState() {
   const scanParts = ref([])
   const scanPartsByPage = ref([])
   const drillDiameterMm = ref(null)
-  const meshViewerRef = ref(null)
+  /** Imperative viewer handle; not a reactive ref — assigning from a React callback ref must not emit. */
+  const meshViewerRef = { value: null }
   const summonedPreview = ref(null)
   /** Successful leftover nest (unassigned DXF re-nested); null until all leftovers fit. */
   const leftoverNestPreview = ref(null)
