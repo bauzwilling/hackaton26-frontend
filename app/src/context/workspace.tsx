@@ -16,9 +16,14 @@ import {
   canDeleteNode,
   canDuplicateNode,
   denyCopy,
+  activityClock,
+  activityFocusIds,
+  activityLine,
+  activityName,
   entryIsLive,
   entryOpenedApp,
   entryWindowName,
+  isActivityEntry,
   isWorkspaceApp,
   licensedApps,
   loadEntries,
@@ -65,6 +70,11 @@ export {
   entryOpenedApp,
   entryWindowName,
   entryIsLive,
+  isActivityEntry,
+  activityClock,
+  activityFocusIds,
+  activityLine,
+  activityName,
 };
 
 export type FitRequest = { ids: string[]; key: number; maxZoom?: number };
@@ -146,13 +156,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const saved = loadWorkspacePersist(email) ?? emptyPersist();
     skipSave.current += 1;
     const cleaned = saved.nodes
-      .filter((n) => n.kind !== "request" && n.kind !== "denied" && (n.kind !== "text" || n.id === CONCIERGE_ID))
+      .filter((n) => n.kind !== "request" && n.kind !== "denied" && n.kind !== "log" && (n.kind !== "text" || n.id === CONCIERGE_ID))
       .filter((n) => {
         if (n.kind !== "app" || !n.appId) return true;
         const meta = WORKSPACE_APPS.find((a) => a.id === n.appId);
         return meta?.ready !== false;
       })
-      .map(normalizeNode);
+      .map((n) => {
+        const next = normalizeNode(n);
+        return next.id === CONCIERGE_ID ? { ...next, hidden: true } : next;
+      });
     setNodes(cleaned);
     setUserEdges(saved.userEdges);
     setViewport(saved.viewport ?? { x: 0, y: 0, zoom: 1 });
@@ -206,6 +219,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       opened = result.id;
       return result.nodes;
     });
+    if (opened) {
+      const label = appLabel(app);
+      setEntries((list) => [...list, {
+        id: uid("e"),
+        at: Date.now(),
+        query: label,
+        routeLabel: "Activity",
+        routeWhy: `Opened ${label}`,
+        targetIds: [opened],
+        appId: app,
+        result: "activity",
+        activity: "opened",
+      }]);
+    }
     return opened;
   }, [session]);
 
@@ -557,12 +584,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback((id: string) => {
+    const node = nodesRef.current.find((n) => n.id === id);
     setUserEdges((edges) => {
       const result = closeNode(nodesRef.current, edges, id);
       if (!result) return edges;
       setNodes(result.nodes);
       return result.userEdges;
     });
+    if (node?.kind === "app" && node.appId) {
+      const label = appLabel(node.appId);
+      setEntries((list) => [...list, {
+        id: uid("e"),
+        at: Date.now(),
+        query: label,
+        routeLabel: "Activity",
+        routeWhy: `Closed ${label}`,
+        targetIds: [id],
+        appId: node.appId,
+        result: "activity",
+        activity: "closed",
+      }]);
+    }
   }, []);
 
   const hide = useCallback((id: string) => {
@@ -603,7 +645,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setSelectedEntryId(null);
       setNodes([]);
     } else {
-      setNodes((list) => list.filter((n) => n.kind === "log" || n.id === CONCIERGE_ID));
+      setNodes((list) => list.filter((n) => n.id === CONCIERGE_ID).map((n) => ({ ...n, hidden: true })));
     }
     setUserEdges([]);
     setOverviewOpen(false);

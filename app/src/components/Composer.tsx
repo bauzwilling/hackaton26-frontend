@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Surface } from "./kit";
+import { motion, useReducedMotion } from "framer-motion";
+import { CHAT_MOVE, LAYOUT_ATTACH, LAYOUT_COMPOSER, LAYOUT_FIELD, LAYOUT_SEND, Surface } from "./kit";
 import { useWorkspace } from "../context/workspace";
 import { FILE_ACCEPT } from "../lib/intake";
 
@@ -31,8 +32,10 @@ export function Composer({
   placeholder?: string;
 }) {
   const { ask, ingestFiles } = useWorkspace();
+  const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const layout = reduce ? { duration: 0 } : CHAT_MOVE;
 
   function submit() {
     const q = query.trim();
@@ -48,7 +51,13 @@ export function Composer({
   }
 
   return (
-    <Surface className={`composer composer-${variant}`}>
+    <Surface
+      as={motion.div}
+      layout
+      layoutId={LAYOUT_COMPOSER}
+      className={`composer composer-${variant}`}
+      transition={{ layout }}
+    >
       <input
         ref={fileInput}
         className="composer-file"
@@ -60,27 +69,42 @@ export function Composer({
       />
       <div className="composer-row">
         <Surface
-          as="button"
+          as={motion.button}
+          layout
+          layoutId={LAYOUT_ATTACH}
           type="button"
           relief="ghost"
           className="composer-attach"
           aria-label="Attach a file"
+          transition={{ layout }}
           onClick={() => fileInput.current?.click()}
         >
           <ClipIcon />
         </Surface>
-        <input
-          type="text"
-          value={query}
-          autoFocus={autoFocus}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-          }}
-          placeholder={placeholder}
-          aria-label="Describe what you want to build"
-        />
-        <Surface as="button" type="button" relief="accent" className="composer-send" onClick={submit} aria-label="Send">
+        <motion.div layout layoutId={LAYOUT_FIELD} className="composer-field" transition={{ layout }}>
+          <input
+            type="text"
+            value={query}
+            autoFocus={autoFocus}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder={placeholder}
+            aria-label="Describe what you want to build"
+          />
+        </motion.div>
+        <Surface
+          as={motion.button}
+          layout
+          layoutId={LAYOUT_SEND}
+          type="button"
+          relief="accent"
+          className="composer-send"
+          aria-label="Send"
+          transition={{ layout }}
+          onClick={submit}
+        >
           <SendIcon />
         </Surface>
       </div>

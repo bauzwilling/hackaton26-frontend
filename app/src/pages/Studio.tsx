@@ -3,8 +3,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { StudioBoard } from "../canvas/StudioBoard";
+import { ConciergeThread } from "../canvas/Concierge";
 import { Composer } from "../components/Composer";
-import { LAND_FADE, Surface } from "../components/kit";
+import { CHAT_MOVE, LAND_FADE, LAYOUT_CHAT, Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { appLabel, CONCIERGE_ID, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
@@ -20,48 +21,30 @@ export type StudioLeave = {
 };
 
 const HERO_EASE = [0.22, 1, 0.36, 1] as const;
-const heroRise = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
-  leave: { transition: { staggerChildren: 0.06, staggerDirection: -1, when: "afterChildren" as const } },
-};
-const heroRiseItem = {
-  hidden: { opacity: 0, y: 56 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: HERO_EASE } },
-  leave: { opacity: 0, y: 56, transition: { duration: 0.32, ease: HERO_EASE } },
-};
+const HERO_STAGGER = 0.1;
 
-function HeroRise({
-  reduce, leaving, onLeaveDone, children,
+function HeroPiece({
+  delay, leaveDelay = 0, leaving, className, children,
 }: {
-  reduce: boolean | null;
-  leaving: boolean;
-  onLeaveDone: () => void;
+  delay: number;
+  leaveDelay?: number;
+  leaving?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
-  useEffect(() => {
-    if (!leaving) return;
-    const t = window.setTimeout(onLeaveDone, reduce ? 0 : 520);
-    return () => window.clearTimeout(t);
-  }, [leaving, reduce, onLeaveDone]);
-  if (reduce) return <>{children}</>;
+  const reduce = useReducedMotion();
+  if (reduce) return <div className={className}>{children}</div>;
   return (
     <motion.div
+      className={className}
       initial="hidden"
       animate={leaving ? "leave" : "show"}
-      variants={heroRise}
-      onAnimationComplete={(def) => {
-        if (leaving && def === "leave") onLeaveDone();
+      variants={{
+        hidden: { opacity: 0, y: 56 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.42, delay, ease: HERO_EASE } },
+        leave: { opacity: 0, y: 56, transition: { duration: 0.32, delay: leaveDelay, ease: HERO_EASE } },
       }}
     >
-      {children}
-    </motion.div>
-  );
-}
-
-function HeroRiseItem({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <motion.div className={className} variants={heroRiseItem}>
       {children}
     </motion.div>
   );
@@ -71,7 +54,7 @@ export function StudioPage() {
   const { session } = useSession();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
-  const { nodes, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
+  const { nodes, entries, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -101,17 +84,39 @@ export function StudioPage() {
     };
   }, []);
 
-  const empty = nodes.length === 0;
-  const conciergeUp = nodes.some((n) => n.id === CONCIERGE_ID && !n.hidden);
-  const emptyHero = empty && !conciergeUp;
+  const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
+  const docked = hasWindows || entries.length > 0;
+  const emptyHero = !docked;
+  const [firstLand, setFirstLand] = useState(!docked);
+  const [heroReady, setHeroReady] = useState(!docked);
+
+  useEffect(() => {
+    if (docked) setFirstLand(false);
+  }, [docked]);
+
+  useEffect(() => {
+    if (docked) {
+      setHeroReady(false);
+      return;
+    }
+    if (firstLand) {
+      setHeroReady(true);
+      return;
+    }
+    const t = window.setTimeout(() => setHeroReady(true), reduce ? 0 : CHAT_MOVE.duration * 1000);
+    return () => window.clearTimeout(t);
+  }, [docked, firstLand, reduce]);
 
   useEffect(() => {
     if (!leaving) return;
-    if (emptyHero && !reduce) return;
-    const wait = reduce ? 0 : 280;
+    const wait = reduce
+      ? 0
+      : emptyHero
+        ? (0.32 + (firstLand ? 4 : 3) * HERO_STAGGER) * 1000
+        : 280;
     const t = window.setTimeout(onLeaveDone, wait);
     return () => window.clearTimeout(t);
-  }, [leaving, emptyHero, reduce, onLeaveDone]);
+  }, [leaving, emptyHero, firstLand, reduce, onLeaveDone]);
 
   function onDragEnter(e: DragEvent<HTMLDivElement>) {
     if (!isFileDrag(e)) return;
@@ -146,7 +151,7 @@ export function StudioPage() {
 
   return (
     <motion.div
-      className={`studio${dropping ? " is-dropping" : ""}${leaving ? " is-leaving" : ""}`}
+      className={`studio${dropping ? " is-dropping" : ""}${leaving ? " is-leaving" : ""}${docked ? " is-chat-docked" : ""}`}
       data-help="studio-drop"
       ref={root}
       initial={reduce ? false : { opacity: 0 }}
@@ -158,55 +163,103 @@ export function StudioPage() {
       onDrop={onDrop}
     >
       <StudioBoard />
-      {!conciergeUp && (
-        empty ? (
-          <div className="hero-chat">
-            <HeroRise reduce={reduce} leaving={leaving} onLeaveDone={onLeaveDone}>
-              <HeroRiseItem>
+      <div className={`studio-chat-slot${docked ? " is-docked" : " is-center"}`}>
+        <motion.div
+          layout
+          className="studio-chat-col"
+          transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
+        >
+          {emptyHero && heroReady && (
+            <>
+              <HeroPiece delay={0} leaveDelay={firstLand ? 0.4 : 0.3} leaving={leaving && !reduce}>
                 <p className="hero-kicker">The largest factory in the world</p>
+              </HeroPiece>
+              <HeroPiece delay={HERO_STAGGER} leaveDelay={firstLand ? 0.3 : 0.2} leaving={leaving && !reduce}>
                 <h1 className="hero-title">From file to factory.</h1>
+              </HeroPiece>
+              <HeroPiece delay={HERO_STAGGER * 2} leaveDelay={firstLand ? 0.2 : 0.1} leaving={leaving && !reduce}>
                 <p className="hero-lead">
                   Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.
                 </p>
-              </HeroRiseItem>
-              <HeroRiseItem>
-                <Composer variant="hero" autoFocus />
-              </HeroRiseItem>
-              <HeroRiseItem className="chips">
-                {chips.map((c) => (
-                  <Surface
-                    key={c}
-                    as="button"
-                    type="button"
-                    className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
-                    onClick={() => ask(c)}
-                  >
-                    {c}
-                  </Surface>
-                ))}
-              </HeroRiseItem>
-            </HeroRise>
-          </div>
-        ) : (
-          <div className="hero-chat is-bare">
+              </HeroPiece>
+            </>
+          )}
+          {docked ? (
             <motion.div
-              animate={leaving && !reduce ? { opacity: 0, y: 56 } : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, ease: HERO_EASE }}
+              layout
+              layoutId={LAYOUT_CHAT}
+              className="studio-chat-card is-docked"
+              data-help="concierge"
+              transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
             >
-              <Composer variant="hero" />
+              <ConciergeThread />
+              <Composer
+                variant="panel"
+                placeholder="Ask, or drop a file…"
+              />
             </motion.div>
-          </div>
-        )
+          ) : firstLand ? (
+            <HeroPiece delay={HERO_STAGGER * 3} leaveDelay={HERO_STAGGER} leaving={leaving && !reduce}>
+              <motion.div
+                layout
+                layoutId={LAYOUT_CHAT}
+                className="studio-chat-card"
+                data-help="concierge"
+                transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
+              >
+                <Composer variant="hero" autoFocus={emptyHero} />
+              </motion.div>
+            </HeroPiece>
+          ) : (
+            <motion.div
+              layout
+              layoutId={LAYOUT_CHAT}
+              className="studio-chat-card"
+              data-help="concierge"
+              initial={false}
+              animate={leaving && emptyHero && !reduce ? { opacity: 0, y: 56 } : { opacity: 1, y: 0 }}
+              transition={
+                leaving && emptyHero
+                  ? { duration: 0.32, delay: HERO_STAGGER, ease: HERO_EASE }
+                  : { layout: reduce ? { duration: 0 } : CHAT_MOVE }
+              }
+            >
+              <Composer variant="hero" autoFocus={emptyHero && heroReady} />
+            </motion.div>
+          )}
+          {emptyHero && heroReady && (
+            <HeroPiece
+              className="chips"
+              delay={firstLand ? HERO_STAGGER * 4 : HERO_STAGGER * 3}
+              leaveDelay={0}
+              leaving={leaving && !reduce}
+            >
+              {chips.map((c) => (
+                <Surface
+                  key={c}
+                  as="button"
+                  type="button"
+                  className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
+                  onClick={() => ask(c)}
+                >
+                  {c}
+                </Surface>
+              ))}
+            </HeroPiece>
+          )}
+        </motion.div>
+      </div>
+      {hasWindows && (
+        <p className="studio-hint" data-help="studio-hint">
+          Right-drag to pan
+          <span aria-hidden="true"> · </span>
+          Left-drag to select
+          <span aria-hidden="true"> · </span>
+          Delete to close apps
+          <span aria-hidden="true"> · </span>
+          Right-click for options
+        </p>
       )}
-      <p className="studio-hint" data-help="studio-hint">
-        Right-drag to pan
-        <span aria-hidden="true"> · </span>
-        Left-drag to select
-        <span aria-hidden="true"> · </span>
-        Delete to close apps
-        <span aria-hidden="true"> · </span>
-        Right-click for options
-      </p>
       {dropping && (
         <div className="drop-overlay">
           <Surface className="drop-overlay-card">
@@ -215,7 +268,7 @@ export function StudioPage() {
           </Surface>
         </div>
       )}
-      <PanHint empty={empty} conciergeUp={conciergeUp} />
+      <PanHint interactive={hasWindows} />
       <HelpFab />
     </motion.div>
   );

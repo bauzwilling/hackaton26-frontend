@@ -7,17 +7,14 @@ import {
   EST_H,
   GAP,
   JOB_APPS,
-  LOG_ID,
   NOTE_H,
   NOTE_W,
-  RAIL_W,
   WORKSPACE_APPS,
   appBox,
   canDeleteNode,
   canDuplicateNode,
   conciergeNode,
   isFixedSizeApp,
-  logNode,
   openable,
   type WorkspaceApp,
   type WorkspaceNode,
@@ -69,35 +66,16 @@ export function restack(list: WorkspaceNode[]): WorkspaceNode[] {
   return list.map((n) => (n.id === CONCIERGE_ID ? { ...n, x: log.x, y } : n));
 }
 
-/**
- * The log and the concierge are one unit: log on top, concierge (which carries the
- * composer) directly beneath it. Everything that puts something on the board goes
- * through here, so the composer always has a home.
- */
+/** Concierge is a hidden hub for wires and parentId; the visible chat is the overlay. */
+function hideConcierge(n: WorkspaceNode): WorkspaceNode {
+  return n.id === CONCIERGE_ID ? { ...n, hidden: true } : n;
+}
+
 export function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
-  const base = list.filter((n) => n.kind !== "request");
-  const log = base.find((n) => n.kind === "log");
+  const base = list.filter((n) => n.kind !== "request" && n.kind !== "log");
   const concierge = base.find((n) => n.id === CONCIERGE_ID);
-
-  if (log && concierge) {
-    return restack(base.map((n) => (
-      n.id === log.id || n.id === CONCIERGE_ID ? { ...n, hidden: false } : n
-    )));
-  }
-
-  if (log) {
-    return [...base.map((n) => (n.id === log.id ? { ...n, hidden: false } : n)), {
-      ...conciergeNode(),
-      x: log.x,
-      y: railY(log),
-    }];
-  }
-
-  const others = base.filter((n) => n.id !== CONCIERGE_ID);
-  const slot = placeBeside(others, RAIL_W, EST_H.log + GAP + EST_H.text);
-  const nextLog = { ...logNode(), x: slot.x, y: slot.y };
-  const nextConcierge = { ...(concierge ?? conciergeNode()), hidden: false, railed: true, x: slot.x, y: railY(nextLog) };
-  return [nextLog, ...others, nextConcierge];
+  if (concierge) return base.map(hideConcierge);
+  return [...base, hideConcierge(conciergeNode())];
 }
 
 /** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes. */
@@ -162,7 +140,7 @@ export function openAppNodes(
 
 export function ensureConciergeNodes(list: WorkspaceNode[], z: number): WorkspaceNode[] {
   return withRail(list).map((n) => (
-    n.id === CONCIERGE_ID ? { ...n, z, hidden: false, parentId: n.parentId ?? LOG_ID } : n
+    n.id === CONCIERGE_ID ? { ...n, z, hidden: true } : n
   ));
 }
 

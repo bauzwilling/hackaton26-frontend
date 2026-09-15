@@ -19,6 +19,12 @@ export const LAYOUT_WORD = "f2f-wordmark";
 export const LAYOUT_KICKER = "f2f-kicker";
 export const LAYOUT_DOT = "f2f-network-dot";
 export const LAYOUT_CHROME = "f2f-chrome";
+export const LAYOUT_CHAT = "f2f-chat";
+export const LAYOUT_COMPOSER = "f2f-composer";
+export const LAYOUT_ATTACH = "f2f-attach";
+export const LAYOUT_FIELD = "f2f-field";
+export const LAYOUT_SEND = "f2f-send";
+export const LAYOUT_MINIMAP = "f2f-minimap";
 
 export const LAYOUT_MOVE = {
   type: "tween" as const,
@@ -31,6 +37,12 @@ export const LAND_FADE = {
   delay: 0.2,
   duration: 0.8,
   ease: "easeOut" as const,
+};
+
+export const CHAT_MOVE = {
+  type: "tween" as const,
+  duration: 0.5,
+  ease: [0.4, 0, 0.2, 1] as const,
 };
 
 export type Relief = "raised" | "inset" | "accent" | "ghost";
@@ -576,7 +588,8 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
     nodes, entries, overviewOpen, setOverviewOpen, previewId, setPreviewId,
     tile, show, hide, close, focusTargets, clear, addNote,
   } = useWorkspace();
-  const countLabel = nodes.length === 1 ? "Windows, 1 open" : `Windows, ${nodes.length} open`;
+  const boardNodes = nodes.filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
+  const countLabel = boardNodes.length === 1 ? "Windows, 1 open" : `Windows, ${boardNodes.length} open`;
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
@@ -637,7 +650,7 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
         {confirmClear ? (
           <button type="button" className="overview-text-btn" onClick={() => setConfirmClear(false)}>Back</button>
         ) : (
-          <span className="overview-count">{nodes.length === 0 ? "None open" : nodes.length === 1 ? "1 open" : `${nodes.length} open`}</span>
+          <span className="overview-count">{boardNodes.length === 0 ? "None open" : boardNodes.length === 1 ? "1 open" : `${boardNodes.length} open`}</span>
         )}
       </div>
 
@@ -656,24 +669,24 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
       ) : (
         <>
           <div className="overview-toolbar" role="toolbar" aria-label="Window tools">
-            <button type="button" className="overview-tool-btn" disabled={nodes.length === 0} onClick={() => addNote()} title="Add a note" aria-label="Add a note">
+            <button type="button" className="overview-tool-btn" disabled={boardNodes.length === 0} onClick={() => addNote()} title="Add a note" aria-label="Add a note">
               <IconNote />
             </button>
-            <button type="button" className="overview-tool-btn" disabled={nodes.length === 0} onClick={() => tile(viewport)} title="Tile windows" aria-label="Tile windows">
+            <button type="button" className="overview-tool-btn" disabled={boardNodes.length === 0} onClick={() => tile(viewport)} title="Tile windows" aria-label="Tile windows">
               <IconTile />
             </button>
-            <button type="button" className="overview-tool-btn is-danger" disabled={nodes.length === 0} onClick={onClearBoard} title="Clear the board" aria-label="Clear the board">
+            <button type="button" className="overview-tool-btn is-danger" disabled={boardNodes.length === 0} onClick={onClearBoard} title="Clear the board" aria-label="Clear the board">
               <IconBin />
             </button>
           </div>
 
-          {nodes.length === 0 ? (
+          {boardNodes.length === 0 ? (
             <div className="overview-empty">
               <p>Ask Concierge or add a note. Open apps will show up here.</p>
             </div>
           ) : (
             <ul className="overview-list" onPointerLeave={() => setPreviewId(null)}>
-              {nodes.map((n) => {
+              {boardNodes.map((n) => {
                 const preview = n.kind === "note" ? notePreview(n.body) : "";
                 return (
                 <li

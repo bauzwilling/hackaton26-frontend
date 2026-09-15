@@ -42,7 +42,8 @@ export type RequestEntry = {
   routeWhy: string;
   targetIds: string[];
   appId?: WorkspaceApp;
-  result: "app" | "text" | "denied";
+  result: "app" | "text" | "denied" | "activity";
+  activity?: "opened" | "closed";
   reply?: string;
   /** Additive intent label from concierge — not used for side effects yet. */
   kind?: ConciergeKind;
@@ -189,7 +190,7 @@ export function conciergeNode(): WorkspaceNode {
     kind: "text",
     title: "Concierge",
     code: "F2F",
-    parentId: LOG_ID,
+    parentId: undefined,
     x: RAIL_X,
     y: 20,
     z: 9,
@@ -252,6 +253,35 @@ export function loadEntries(email: string): RequestEntry[] {
  * Plain answers and refusals ("no access", unsupported file) belong in the
  * concierge transcript, not in the record of what is on the board.
  */
+export function isActivityEntry(entry: RequestEntry) {
+  return entry.result === "activity";
+}
+
+export function activityClock(at: number) {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export function activityName(entry: RequestEntry) {
+  return entry.appId ? appLabel(entry.appId) : (entry.query.trim() || "window");
+}
+
+export function activityLine(entry: RequestEntry) {
+  const verb = entry.activity === "closed" ? "Closed" : "Opened";
+  return `${activityClock(entry.at)} ${verb} ${activityName(entry)}`;
+}
+
+export function activityFocusIds(entry: RequestEntry, nodes: WorkspaceNode[]) {
+  const live = (ids: string[]) => ids.filter((id) => (
+    id !== CONCIERGE_ID && id !== LOG_ID && nodes.some((n) => n.id === id)
+  ));
+  const fromEntry = live(entry.targetIds);
+  if (fromEntry.length) return fromEntry;
+  if (!entry.appId) return [];
+  const match = nodes.find((n) => n.kind === "app" && n.appId === entry.appId);
+  return match ? [match.id] : [];
+}
+
 export function entryOpenedApp(entry: RequestEntry) {
   return entry.result === "app" && entry.targetIds.some((id) => id !== CONCIERGE_ID);
 }

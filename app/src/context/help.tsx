@@ -11,7 +11,6 @@ import {
 import { useSession } from "./session";
 import {
   CONCIERGE_ID,
-  LOG_ID,
   WORKSPACE_APPS,
   useWorkspace,
   type WorkspaceApp,
@@ -103,7 +102,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const zoomConcierge = useCallback(() => {
     ensureConcierge();
     window.setTimeout(() => {
-      focusTargets([LOG_ID, CONCIERGE_ID], studioViewport(), { maxZoom: HELP_ZOOM_MAX });
+      focusTargets([CONCIERGE_ID], studioViewport(), { maxZoom: HELP_ZOOM_MAX });
     }, 0);
   }, [ensureConcierge, focusTargets]);
 
