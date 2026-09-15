@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { Overview } from "../canvas/Overview";
 import { StudioBoard } from "../canvas/StudioBoard";
@@ -15,9 +15,63 @@ function isFileDrag(e: DragEvent) {
   return Array.from(e.dataTransfer?.types ?? []).includes("Files");
 }
 
+export type StudioLeave = {
+  leaving: boolean;
+  onLeaveDone: () => void;
+};
+
+const HERO_EASE = [0.22, 1, 0.36, 1] as const;
+const heroRise = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
+  leave: { transition: { staggerChildren: 0.06, staggerDirection: -1, when: "afterChildren" as const } },
+};
+const heroRiseItem = {
+  hidden: { opacity: 0, y: 56 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: HERO_EASE } },
+  leave: { opacity: 0, y: 56, transition: { duration: 0.32, ease: HERO_EASE } },
+};
+
+function HeroRise({
+  reduce, leaving, onLeaveDone, children,
+}: {
+  reduce: boolean | null;
+  leaving: boolean;
+  onLeaveDone: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!leaving) return;
+    const t = window.setTimeout(onLeaveDone, reduce ? 0 : 520);
+    return () => window.clearTimeout(t);
+  }, [leaving, reduce, onLeaveDone]);
+  if (reduce) return <>{children}</>;
+  return (
+    <motion.div
+      initial="hidden"
+      animate={leaving ? "leave" : "show"}
+      variants={heroRise}
+      onAnimationComplete={(def) => {
+        if (leaving && def === "leave") onLeaveDone();
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function HeroRiseItem({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <motion.div className={className} variants={heroRiseItem}>
+      {children}
+    </motion.div>
+  );
+}
+
 export function StudioPage() {
   const { session } = useSession();
   const reduce = useReducedMotion();
+  const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const { nodes, ask, openApp, announceOpen, ingestFiles } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [viewport, setViewport] = useState({ width: 1200, height: 700 });
@@ -64,6 +118,15 @@ export function StudioPage() {
 
   const empty = nodes.length === 0;
   const conciergeUp = nodes.some((n) => n.id === CONCIERGE_ID && !n.hidden);
+  const emptyHero = empty && !conciergeUp;
+
+  useEffect(() => {
+    if (!leaving) return;
+    if (emptyHero && !reduce) return;
+    const wait = reduce ? 0 : 280;
+    const t = window.setTimeout(onLeaveDone, wait);
+    return () => window.clearTimeout(t);
+  }, [leaving, emptyHero, reduce, onLeaveDone]);
 
   function onDragEnter(e: DragEvent<HTMLDivElement>) {
     if (!isFileDrag(e)) return;
@@ -98,7 +161,7 @@ export function StudioPage() {
 
   return (
     <motion.div
-      className={`studio${dropping ? " is-dropping" : ""}`}
+      className={`studio${dropping ? " is-dropping" : ""}${leaving ? " is-leaving" : ""}`}
       data-help="studio-drop"
       ref={root}
       initial={reduce ? false : { opacity: 0 }}
@@ -113,29 +176,40 @@ export function StudioPage() {
       {!conciergeUp && (
         empty ? (
           <div className="hero-chat">
-            <p className="hero-kicker">The largest factory in the world</p>
-            <h1 className="hero-title">From file to factory.</h1>
-            <p className="hero-lead">
-              Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.
-            </p>
-            <Composer variant="hero" autoFocus />
-            <div className="chips">
-              {chips.map((c) => (
-                <Surface
-                  key={c}
-                  as="button"
-                  type="button"
-                  className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
-                  onClick={() => ask(c)}
-                >
-                  {c}
-                </Surface>
-              ))}
-            </div>
+            <HeroRise reduce={reduce} leaving={leaving} onLeaveDone={onLeaveDone}>
+              <HeroRiseItem>
+                <p className="hero-kicker">The largest factory in the world</p>
+                <h1 className="hero-title">From file to factory.</h1>
+                <p className="hero-lead">
+                  Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.
+                </p>
+              </HeroRiseItem>
+              <HeroRiseItem>
+                <Composer variant="hero" autoFocus />
+              </HeroRiseItem>
+              <HeroRiseItem className="chips">
+                {chips.map((c) => (
+                  <Surface
+                    key={c}
+                    as="button"
+                    type="button"
+                    className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
+                    onClick={() => ask(c)}
+                  >
+                    {c}
+                  </Surface>
+                ))}
+              </HeroRiseItem>
+            </HeroRise>
           </div>
         ) : (
           <div className="hero-chat is-bare">
-            <Composer variant="hero" />
+            <motion.div
+              animate={leaving && !reduce ? { opacity: 0, y: 56 } : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, ease: HERO_EASE }}
+            >
+              <Composer variant="hero" />
+            </motion.div>
           </div>
         )
       )}

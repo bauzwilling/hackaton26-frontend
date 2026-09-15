@@ -51,36 +51,39 @@ export function Composer({
     <Surface className={`composer composer-${variant}`}>
       <input
         ref={fileInput}
+        className="composer-file"
         type="file"
         accept={FILE_ACCEPT}
         multiple
-        hidden
+        tabIndex={-1}
         onChange={(e) => onPicked(e.target.files)}
       />
-      <Surface
-        as="button"
-        type="button"
-        relief="ghost"
-        className="composer-attach"
-        aria-label="Attach a file"
-        onClick={() => fileInput.current?.click()}
-      >
-        <ClipIcon />
-      </Surface>
-      <input
-        type="text"
-        value={query}
-        autoFocus={autoFocus}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
-        placeholder={placeholder}
-        aria-label="Describe what you want to build"
-      />
-      <Surface as="button" type="button" relief="accent" className="composer-send" onClick={submit} aria-label="Send">
-        <SendIcon />
-      </Surface>
+      <div className="composer-row">
+        <Surface
+          as="button"
+          type="button"
+          relief="ghost"
+          className="composer-attach"
+          aria-label="Attach a file"
+          onClick={() => fileInput.current?.click()}
+        >
+          <ClipIcon />
+        </Surface>
+        <input
+          type="text"
+          value={query}
+          autoFocus={autoFocus}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder={placeholder}
+          aria-label="Describe what you want to build"
+        />
+        <Surface as="button" type="button" relief="accent" className="composer-send" onClick={submit} aria-label="Send">
+          <SendIcon />
+        </Surface>
+      </div>
     </Surface>
   );
 }

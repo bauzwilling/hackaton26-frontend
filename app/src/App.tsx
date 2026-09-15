@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { LayoutGroup } from "framer-motion";
 import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import { Chrome } from "./components/kit";
@@ -7,26 +7,33 @@ import { HelpOverlay } from "./canvas/HelpTour";
 import { HelpProvider } from "./context/help";
 import { WorkspaceProvider } from "./context/workspace";
 import { LoginPage } from "./pages/Login";
-import { StudioPage } from "./pages/Studio";
+import { StudioPage, type StudioLeave } from "./pages/Studio";
 
 function Shell() {
   const { session, signOut } = useSession();
   const nav = useNavigate();
   const loggingOut = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const finishLogout = useCallback(() => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    signOut();
+    nav("/login", { replace: true, state: { fromLogout: true } });
+  }, [nav, signOut]);
   if (!session && !loggingOut.current) return <Navigate to="/login" replace />;
+  const leave: StudioLeave = { leaving, onLeaveDone: finishLogout };
   return (
     <WorkspaceProvider>
       <HelpProvider>
         <Chrome
           session={session}
+          leaving={leaving}
           onSignOut={() => {
-            if (loggingOut.current) return;
-            loggingOut.current = true;
-            signOut();
-            nav("/login", { replace: true, state: { fromLogout: true } });
+            if (leaving || loggingOut.current) return;
+            setLeaving(true);
           }}
         />
-        <Outlet />
+        <Outlet context={leave} />
         <HelpOverlay />
       </HelpProvider>
     </WorkspaceProvider>

@@ -573,6 +573,18 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   overflow: hidden;
   background-color: var(--bg);
 }
+.studio.is-leaving .hero-chat,
+.studio.is-leaving .studio-hint,
+.studio.is-leaving .pan-hint,
+.studio.is-leaving .help-fab {
+  pointer-events: none;
+}
+.studio.is-leaving .studio-hint,
+.studio.is-leaving .pan-hint,
+.studio.is-leaving .help-fab {
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
 .studio-layer {
   position: relative;
   height: 100%;
@@ -840,20 +852,41 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 }
 
 .composer {
-  display: flex;
-  gap: 8px;
-  align-items: center;
   padding: 8px 8px 8px 16px;
   border-radius: 18px;
   border-color: color-mix(in oklab, var(--acc) 30%, var(--line));
   box-shadow: var(--elev), 0 0 0 3px color-mix(in oklab, var(--acc) 8%, transparent);
+}
+.composer-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.composer-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
 }
 .composer:focus-within {
   border-color: var(--acc);
   box-shadow: var(--elev), 0 0 0 4px color-mix(in oklab, var(--acc) 16%, transparent);
 }
 .composer input[type="text"] {
-  flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 15px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
 }
 .composer-attach {
   width: 36px; height: 36px; border-radius: 10px; flex: none;

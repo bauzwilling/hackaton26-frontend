@@ -381,14 +381,19 @@ function WindowsToggle() {
 }
 
 export function Chrome({
-  session, onSignOut,
+  session, onSignOut, leaving = false,
 }: {
   session: Session | null;
   onSignOut: () => void;
+  leaving?: boolean;
 }) {
   const reduce = useReducedMotion();
   const layout = reduce ? { duration: 0 } : LAYOUT_MOVE;
   const land = reduce ? { duration: 0 } : LAND_FADE;
+  const extras = leaving ? { opacity: 0 } : { opacity: 1 };
+  const extrasMove = leaving
+    ? (reduce ? { duration: 0 } : { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const })
+    : land;
 
   return (
     <div className="chrome-stack">
@@ -401,17 +406,17 @@ export function Chrome({
             <motion.span layout layoutId={LAYOUT_DOT} className="chrome-network-dot" transition={{ layout }}>
               <NetworkDot />
             </motion.span>
-            <motion.span initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
+            <motion.span initial={reduce ? false : { opacity: 0 }} animate={extras} transition={extrasMove}>
               Decentralized network online
             </motion.span>
           </div>
-          <motion.div className="chrome-look-row" data-help="chrome-look" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
+          <motion.div className="chrome-look-row" data-help="chrome-look" initial={reduce ? false : { opacity: 0 }} animate={extras} transition={extrasMove}>
             {session && <WindowsToggle />}
             <LookOverflow />
           </motion.div>
         </div>
         {session && (
-          <motion.div className="user-chip" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={land}>
+          <motion.div className="user-chip" initial={reduce ? false : { opacity: 0 }} animate={extras} transition={extrasMove}>
             <span className="avatar">{session.name[0]}</span>
             <span>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{session.name}</div>
