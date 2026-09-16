@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef } from "react";
 import { useWorkspace, type WorkspaceNode } from "../context/workspace";
 import { BoxoutsPage } from "../pages/Boxouts";
 import { OrbitPage } from "../pages/Orbit";
-import { PartsPage } from "../pages/Parts";
+import { PartsNestingPage, PartsPage } from "../pages/Parts";
 import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyworks";
 import { ProjectsPage } from "../pages/Projects";
 import { ConciergeChat } from "./Concierge";
@@ -57,6 +57,9 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
   if (node.kind === "app") {
     if (node.appId === "boxouts") return <BoxoutsPage nodeId={node.id} />;
     if (node.appId === "simpleparts") return <PartsPage nodeId={node.id} />;
+    if (node.appId === "simpleparts-nesting") {
+      return <PartsNestingPage jobId={node.query} />;
+    }
     if (node.appId === "plyworks") {
       const bridged = help?.topic === "plyworks" && (help.phase === "iframe" || help.phase === "touring")
         && (!help.appNodeId || help.appNodeId === node.id);

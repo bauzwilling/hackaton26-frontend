@@ -1,15 +1,15 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
-import SidebarComponent from "./components/SidebarComponent";
 import ThreeMeshViewer, { type ThreeMeshViewerHandle } from "./components/ThreeMeshViewer";
 import NestingResultModalComponent from "./components/NestingResultModalComponent";
 import ModifiedPartsToggle from "./components/ModifiedPartsToggle";
 import { useSimplePartsApp } from "./hooks/useSimplePartsApp";
 import { useWorkspace } from "../context/workspace";
+import type { AppChatAction } from "../lib/appChat";
 import "./simpleparts.css";
 import "./simpleparts-react.css";
 
 export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
-  const { registerAppIntake } = useWorkspace();
+  const { registerAppIntake, registerAppChatActions, relayAppChatReply, focusTargets, openApp } = useWorkspace();
   const app = useSimplePartsApp();
   const appRef = useRef(app);
   appRef.current = app;
@@ -26,8 +26,16 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
       return;
     }
     appRef.current.studioNodeId.value = nodeId;
+    // Prefer React-context relay so Vite chunk splits cannot drop module sinks.
+    appRef.current.relayToConcierge.value = (content: string, prompt?: Parameters<typeof relayAppChatReply>[2]) => {
+      relayAppChatReply(nodeId, content, prompt);
+    };
+    appRef.current.openNestingWindow.value = (jobId: string) => {
+      const opened = openApp("simpleparts-nesting", { parentId: nodeId, query: jobId });
+      if (opened) focusTargets([opened.id]);
+    };
     // WAITING BFF: SuggestedAction accept will own this handoff
-    const unregister = registerAppIntake("simpleparts", nodeId, async (intake, file) => {
+    const unregisterIntake = registerAppIntake("simpleparts", nodeId, async (intake, file) => {
       if (intake.kind === "text") {
         console.log(`simpleparts text: ${intake.text}`);
         await appRef.current.onSendText(intake.text);
@@ -40,49 +48,49 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
       console.log(`simpleparts ingest: ${file.name}`);
       await appRef.current.onAttachFile(file);
     });
+    // WAITING BFF: SuggestedAction accept replaces questionnaire callbacks
+    const unregisterActions = registerAppChatActions("simpleparts", nodeId, (action: AppChatAction) => {
+      const live = appRef.current;
+      if (action.type === "material") {
+        live.activeMaterialSelectId.value = action.messageId;
+        live.onMaterialChoice(action.material);
+        return;
+      }
+      if (action.type === "sheet-size") {
+        live.activeSheetSizeSelectId.value = action.messageId;
+        live.onSheetSizeChoice({
+          sheetX: action.sheetX,
+          sheetY: action.sheetY,
+          sheetThickness: action.sheetThickness,
+        });
+        return;
+      }
+      if (action.type === "confirm") {
+        live.onConfirmChoice({ choice: action.choice, messageId: action.messageId });
+        return;
+      }
+      if (action.type === "nest") {
+        relayAppChatReply(nodeId, "Nesting… Simple Parts is placing parts on the sheet.");
+        live.onStartNesting();
+        return;
+      }
+      if (action.type === "show-nesting-result") {
+        live.openNestingModal();
+      }
+    });
     return () => {
-      unregister();
+      unregisterIntake();
+      unregisterActions();
       if (appRef.current.studioNodeId.value === nodeId) {
         appRef.current.studioNodeId.value = null;
       }
+      appRef.current.relayToConcierge.value = null;
+      appRef.current.openNestingWindow.value = null;
     };
-  }, [nodeId, registerAppIntake]);
+  }, [nodeId, registerAppIntake, registerAppChatActions, relayAppChatReply, openApp, focusTargets]);
 
   return (
     <div className="simpleparts-app">
-      <SidebarComponent
-        messages={app.messages.value}
-        busy={app.busy.value}
-        busyMessage={app.busyMessage.value}
-        hasBoxes={app.hasBoxes.value}
-        canStartNesting={app.showNestingButton.value}
-        canStopNesting={app.canStopNesting.value}
-        nestRevealPaused={app.nestRevealPaused.value}
-        canStartLeftoverNesting={app.showLeftoverNestingButton.value}
-        nestingButtonPrompt={app.nestingButtonPrompt.value}
-        leftoverNestingButtonPrompt={app.leftoverNestingButtonPrompt.value}
-        nestingNeedsRerun={app.nestingNeedsRerun.value}
-        activeSheetSizeSelectId={app.activeSheetSizeSelectId.value}
-        activeSheetSizeConfirmId={app.activeSheetSizeConfirmId.value}
-        activeMaterialSelectId={app.activeMaterialSelectId.value}
-        activeMaterialConfirmId={app.activeMaterialConfirmId.value}
-        activeConfirmId={app.activeLeftoverMaterialReuseId.value}
-        materials={app.materials.value}
-        inputRequirementsOpenTick={app.inputRequirementsOpenTick.value}
-        onAttachFile={app.onAttachFile}
-        onAttachError={app.onAttachError}
-        onSendText={app.onSendText}
-        onClearAll={app.onClearAll}
-        onStartNesting={app.onStartNesting}
-        onStopNesting={app.onStopNesting}
-        onSheetSizeChoice={app.onSheetSizeChoice}
-        onModifySheetSize={app.onModifySheetSize}
-        onMaterialChoice={app.onMaterialChoice}
-        onModifyMaterial={app.onModifyMaterial}
-        onConfirmChoice={app.onConfirmChoice}
-        onShowNestingResult={app.openNestingModal}
-      />
-
       <main className="simpleparts-main">
         <div className="simpleparts-view">
           {app.viewerBusy.value && (

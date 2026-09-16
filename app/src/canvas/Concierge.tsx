@@ -15,6 +15,7 @@ import {
   type WorkspaceApp,
 } from "../context/workspace";
 import { useHelp } from "../context/help";
+import { AppPromptControls } from "./AppPromptControls";
 
 function replyOf(entry: RequestEntry) {
   return entry.reply ?? entry.routeWhy ?? "Answered on the canvas";
@@ -197,6 +198,13 @@ export function ConciergeThread() {
                   )}
                 </div>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
+                {e.appPrompt && e.appId && (
+                  <AppPromptControls
+                    entryId={e.id}
+                    appId={e.appId}
+                    prompt={e.appPrompt}
+                  />
+                )}
               </div>
             </div>
             );

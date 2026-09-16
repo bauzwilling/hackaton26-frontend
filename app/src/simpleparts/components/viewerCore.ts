@@ -8,7 +8,11 @@ export interface ThreeSceneState {
   controls: OrbitControls
 }
 
-export function createViewerScene(element: HTMLElement): ThreeSceneState {
+export function createViewerScene(
+  element: HTMLElement,
+  options: { renderOnControlChange?: boolean } = {},
+): ThreeSceneState {
+  const { renderOnControlChange = true } = options
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0xf5f5f5)
   const aspect = element.clientWidth / Math.max(element.clientHeight, 1)
@@ -21,7 +25,9 @@ export function createViewerScene(element: HTMLElement): ThreeSceneState {
   const controls = new OrbitControls(camera, renderer.domElement)
   controls.enableRotate = false
   controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }
-  controls.addEventListener('change', () => renderer.render(scene, camera))
+  if (renderOnControlChange) {
+    controls.addEventListener('change', () => renderer.render(scene, camera))
+  }
   return { scene, camera, renderer, controls }
 }
 

@@ -123,6 +123,8 @@ export function openAppNodes(
   const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
   const origin = { x: box.x ?? 20, y: box.y ?? 20 };
   const base = withRail(list);
+  // Nesting result windows fill the leftover stage rect (same available width as primary apps).
+  const fillStage = app === "simpleparts-nesting" || app === "plyworks-nesting";
   const current = base.find((n) => n.kind === "app" && n.appId === app);
   if (current) {
     return {
@@ -136,11 +138,12 @@ export function openAppNodes(
           hidden: false,
           title: meta.label,
           parentId: opts?.parentId ?? n.parentId,
-          // Keep the existing query on reuse so NodeBody does not churn on every follow-up.
-          query: n.query ?? opts?.query,
+          // Prefer a fresh query when supplied (nesting windows need the latest jobId).
+          query: opts?.query !== undefined ? opts.query : n.query,
           design: opts?.design ?? n.design,
           // New handoff always wins so follow-ups reach the open window.
           chatIntake: opts?.chatIntake !== undefined ? opts.chatIntake : n.chatIntake,
+          ...(fillStage ? { x: origin.x, y: origin.y } : {}),
           w: box.w,
           h: box.h,
           autoSize: false,
@@ -150,7 +153,7 @@ export function openAppNodes(
   }
 
   const id = uid("a");
-  const slot = placeAfterLast(base, origin);
+  const slot = fillStage ? origin : placeAfterLast(base, origin);
   const node: WorkspaceNode = {
     id,
     kind: "app",

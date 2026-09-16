@@ -1499,6 +1499,34 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   box-shadow: 0 0 0 1px var(--acc);
 }
 .concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.concierge-app-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: stretch;
+}
+.concierge-app-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #d4d4d8);
+  border-radius: 6px;
+  background: var(--panel, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.concierge-app-prompt .chip { align-self: flex-start; }
+.concierge-app-prompt .chip.is-warn {
+  border-color: var(--warn, #c9782c);
+  color: var(--warn, #c9782c);
+}
+.concierge-app-prompt .chip:disabled,
+.concierge-confirm .chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
 .studio-hero { width: 100%; }
 

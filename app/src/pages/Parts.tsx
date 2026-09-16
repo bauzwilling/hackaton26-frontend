@@ -1,1 +1,1 @@
-export { SimplePartsPage as PartsPage } from "../simpleparts";
+export { SimplePartsPage as PartsPage, SimplePartsNestingPage as PartsNestingPage } from "../simpleparts";
