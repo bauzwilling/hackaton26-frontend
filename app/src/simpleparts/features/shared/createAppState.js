@@ -94,6 +94,8 @@ export function createAppState() {
   const inputJobId = ref(null)
   const dxfText = ref(null)
   const messages = ref([])
+  /** Studio canvas node id — Concierge uses this to echo assistant replies. */
+  const studioNodeId = ref(null)
   const busy = ref(false)
   const busyMessage = ref('')
   const viewerBusy = ref(false)
@@ -235,6 +237,7 @@ export function createAppState() {
     inputJobId,
     dxfText,
     messages,
+    studioNodeId,
     busy,
     busyMessage,
     viewerBusy,

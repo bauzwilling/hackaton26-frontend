@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { ChatPanel } from "./components/ChatPanel";
 import { BoxTable } from "./components/BoxTable";
@@ -24,6 +24,7 @@ import {
   tryParseCleanCsv,
 } from "./lib/csv.js";
 import { createSolveState } from "./lib/solveState.js";
+import { registerAppChat, reportAppChatReply } from "../lib/appChat";
 import "./boxouts.css";
 import "./boxouts-react.css";
 
@@ -80,7 +81,7 @@ async function imageBody(file: File) {
   return { imageBase64: base64, mediaType };
 }
 
-export function BoxoutsPage() {
+export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   const [inputLists, setInputLists] = useState<InputLists | null>(null);
   const [sourceLists, setSourceLists] = useState<InputLists | null>(null);
   const [emptyCellKeys, setEmptyCellKeys] = useState(new Set<string>());
@@ -101,7 +102,15 @@ export function BoxoutsPage() {
 
   const push = useCallback((message: Omit<ChatMessage, "id">) => {
     setMessages((current) => [...current, { id: nextMessageId(), ...message }]);
-  }, []);
+    if (
+      nodeId
+      && message.role === "assistant"
+      && message.content?.trim()
+      && message.kind !== "file"
+    ) {
+      reportAppChatReply(nodeId, message.content);
+    }
+  }, [nodeId]);
 
   const onSolveState = useCallback((state: SolveState) => {
     setSolve({
@@ -311,6 +320,17 @@ export function BoxoutsPage() {
       setBusy(false);
     }
   }
+
+  const apiRef = useRef({ processText, processFile });
+  apiRef.current = { processText, processFile };
+
+  useEffect(() => {
+    if (!nodeId) return;
+    return registerAppChat(nodeId, {
+      onText: (text) => apiRef.current.processText(text),
+      onFile: (file) => apiRef.current.processFile(file),
+    });
+  }, [nodeId]);
 
   return (
     <div className="boxouts-app">

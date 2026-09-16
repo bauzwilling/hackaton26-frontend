@@ -38,6 +38,7 @@ flowchart LR
 | `confirmApps` in `ingestFiles`, [app/src/context/workspace.tsx](../app/src/context/workspace.tsx) | an ambiguous result offering three apps | several `SuggestedAction`s the user picks from |
 | `settle()` in the same file | a reply that opens a window on its own | render the action, open nothing until `accept` returns |
 | [app/src/lib/routing.ts](../app/src/lib/routing.ts) | last-resort name match when the assistant is unreachable | stays, but the fallback buttons hit the BFF (delivery-manifest §32) |
+| [app/src/lib/appChat.ts](../app/src/lib/appChat.ts) | Concierge forwards text/files into an open app chat and echoes the reply in the Studio thread | `SuggestedAction` accept → BFF starts the app turn; UI only renders streamed messages |
 
 `grep -rn "WAITING MODEL"` finds each site in code.
 

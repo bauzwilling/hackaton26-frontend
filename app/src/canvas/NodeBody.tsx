@@ -55,8 +55,8 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
     return <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{node.body}</p>;
   }
   if (node.kind === "app") {
-    if (node.appId === "boxouts") return <BoxoutsPage />;
-    if (node.appId === "simpleparts") return <PartsPage />;
+    if (node.appId === "boxouts") return <BoxoutsPage nodeId={node.id} />;
+    if (node.appId === "simpleparts") return <PartsPage nodeId={node.id} />;
     if (node.appId === "plyworks") {
       const bridged = help?.topic === "plyworks" && (help.phase === "iframe" || help.phase === "touring")
         && (!help.appNodeId || help.appNodeId === node.id);

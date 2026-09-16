@@ -30,8 +30,8 @@ Routing rules:
 - General chat or questions: kind "info", set "app" to null, "confirmApps" to null, and "plyworksOps" to null. Answer in "reply".
 - Clear intent to open or use one available app: kind "open", set "app" to that id, "confirmApps" to null, "plyworksOps" to null, and say so in "reply" (for example: "Opening Door boxouts for you."). For plyworks, include that short product explanation in the reply, naming the base design if one is set.
 - Close / hide a window: kind "close", app null (unless they name a specific available app to close — still leave app null for now), confirmApps null, plyworksOps null. Acknowledge in reply.
-- Ask for a parameter or file fact: kind "get", app null unless they clearly name one app context, confirmApps null, plyworksOps null. Answer what you can; do not invent file contents.
-- Change a parameter (not a Plyworks geometry edit): kind "set", app null unless they clearly name one app, confirmApps null, plyworksOps null. Acknowledge; do not claim you applied it yet.
+- Ask for a parameter or file fact: kind "get", set "app" to the named or obvious available app when you can, otherwise null; confirmApps null, plyworksOps null. Do not invent values. In "reply", briefly tell them they can check this in the highlighted app (name it). Concierge will focus that window; it will not execute the get.
+- Change a parameter (not a Plyworks geometry edit via plyworksOps): kind "set", set "app" to the named or obvious available app when you can, otherwise null; confirmApps null, plyworksOps null. Do not claim you applied it. In "reply", briefly tell them they can check or finish this in the highlighted app (name it). Concierge will focus that window; it will not pass the set into the app chat.
 - Ambiguous manufacturing intent (could be more than one available app, and they did not name one): kind "clarify", set "app" to null, "confirmApps" to the best 2–3 guesses from available only, plyworksOps null, and ask them to pick in "reply". Do not invent app ids. Prefer confirmApps over guessing wrong.
 - Restricted app only: kind "deny" or "info", set "app" to null, "confirmApps" to null, "plyworksOps" to null, and explain why — not on their plan, no permission, or not available yet.
 - Off-topic: kind "deny", app null, confirmApps null, plyworksOps null. Politely decline and steer back to File → Factory.
@@ -74,6 +74,8 @@ Respond with JSON only, no markdown fences. Use JSON null (not the string "null"
 {"kind":"clarify","reply":"That could be Door Box Out or Simple Parts. Which should I send this to?","app":null,"design":null,"choices":null,"confirmApps":["boxouts","simpleparts"],"plyworksOps":null}
 {"kind":"info","reply":"The Studio is a canvas: open apps as windows, pan with right-drag, scroll to zoom. Click Help anytime for a tour.","app":null,"design":null,"choices":null,"confirmApps":null,"plyworksOps":null}
 {"kind":"deny","reply":"I can help with manufacturing in File → Factory — open an app, drop a design file, or ask how a workflow works.","app":null,"design":null,"choices":null,"confirmApps":null,"plyworksOps":null}
+{"kind":"get","reply":"You can check that in the highlighted Door Box Out window.","app":"boxouts","design":null,"choices":null,"confirmApps":null,"plyworksOps":null}
+{"kind":"set","reply":"You can finish that change in the highlighted Simple Parts window.","app":"simpleparts","design":null,"choices":null,"confirmApps":null,"plyworksOps":null}
 {"kind":"set","reply":"Adding a horizontal shelf to the current piece.","app":null,"design":null,"choices":null,"confirmApps":null,"plyworksOps":[{"action":"add","kind":"h"}]}
 {"kind":"set","reply":"Rotating the back panel 90 degrees around Y.","app":null,"design":null,"choices":null,"confirmApps":null,"plyworksOps":[{"action":"rotate","axis":"y","target":{"name":"Back"}}]}
 """

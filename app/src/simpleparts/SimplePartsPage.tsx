@@ -1,13 +1,15 @@
 import { useCallback } from "react";
+import { useEffect } from "react";
 import SidebarComponent from "./components/SidebarComponent";
 import ThreeMeshViewer, { type ThreeMeshViewerHandle } from "./components/ThreeMeshViewer";
 import NestingResultModalComponent from "./components/NestingResultModalComponent";
 import ModifiedPartsToggle from "./components/ModifiedPartsToggle";
 import { useSimplePartsApp } from "./hooks/useSimplePartsApp";
+import { registerAppChat } from "../lib/appChat";
 import "./simpleparts.css";
 import "./simpleparts-react.css";
 
-export function SimplePartsPage() {
+export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
   const app = useSimplePartsApp();
   const preview = app.summonedPreview.value;
   const leftover = app.leftoverNestPreview.value;
@@ -15,6 +17,19 @@ export function SimplePartsPage() {
   const setMeshViewer = useCallback((viewer: ThreeMeshViewerHandle | null) => {
     app.meshViewerRef.value = viewer;
   }, [app]);
+
+  useEffect(() => {
+    if (!nodeId) return;
+    app.studioNodeId.value = nodeId;
+    const unregister = registerAppChat(nodeId, {
+      onText: (text) => app.onSendText(text),
+      onFile: (file) => app.onAttachFile(file),
+    });
+    return () => {
+      unregister();
+      if (app.studioNodeId.value === nodeId) app.studioNodeId.value = null;
+    };
+  }, [nodeId, app]);
 
   return (
     <div className="simpleparts-app">

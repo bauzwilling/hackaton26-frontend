@@ -9,14 +9,38 @@ import {
   activityName,
   appLabel,
   isActivityEntry,
+  isRelayEntry,
   sessionIsEmpty,
   useWorkspace,
   type RequestEntry,
+  type WorkspaceApp,
 } from "../context/workspace";
 import { useHelp } from "../context/help";
 
 function replyOf(entry: RequestEntry) {
   return entry.reply ?? entry.routeWhy ?? "Answered on the canvas";
+}
+
+function AppBadge({
+  app,
+  onClick,
+}: {
+  app: WorkspaceApp;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="chat-app-badge"
+      onClick={(ev) => {
+        ev.stopPropagation();
+        onClick();
+      }}
+      title={`Focus ${appLabel(app)}`}
+    >
+      {appLabel(app)}
+    </button>
+  );
 }
 
 function ThreadSettings({
@@ -109,6 +133,13 @@ export function ConciergeThread() {
     focusTargets(ids);
   }
 
+  function onBadge(entry: RequestEntry) {
+    setSelectedEntryId(entry.id);
+    const ids = activityFocusIds(entry, nodes);
+    if (!ids.length) return;
+    focusTargets(ids);
+  }
+
   return (
     <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
       <div className="concierge-head">
@@ -158,6 +189,22 @@ export function ConciergeThread() {
               </button>
             </span>
           </p>
+        ) : isRelayEntry(e) ? (
+          <div
+            key={e.id}
+            className={`chat-turn chat-relay${selectedEntryId === e.id ? " is-selected" : ""}`}
+            onClick={() => onBadge(e)}
+          >
+            <div className="chat-bubble chat-assistant">
+              <div className="chat-assistant-meta">
+                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                {(e.badgeApp ?? e.appId) && (
+                  <AppBadge app={(e.badgeApp ?? e.appId)!} onClick={() => onBadge(e)} />
+                )}
+              </div>
+              <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
+            </div>
+          </div>
         ) : (
           <div
             key={e.id}
@@ -169,7 +216,12 @@ export function ConciergeThread() {
               {e.query}
             </div>
             <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
-              <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+              <div className="chat-assistant-meta">
+                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                {e.badgeApp && (
+                  <AppBadge app={e.badgeApp} onClick={() => onBadge(e)} />
+                )}
+              </div>
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
               {e.confirmApps && e.confirmApps.length > 0 && (
                 <div className="concierge-confirm">

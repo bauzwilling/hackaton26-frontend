@@ -1460,6 +1460,36 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   font-weight: 500;
   color: var(--muted);
 }
+.chat-assistant-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.chat-assistant-meta time {
+  display: inline;
+  margin-bottom: 0;
+}
+.chat-app-badge {
+  border: 1px solid var(--line);
+  background: var(--face);
+  color: var(--acc-deep);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.chat-app-badge:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.chat-relay .chat-assistant {
+  max-width: 92%;
+}
 .chat-user {
   align-self: flex-end;
   background: color-mix(in oklab, var(--acc) 14%, var(--face));

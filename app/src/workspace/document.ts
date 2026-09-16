@@ -43,11 +43,13 @@ export type RequestEntry = {
   routeWhy: string;
   targetIds: string[];
   appId?: WorkspaceApp;
-  result: "app" | "text" | "denied" | "activity";
+  result: "app" | "text" | "denied" | "activity" | "relay";
   activity?: "opened" | "closed";
   reply?: string;
   /** Additive intent label from concierge — not used for side effects yet. */
   kind?: ConciergeKind;
+  /** Show an app-name badge on the assistant reply (routed / relayed turns). */
+  badgeApp?: WorkspaceApp;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
@@ -257,6 +259,10 @@ export function isActivityEntry(entry: RequestEntry) {
   return entry.result === "activity";
 }
 
+export function isRelayEntry(entry: RequestEntry) {
+  return entry.result === "relay";
+}
+
 export function activityClock(at: number) {
   const d = new Date(at);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -277,8 +283,9 @@ export function activityFocusIds(entry: RequestEntry, nodes: WorkspaceNode[]) {
   ));
   const fromEntry = live(entry.targetIds);
   if (fromEntry.length) return fromEntry;
-  if (!entry.appId) return [];
-  const match = nodes.find((n) => n.kind === "app" && n.appId === entry.appId);
+  if (!entry.appId && !entry.badgeApp) return [];
+  const app = entry.appId ?? entry.badgeApp;
+  const match = nodes.find((n) => n.kind === "app" && n.appId === app);
   return match ? [match.id] : [];
 }
 

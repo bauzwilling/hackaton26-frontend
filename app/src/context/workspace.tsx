@@ -7,7 +7,8 @@ import {
   snapshotPlyworksBoards,
 } from "../lib/plyworksSession";
 import type { PlyworksOp } from "../lib/plyworksOps";
-import { classifyFile, openingMessage } from "../lib/intake";
+import { classifyFile } from "../lib/intake";
+import { deliverAppChat, setAppChatRelaySink } from "../lib/appChat";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
@@ -49,6 +50,7 @@ import {
   entryOpenedApp,
   entryWindowName,
   isActivityEntry,
+  isRelayEntry,
   isWorkspaceApp,
   licensedApps,
   openable,
@@ -95,6 +97,7 @@ export {
   entryWindowName,
   entryIsLive,
   isActivityEntry,
+  isRelayEntry,
   activityClock,
   activityFocusIds,
   activityLine,
@@ -167,7 +170,11 @@ type Ctx = {
 const WorkspaceCtx = createContext<Ctx | null>(null);
 
 function plyworksAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
-  const apps = nodes.filter((n) => n.kind === "app" && n.appId === "plyworks");
+  return jobAppNode(nodes, "plyworks");
+}
+
+function jobAppNode(nodes: WorkspaceNode[], app: WorkspaceApp): WorkspaceNode | undefined {
+  const apps = nodes.filter((n) => n.kind === "app" && n.appId === app);
   if (!apps.length) return undefined;
   const visible = apps.filter((n) => !n.hidden);
   const pool = visible.length ? visible : apps;
@@ -178,6 +185,10 @@ function designFromOps(ops: PlyworksOp[], fallback: ConciergeResult["design"]): 
   const load = ops.find((op) => op.action === "load_design");
   if (load && load.action === "load_design") return load.design;
   return fallback ?? "shelf";
+}
+
+function chatCapable(app: WorkspaceApp) {
+  return app === "boxouts" || app === "simpleparts";
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -456,16 +467,61 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       appId: app,
       result: "app",
       reply,
+      badgeApp: app,
     }]);
     setSelectedEntryId(entryId);
   }, [ensureConcierge]);
+
+  const focusTargets = useCallback((ids: string[], _viewport?: { width: number; height: number }, opts?: { maxZoom?: number }) => {
+    const live = nodesRef.current.filter((n) => ids.includes(n.id));
+    if (!live.length) return;
+    zTop.current += live.length;
+    let z = zTop.current;
+    setNodes((list) => list.map((n) => {
+      if (!ids.includes(n.id)) return n;
+      z += 1;
+      return { ...n, hidden: false, z };
+    }));
+    setFitRequest({ ids, key: Date.now(), maxZoom: opts?.maxZoom ?? FIT_ZOOM_MAX });
+    const flash = live
+      .filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log")
+      .map((n) => n.id);
+    if (!flash.length) return;
+    setFlashKey((k) => k + 1);
+    setFlashIds(flash);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashIds([]), FLASH_MS);
+  }, []);
+
+  useEffect(() => {
+    setAppChatRelaySink((nodeId, content, _echoTo) => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      const appId = node?.appId;
+      const conciergeId = CONCIERGE_ID;
+      const entry: RequestEntry = {
+        id: uid("e"),
+        at: Date.now(),
+        query: "",
+        routeLabel: appId ? appLabel(appId) : "App",
+        routeWhy: content,
+        targetIds: appId ? [conciergeId, nodeId] : [conciergeId],
+        appId,
+        result: "relay",
+        reply: content,
+        badgeApp: appId,
+      };
+      setEntries((list) => [...list, entry]);
+      setSelectedEntryId(entry.id);
+    });
+    return () => setAppChatRelaySink(null);
+  }, []);
 
   const askNow = useCallback((q: string) => {
     const conciergeId = ensureConcierge();
     const entryId = uid("e");
     const askSessionId = activeIdRef.current;
     const history = entriesRef.current
-      .filter((e) => !e.pending && e.reply)
+      .filter((e) => !e.pending && e.reply && !isRelayEntry(e) && !isActivityEntry(e))
       .slice(-8)
       .flatMap((e) => [
         { role: "user" as const, content: e.query },
@@ -498,10 +554,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let routeLabel = "Concierge";
         let routeWhy = "Answered on the canvas";
         let confirmApps: WorkspaceApp[] | undefined;
-        // Additive only — do not branch open/confirm on kind.
+        let badgeApp: WorkspaceApp | undefined;
         const kind = result.kind ?? inferConciergeKind(result);
         console.log(`kind: ${kind}`);
         const ops = result.plyworksOps ?? null;
+        const inspect = kind === "get" || kind === "set";
+        if (inspect) {
+          console.log(`inspect ${kind}`, { app: appId ?? null, message: q, plyworksOps: ops });
+        }
 
         if (confirm.length) {
           routeLabel = "Confirm";
@@ -524,6 +584,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             }
             if (plyId) targetIds.push(plyId);
             applyPlyworksSessionOps(ops);
+            badgeApp = "plyworks";
+            status = "app";
+            routeLabel = WORKSPACE_APPS.find((a) => a.id === "plyworks")?.label ?? "Plyworks";
+            routeWhy = result.reply;
           }
 
           if (appId && openable(session, appId)) {
@@ -531,24 +595,37 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             status = "app";
             routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
             routeWhy = result.reply;
-            // WAITING MODEL: later also forward the turn into that app's chat API
-            console.log(`sent to ${appLabel(appId)}`);
+            badgeApp = appId;
+            if (!inspect) console.log(`sent to ${appLabel(appId)}`);
           } else if (appId) {
-            // Unavailable: no window. The concierge reply is the whole answer.
             routeWhy = result.reply;
           }
         }
 
         const design = appId === "plyworks" ? (result.design ?? undefined) : undefined;
         const live = activeIdRef.current === askSessionId;
-        const skipOpen = Boolean(ops?.length && appId === "plyworks");
+        const skipOpen = Boolean(ops?.length && (appId === "plyworks" || !appId));
+        let appTarget: string | null = null;
         if (status === "app" && appId && live && !skipOpen) {
-          const appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
+          appTarget = openApp(appId, { parentId: conciergeId, query: q, design });
           if (appTarget && !targetIds.includes(appTarget)) targetIds.push(appTarget);
+        } else if (ops?.length) {
+          appTarget = targetIds.find((id) => id !== conciergeId) ?? null;
+        }
+
+        // WAITING BFF: SuggestedAction accept will own this handoff
+        // WAITING MODEL: the app chat still answers; our structuring model takes over later
+        if (live && appTarget && appId && chatCapable(appId) && !inspect && !ops?.length) {
+          deliverAppChat(appTarget, { kind: "text", text: q }, { echoTo: entryId });
+        }
+
+        const focusIds = targetIds.filter((id) => id !== conciergeId);
+        if (live && focusIds.length && (inspect || status === "app")) {
+          window.setTimeout(() => focusTargets(focusIds), 0);
         }
 
         const settled = {
-          appId: status === "app" ? appId : undefined,
+          appId: status === "app" ? (appId ?? badgeApp) : undefined,
           result: status,
           routeLabel,
           routeWhy,
@@ -558,6 +635,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           design: result.design ?? undefined,
           choices: result.choices ?? undefined,
           confirmApps,
+          badgeApp,
           pending: false,
         };
         if (live) {
@@ -635,7 +713,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         });
       }
     })();
-  }, [openApp, ensureConcierge, session, focus, patchInactiveSession, stageOpts]);
+  }, [openApp, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
 
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
@@ -648,8 +726,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const conciergeId = ensureConcierge();
 
     for (const file of list) {
-      // WAITING MODEL: the UI decides the job from the file here. The model does that,
-      // after the file is uploaded as an artifact and inspected by the BFF.
+      // WAITING BFF: upload → artifact → FileInspectionService
+      // WAITING MODEL: format-to-app is a stand-in; the structuring model will propose the job later
       const verdict = classifyFile(file);
       const query = verdict.fileName;
       const targetIds: string[] = [conciergeId];
@@ -657,16 +735,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       let result: RequestEntry["result"] = "text";
       let routeLabel = "Concierge";
       let routeWhy = "Answered on the canvas";
-      let confirmApps: WorkspaceApp[] | undefined;
       let reply = verdict.message;
+      let badgeApp: WorkspaceApp | undefined;
+      const entryId = uid("e");
 
       if (verdict.kind === "route") {
         if (openable(session, verdict.appId)) {
           appId = verdict.appId;
-          // WAITING MODEL: later also forward the turn into that app's chat API
+          badgeApp = verdict.appId;
           console.log(`sent to ${appLabel(verdict.appId)}`);
           const appTarget = openApp(verdict.appId, { parentId: conciergeId, query });
-          if (appTarget) targetIds.push(appTarget);
+          if (appTarget) {
+            targetIds.push(appTarget);
+            // WAITING BFF: SuggestedAction accept will own this handoff
+            // WAITING MODEL: the app chat still answers; our structuring model takes over later
+            deliverAppChat(appTarget, { kind: "file", file }, { echoTo: entryId });
+            window.setTimeout(() => focusTargets([appTarget]), 0);
+          }
           result = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
           routeWhy = verdict.message;
@@ -674,16 +759,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           reply = denyCopy(session, verdict.appId).body;
           routeWhy = reply;
         }
-      } else if (verdict.kind === "confirm") {
-        routeLabel = "Confirm";
-        routeWhy = "Need a confirmation before opening an app";
-        confirmApps = verdict.confirmApps;
       } else {
         routeWhy = "File type is not supported yet";
       }
 
       const entry: RequestEntry = {
-        id: uid("e"),
+        id: entryId,
         at: Date.now(),
         query,
         routeLabel,
@@ -692,12 +773,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         appId,
         result,
         reply,
-        confirmApps,
+        badgeApp,
       };
       setEntries((prev) => [...prev, entry]);
       setSelectedEntryId(entry.id);
     }
-  }, [openApp, ensureConcierge, session]);
+  }, [openApp, ensureConcierge, session, focusTargets]);
 
   const ingestFiles = useCallback((files: File[]) => {
     const list = Array.from(files).filter(Boolean);
@@ -723,11 +804,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       } : e)));
       return;
     }
-    // WAITING MODEL: later also forward the turn into that app's chat API
     console.log(`sent to ${appLabel(app)}`);
-    const message = openingMessage(app, query);
+    const message = app === "plyworks"
+      ? plyworksOpening(`Opening ${appLabel(app)} for you.`)
+      : `Opening ${appLabel(app)} for you.`;
     const meta = WORKSPACE_APPS.find((a) => a.id === app);
     const appTarget = openApp(app, { parentId: conciergeId, query });
+
+    // WAITING BFF: SuggestedAction accept will own this handoff
+    // WAITING MODEL: the app chat still answers; our structuring model takes over later
+    if (appTarget && chatCapable(app) && query.trim()) {
+      deliverAppChat(appTarget, { kind: "text", text: query }, { echoTo: entryId });
+    }
+    if (appTarget) {
+      window.setTimeout(() => focusTargets([appTarget]), 0);
+    }
 
     setEntries((prev) => prev.map((e) => {
       if (e.id !== entryId) return e;
@@ -742,10 +833,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         routeWhy: message,
         reply: message,
         confirmApps: undefined,
+        badgeApp: app,
         targetIds,
       };
     }));
-  }, [openApp, ensureConcierge, session]);
+  }, [openApp, ensureConcierge, session, focusTargets]);
 
   const appendConciergeTurn = useCallback((query: string, reply: string, extras?: Partial<RequestEntry>) => {
     const conciergeId = ensureConcierge();
@@ -765,33 +857,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       helpTopics: extras?.helpTopics,
       kind: extras?.kind,
       confirmApps: extras?.confirmApps,
+      badgeApp: extras?.badgeApp,
       pending: extras?.pending,
     };
     setEntries((list) => [...list, entry]);
     setSelectedEntryId(entryId);
     return entryId;
   }, [ensureConcierge]);
-
-  const focusTargets = useCallback((ids: string[], _viewport?: { width: number; height: number }, opts?: { maxZoom?: number }) => {
-    const live = nodesRef.current.filter((n) => ids.includes(n.id));
-    if (!live.length) return;
-    zTop.current += live.length;
-    let z = zTop.current;
-    setNodes((list) => list.map((n) => {
-      if (!ids.includes(n.id)) return n;
-      z += 1;
-      return { ...n, hidden: false, z };
-    }));
-    setFitRequest({ ids, key: Date.now(), maxZoom: opts?.maxZoom ?? FIT_ZOOM_MAX });
-    const flash = live
-      .filter((n) => n.id !== CONCIERGE_ID && n.kind !== "log")
-      .map((n) => n.id);
-    if (!flash.length) return;
-    setFlashKey((k) => k + 1);
-    setFlashIds(flash);
-    if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlashIds([]), FLASH_MS);
-  }, []);
 
   const restoreEntry = useCallback((entryId: string, viewport?: { width: number; height: number }) => {
     const entry = entries.find((e) => e.id === entryId);
