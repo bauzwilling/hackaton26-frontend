@@ -92,7 +92,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "history",
     title: "Chat history",
-    body: "On the landing page, the history mark lists earlier chats. After Concierge docks, that list lives in the sidebar. Each chat keeps its own windows.",
+    body: "The sidebar mark lists earlier chats. Click it to open a temporary list — click outside to close. Open a chat and the thread slides out as the sidebar shrinks. While a chat is open, a filled mark means the sidebar is expanded. Collapsed, each earlier chat is a dot — hover for its name.",
     anchor: { type: "help", id: "session-history" },
     pad: 8,
   },

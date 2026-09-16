@@ -19,7 +19,13 @@ import { uid } from "./commands";
 export const NEW_CHAT_TITLE = "New chat";
 export const CHAT_THREAD_W = 340;
 export const CHAT_SIDEBAR_W = 220;
-export const CHAT_RAIL_W = 40;
+export const CHAT_RAIL_W = 32;
+/** Hero texts + bar + chips leave the way they do on sign-out. */
+export const HERO_LEAVE_MS = 720;
+/** Fade chat/sidebar copy before a coupled width morph. */
+export const PAIR_FADE_MS = 100;
+/** Chat width and sidebar width morph together after the fade. */
+export const PAIR_SHAPE_MS = 100;
 /** Park on a spinner before the thread lands. */
 export const SESSION_SPIN_MS = 1000;
 /** After the thread is up, wait for the dock morph before the first window. */

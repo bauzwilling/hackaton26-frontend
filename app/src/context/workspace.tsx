@@ -19,6 +19,9 @@ import {
   SESSION_APP_AFTER_CHAT_MS,
   SESSION_APP_STAGGER_MS,
   SESSION_SPIN_MS,
+  HERO_LEAVE_MS,
+  PAIR_FADE_MS,
+  PAIR_SHAPE_MS,
   snapshotSession,
   type ChatSession,
 } from "../workspace/sessions";
@@ -71,7 +74,7 @@ import { useSession } from "./session";
 export type { SystemEdge, UserEdge, ViewportSnapshot };
 export type { NodeKind, WorkspaceApp, WorkspaceNode, WorkspaceEdge, RequestEntry };
 export type { ChatSession };
-export { chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
+export { CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
 export {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -242,6 +245,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const leaveLanding = useCallback(() => {
+    if (atLandingRef.current) {
+      collapsedRef.current = true;
+      setHistoryCollapsedState(true);
+    }
     atLandingRef.current = false;
     setAtLanding(false);
   }, []);
@@ -253,14 +260,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     if (resumingRef.current) return;
     clearReveal();
-    setResuming(true);
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    later(reduce ? 0 : SESSION_SPIN_MS, () => {
-      leaveLanding();
-      setResuming(false);
-      fn();
-    });
-  }, [clearReveal, later, leaveLanding]);
+    leaveLanding();
+    fn();
+  }, [clearReveal, leaveLanding]);
 
   const patchInactiveSession = useCallback((id: string, mutate: (session: ChatSession) => ChatSession) => {
     if (!id || activeIdRef.current === id) return false;
@@ -862,8 +864,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = true;
+    const fromLanding = atLandingRef.current;
     leaveLanding();
-    setResuming(true);
+    if (fromLanding) {
+      collapsedRef.current = true;
+      setHistoryCollapsedState(true);
+    }
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const spin = reduce || fromLanding ? 0 : SESSION_SPIN_MS;
+    if (spin > 0) setResuming(true);
     setSessions(flushed);
     setActiveSessionId(next.id);
     skipSave.current += 1;
@@ -871,7 +880,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setUserEdges([]);
     setViewport(next.board.viewport ?? { x: 0, y: 0, zoom: 1 });
     zTop.current = next.board.zTop ?? 10;
-    setEntries([]);
+    setEntries(spin > 0 ? [] : next.entries);
     setSelectedEntryId(null);
     setOverviewOpen(false);
     setPreviewId(null);
@@ -884,13 +893,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
     const hidden = windows.filter((n) => n.hidden);
     const visible = windows.filter((n) => !n.hidden);
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const spin = reduce ? 0 : SESSION_SPIN_MS;
-    const afterChat = reduce ? 0 : SESSION_APP_AFTER_CHAT_MS;
+    const afterChat = reduce ? 0 : fromLanding ? HERO_LEAVE_MS + PAIR_FADE_MS + PAIR_SHAPE_MS + PAIR_FADE_MS : SESSION_APP_AFTER_CHAT_MS;
     const gap = reduce ? 0 : SESSION_APP_STAGGER_MS;
     const hub = cleanBoardNodes(next.board.nodes).filter((n) => n.id === CONCIERGE_ID);
 
-    later(spin, () => {
+    const reveal = () => {
       setEntries(next.entries);
       setResuming(false);
       later(afterChat, () => {
@@ -916,7 +923,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
         show(1);
       });
-    });
+    };
+    if (spin > 0) later(spin, reveal);
+    else reveal();
   }, [clearReveal, dismissMaximize, later, leaveLanding, persistStore]);
 
   const setHistoryCollapsed = useCallback((collapsed: boolean) => {
@@ -974,6 +983,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSessions(list);
     setActiveSessionId(draft.id);
     hydrateSession(draft);
+    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
   }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const switchSession = useCallback((id: string) => {

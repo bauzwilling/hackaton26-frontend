@@ -26,10 +26,12 @@ export function Composer({
   variant = "hero",
   autoFocus,
   placeholder = "Ask anything — or describe something to build...",
+  shareLayout = true,
 }: {
   variant?: "hero" | "panel";
   autoFocus?: boolean;
   placeholder?: string;
+  shareLayout?: boolean;
 }) {
   const { ask, ingestFiles } = useWorkspace();
   const reduce = useReducedMotion();
@@ -53,8 +55,8 @@ export function Composer({
   return (
     <Surface
       as={motion.div}
-      layout
-      layoutId={LAYOUT_COMPOSER}
+      layout={shareLayout}
+      layoutId={shareLayout ? LAYOUT_COMPOSER : undefined}
       className={`composer composer-${variant}`}
       transition={{ layout }}
     >
@@ -70,8 +72,8 @@ export function Composer({
       <div className="composer-row">
         <Surface
           as={motion.button}
-          layout
-          layoutId={LAYOUT_ATTACH}
+          layout={shareLayout}
+          layoutId={shareLayout ? LAYOUT_ATTACH : undefined}
           type="button"
           relief="ghost"
           className="composer-attach"
@@ -81,7 +83,7 @@ export function Composer({
         >
           <ClipIcon />
         </Surface>
-        <motion.div layout layoutId={LAYOUT_FIELD} className="composer-field" transition={{ layout }}>
+        <motion.div layout={shareLayout} layoutId={shareLayout ? LAYOUT_FIELD : undefined} className="composer-field" transition={{ layout }}>
           <input
             type="text"
             value={query}
@@ -96,8 +98,8 @@ export function Composer({
         </motion.div>
         <Surface
           as={motion.button}
-          layout
-          layoutId={LAYOUT_SEND}
+          layout={shareLayout}
+          layoutId={shareLayout ? LAYOUT_SEND : undefined}
           type="button"
           relief="accent"
           className="composer-send"

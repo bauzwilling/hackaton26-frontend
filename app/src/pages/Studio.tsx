@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { HelpFab, PanHint } from "../canvas/HelpTour";
 import { StudioBoard } from "../canvas/StudioBoard";
 import { ConciergeThread } from "../canvas/Concierge";
-import { SessionHistory, SessionSidebar } from "../canvas/SessionSidebar";
+import { SessionRail, type RailPair } from "../canvas/SessionSidebar";
 import { Composer } from "../components/Composer";
-import { CHAT_MOVE, LAND_FADE, LAYOUT_CHAT, Surface } from "../components/kit";
+import { CHAT_MOVE, LAND_FADE, Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { appLabel, CONCIERGE_ID, dockedChatWidth, isWorkspaceApp, useWorkspace } from "../context/workspace";
+import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
 import { can } from "../lib/auth";
 
@@ -55,9 +55,12 @@ export function StudioPage() {
   const { session } = useSession();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
-  const { nodes, entries, ask, openApp, announceOpen, ingestFiles, resuming, historyCollapsed, atLanding, departLanding } = useWorkspace();
+  const { nodes, entries, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
+  const [historyPeek, setHistoryPeek] = useState(false);
+  const [railW, setRailW] = useState(CHAT_RAIL_W);
+  const onRailWidth = useCallback((w: number) => setRailW(w), []);
   const root = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
@@ -89,27 +92,95 @@ export function StudioPage() {
 
   const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const [chrome, setChrome] = useState<"hero" | "dock">("hero");
+  const [heroLeaving, setHeroLeaving] = useState(false);
+  const [pair, setPair] = useState<RailPair>(null);
+  const [heroGen, setHeroGen] = useState(0);
+  const wasLanding = useRef(true);
+  const pairLock = useRef(false);
   const docked = chrome === "dock";
   const onHero = chrome === "hero";
   const emptyHero = onHero;
-  const wasResuming = useRef(false);
+  const heroExit = (leaving || heroLeaving) && !reduce;
+  const threadOpen = docked && (
+    pair?.dir === "open" ? pair.step !== "fade" :
+    pair?.dir === "close" ? pair.step === "fade" :
+    true
+  );
+  const chatInk = threadOpen && pair?.step !== "fade" && pair?.step !== "shape";
+  const threadMove = reduce
+    ? { duration: 0 }
+    : pair
+      ? { type: "tween" as const, duration: PAIR_SHAPE_MS / 1000, ease: CHAT_MOVE.ease }
+      : CHAT_MOVE;
 
   useEffect(() => {
-    if (atLanding && !resuming) {
+    if (atLanding && !wasLanding.current) setHeroGen((n) => n + 1);
+    wasLanding.current = atLanding;
+  }, [atLanding]);
+
+  useEffect(() => {
+    if (!pair || reduce) return;
+    const ms = pair.step === "shape" ? PAIR_SHAPE_MS : PAIR_FADE_MS;
+    const t = window.setTimeout(() => {
+      if (pair.step === "fade") {
+        setPair({ dir: pair.dir, step: "shape" });
+        return;
+      }
+      if (pair.step === "shape") {
+        if (pair.dir === "close") {
+          setPair(null);
+          setChrome("hero");
+          setHistoryPeek(true);
+          return;
+        }
+        setPair({ dir: "open", step: "in" });
+        return;
+      }
+      setPair(null);
+    }, ms);
+    return () => window.clearTimeout(t);
+  }, [pair, reduce]);
+
+  useEffect(() => {
+    if (!(atLanding && !resuming)) {
+      pairLock.current = false;
+      return;
+    }
+    setHeroLeaving(false);
+    if (chrome !== "dock") {
+      pairLock.current = false;
       setChrome("hero");
       return;
     }
-    if (resuming) {
-      wasResuming.current = true;
+    if (reduce) {
+      pairLock.current = false;
+      setPair(null);
+      setChrome("hero");
+      setHistoryPeek(true);
       return;
     }
-    if (wasResuming.current) {
-      wasResuming.current = false;
-      if (!atLanding) setChrome("dock");
-      return;
+    if (!pair && !pairLock.current) {
+      pairLock.current = true;
+      setPair({ dir: "close", step: "fade" });
     }
-    if (!atLanding && (hasWindows || entries.length > 0)) setChrome("dock");
-  }, [resuming, atLanding, hasWindows, entries.length]);
+  }, [atLanding, resuming, chrome, reduce, pair]);
+
+  useEffect(() => {
+    if (atLanding || chrome !== "hero") return;
+    const fromPeek = historyPeek;
+    setHeroLeaving(true);
+    const wait = reduce ? 0 : HERO_LEAVE_MS;
+    const t = window.setTimeout(() => {
+      setHeroLeaving(false);
+      if (fromPeek && !reduce) setPair({ dir: "open", step: "fade" });
+      setChrome("dock");
+    }, wait);
+    return () => window.clearTimeout(t);
+  }, [atLanding, chrome, reduce, historyPeek]);
+
+  useEffect(() => {
+    if (docked && !atLanding && !pair) setHistoryPeek(false);
+  }, [docked, atLanding, pair]);
 
   useEffect(() => {
     if (!leaving) return;
@@ -153,12 +224,14 @@ export function StudioPage() {
     if (files.length) ingestFiles(files);
   }
 
+  const chatW = docked ? railW + (threadOpen ? CHAT_THREAD_W : 0) : (railW === CHAT_SIDEBAR_W ? CHAT_SIDEBAR_W : 0);
+
   return (
     <motion.div
-      className={`studio${dropping ? " is-dropping" : ""}${leaving ? " is-leaving" : ""}${docked ? " is-chat-docked" : ""}`}
+      className={`studio${dropping ? " is-dropping" : ""}${leaving ? " is-leaving" : ""}${docked ? " is-chat-docked" : ""}${historyPeek && !docked ? " is-history-peek" : ""}`}
       data-help="studio-drop"
       ref={root}
-      style={{ ["--studio-chat-w" as string]: docked ? `${dockedChatWidth(historyCollapsed)}px` : "0px" }}
+      style={{ ["--studio-chat-w" as string]: `${chatW}px` }}
       initial={reduce ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={reduce ? { duration: 0 } : LAND_FADE}
@@ -169,79 +242,78 @@ export function StudioPage() {
     >
       <StudioBoard />
       <div className={`studio-chat-slot${docked ? " is-docked" : " is-center"}`}>
-        <motion.div
-          layout
-          className="studio-chat-col"
-          transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
-        >
+        <div className="studio-chat-col">
           {onHero && (
-            <>
-              <HeroPiece delay={0} leaveDelay={0.4} leaving={(leaving || resuming) && !reduce}>
+            <div key={heroGen} className="studio-hero">
+              <HeroPiece delay={0} leaveDelay={0.4} leaving={heroExit}>
                 <p className="hero-kicker">The largest factory in the world</p>
               </HeroPiece>
-              <HeroPiece delay={HERO_STAGGER} leaveDelay={0.3} leaving={(leaving || resuming) && !reduce}>
+              <HeroPiece delay={HERO_STAGGER} leaveDelay={0.3} leaving={heroExit}>
                 <h1 className="hero-title">From file to factory.</h1>
               </HeroPiece>
-              <HeroPiece delay={HERO_STAGGER * 2} leaveDelay={0.2} leaving={(leaving || resuming) && !reduce}>
+              <HeroPiece delay={HERO_STAGGER * 2} leaveDelay={0.2} leaving={heroExit}>
                 <p className="hero-lead">
                   Upload a design or just describe it. An AI concierge routes your request across our decentralized production network — thousands of machines acting as one factory — and gets it built. Anywhere.
                 </p>
               </HeroPiece>
-            </>
+              <HeroPiece delay={HERO_STAGGER * 3} leaveDelay={HERO_STAGGER} leaving={heroExit}>
+                <div className="studio-chat-card" data-help="concierge">
+                  <Composer variant="hero" autoFocus={onHero && !resuming && !heroLeaving} shareLayout={false} />
+                </div>
+              </HeroPiece>
+              <HeroPiece
+                className="chips"
+                delay={HERO_STAGGER * 4}
+                leaveDelay={0}
+                leaving={heroExit}
+              >
+                {chips.map((c) => (
+                  <Surface
+                    key={c}
+                    as="button"
+                    type="button"
+                    className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
+                    onClick={() => ask(c)}
+                  >
+                    {c}
+                  </Surface>
+                ))}
+              </HeroPiece>
+            </div>
           )}
-          {docked ? (
+          {docked && (
             <div className="studio-chat-dock">
-              <AnimatePresence>
-                <SessionSidebar />
-              </AnimatePresence>
+              <div
+                className="session-rail-gutter"
+                style={{
+                  width: railW,
+                  flexBasis: railW,
+                  transitionDuration: pair ? `${PAIR_SHAPE_MS}ms` : undefined,
+                }}
+                aria-hidden
+              />
               <motion.div
-                layout
-                layoutId={LAYOUT_CHAT}
                 className="studio-chat-card is-docked"
                 data-help="concierge"
-                transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
+                initial={reduce ? false : { width: 0 }}
+                animate={{ width: threadOpen ? CHAT_THREAD_W : 0 }}
+                transition={threadMove}
               >
-                <ConciergeThread />
-                <Composer
-                  variant="panel"
-                  placeholder="Ask, or drop a file…"
-                />
+                <div
+                  className={`studio-chat-stage${chatInk ? "" : " is-ink-off"}`}
+                  style={{ width: CHAT_THREAD_W, minWidth: CHAT_THREAD_W }}
+                >
+                  <ConciergeThread />
+                  <Composer
+                    variant="panel"
+                    placeholder="Ask, or drop a file…"
+                    shareLayout={false}
+                  />
+                </div>
               </motion.div>
             </div>
-          ) : (
-            <HeroPiece delay={HERO_STAGGER * 3} leaveDelay={HERO_STAGGER} leaving={(leaving || resuming) && !reduce}>
-              <motion.div
-                layout
-                layoutId={LAYOUT_CHAT}
-                className="studio-chat-card"
-                data-help="concierge"
-                transition={{ layout: reduce ? { duration: 0 } : CHAT_MOVE }}
-              >
-                <Composer variant="hero" autoFocus={onHero && !resuming} />
-              </motion.div>
-            </HeroPiece>
           )}
-          {onHero && (
-            <HeroPiece
-              className="chips"
-              delay={HERO_STAGGER * 4}
-              leaveDelay={0}
-              leaving={(leaving || resuming) && !reduce}
-            >
-              {chips.map((c) => (
-                <Surface
-                  key={c}
-                  as="button"
-                  type="button"
-                  className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
-                  onClick={() => ask(c)}
-                >
-                  {c}
-                </Surface>
-              ))}
-            </HeroPiece>
-          )}
-        </motion.div>
+        </div>
       </div>
       {hasWindows && (
         <p className="studio-hint" data-help="studio-hint">
@@ -267,7 +339,13 @@ export function StudioPage() {
           <span className="session-resume-spin" />
         </div>
       )}
-      {!docked && <SessionHistory />}
+      <SessionRail
+        docked={docked}
+        peek={historyPeek}
+        pair={pair}
+        onPeekChange={setHistoryPeek}
+        onRailWidth={onRailWidth}
+      />
       <PanHint interactive={hasWindows} />
       <HelpFab />
     </motion.div>
