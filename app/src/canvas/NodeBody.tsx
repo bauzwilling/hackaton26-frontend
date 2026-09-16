@@ -5,7 +5,6 @@ import { OrbitPage } from "../pages/Orbit";
 import { PartsPage } from "../pages/Parts";
 import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyworks";
 import { ProjectsPage } from "../pages/Projects";
-import { RequestLog } from "./RequestLog";
 import { ConciergeChat } from "./Concierge";
 import { useHelpOptional } from "../context/help";
 
@@ -49,7 +48,7 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
   const openNesting = useCallback((jobId: string) => {
     openApp("plyworks-nesting", { parentId: node.id, query: jobId });
   }, [node.id, openApp]);
-  if (node.kind === "log") return <RequestLog viewport={viewport} />;
+  if (node.kind === "log") return null;
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;
   if (node.kind === "denied") {

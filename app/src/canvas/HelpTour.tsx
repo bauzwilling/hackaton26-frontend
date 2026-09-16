@@ -30,18 +30,21 @@ function placeCard(hole: { top: number; left: number; width: number; height: num
 }
 
 export function HelpFab() {
-  const { phase, startHelp } = useHelp();
+  const { phase, startHelp, stop } = useHelp();
   const busy = phase !== "idle";
   return (
     <Surface
       as="button"
       type="button"
       relief={busy ? "accent" : "raised"}
-      className="help-fab"
-      onClick={startHelp}
+      className={`studio-tool help-fab chrome-icon${busy ? " is-on" : ""}`}
+      data-help="help-fab"
+      onClick={busy ? stop : startHelp}
       aria-label={busy ? "Exit help" : "Help"}
+      title={busy ? "Exit help" : "Help"}
     >
-      {busy ? "Exit" : "Help"}
+      <span className="studio-tool-tip" aria-hidden>{busy ? "Exit help" : "Help"}</span>
+      <span className="studio-help-mark">?</span>
     </Surface>
   );
 }
@@ -63,7 +66,7 @@ function markPanHintSeen() {
 }
 
 /** First-visit canvas tip. Not the Help tour overlay. */
-export function PanHint({ empty, conciergeUp }: { empty: boolean; conciergeUp: boolean }) {
+export function PanHint({ interactive }: { interactive: boolean }) {
   const { phase, startHelp } = useHelp();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(() => !panHintSeen());
@@ -75,18 +78,18 @@ export function PanHint({ empty, conciergeUp }: { empty: boolean; conciergeUp: b
 
   useEffect(() => {
     if (!ready || !visible) return;
-    if (phase !== "idle" || !empty || conciergeUp) {
+    if (phase !== "idle") {
       markPanHintSeen();
       setVisible(false);
     }
-  }, [ready, visible, phase, empty, conciergeUp]);
+  }, [ready, visible, phase]);
 
   function dismiss() {
     markPanHintSeen();
     setVisible(false);
   }
 
-  if (!ready || !visible || !empty || conciergeUp || phase !== "idle") return null;
+  if (!ready || !visible || !interactive || phase !== "idle") return null;
 
   return (
     <Surface className="pan-hint" role="status">

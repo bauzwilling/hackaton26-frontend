@@ -6,18 +6,14 @@ import {
   CONCIERGE_ID,
   EST_H,
   GAP,
+  IFRAME_H,
   JOB_APPS,
-  LOG_ID,
   NOTE_H,
   NOTE_W,
-  RAIL_W,
   WORKSPACE_APPS,
-  appBox,
   canDeleteNode,
   canDuplicateNode,
   conciergeNode,
-  isFixedSizeApp,
-  logNode,
   openable,
   type WorkspaceApp,
   type WorkspaceNode,
@@ -38,20 +34,46 @@ function hits(
   return a.x < b.x + b.w + GAP && a.x + a.w + GAP > b.x && a.y < b.y + b.h + GAP && a.y + a.h + GAP > b.y;
 }
 
-export function placeBeside(nodes: WorkspaceNode[], w: number, h: number, ignoreId?: string) {
-  const others = nodes.filter((n) => !n.hidden && n.id !== ignoreId).map(boxOf);
-  if (!others.length) return { x: 20, y: 20 };
+function boardWindows(nodes: WorkspaceNode[], ignoreId?: string) {
+  return nodes.filter((n) => (
+    !n.hidden
+    && n.id !== ignoreId
+    && n.id !== CONCIERGE_ID
+    && n.kind !== "log"
+  ));
+}
+
+export function placeBeside(
+  nodes: WorkspaceNode[],
+  w: number,
+  h: number,
+  ignoreId?: string,
+  origin: { x: number; y: number } = { x: 20, y: 20 },
+) {
+  const others = boardWindows(nodes, ignoreId).map(boxOf);
+  if (!others.length) return { x: origin.x, y: origin.y };
   const candidates: { x: number; y: number }[] = [];
   for (const b of others) candidates.push({ x: b.x + b.w + GAP, y: b.y });
   for (const b of others) candidates.push({ x: b.x, y: b.y + b.h + GAP });
   const maxR = Math.max(...others.map((b) => b.x + b.w));
-  candidates.push({ x: maxR + GAP, y: 20 });
+  candidates.push({ x: maxR + GAP, y: origin.y });
   candidates.sort((a, b) => a.y - b.y || a.x - b.x);
   for (const c of candidates) {
-    const rect = { x: Math.max(20, c.x), y: Math.max(20, c.y), w, h };
+    const rect = { x: Math.max(origin.x, c.x), y: Math.max(origin.y, c.y), w, h };
     if (!others.some((b) => hits(rect, b))) return { x: rect.x, y: rect.y };
   }
-  return { x: maxR + GAP, y: 20 };
+  return { x: maxR + GAP, y: origin.y };
+}
+
+/** Next slot in a single row: leftover origin, then always to the right of the last app. */
+export function placeAfterLast(
+  nodes: WorkspaceNode[],
+  origin: { x: number; y: number } = { x: 20, y: 20 },
+) {
+  const others = boardWindows(nodes).filter((n) => n.kind === "app");
+  if (!others.length) return { x: origin.x, y: origin.y };
+  const prev = [...others].sort((a, b) => a.y - b.y || a.x - b.x).at(-1)!;
+  return { x: prev.x + prev.w + GAP, y: prev.y };
 }
 
 /** Hugs the log's measured height; before the first fit, h is still the estimate. */
@@ -69,35 +91,16 @@ export function restack(list: WorkspaceNode[]): WorkspaceNode[] {
   return list.map((n) => (n.id === CONCIERGE_ID ? { ...n, x: log.x, y } : n));
 }
 
-/**
- * The log and the concierge are one unit: log on top, concierge (which carries the
- * composer) directly beneath it. Everything that puts something on the board goes
- * through here, so the composer always has a home.
- */
+/** Concierge is a hidden hub for wires and parentId; the visible chat is the overlay. */
+function hideConcierge(n: WorkspaceNode): WorkspaceNode {
+  return n.id === CONCIERGE_ID ? { ...n, hidden: true } : n;
+}
+
 export function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
-  const base = list.filter((n) => n.kind !== "request");
-  const log = base.find((n) => n.kind === "log");
+  const base = list.filter((n) => n.kind !== "request" && n.kind !== "log");
   const concierge = base.find((n) => n.id === CONCIERGE_ID);
-
-  if (log && concierge) {
-    return restack(base.map((n) => (
-      n.id === log.id || n.id === CONCIERGE_ID ? { ...n, hidden: false } : n
-    )));
-  }
-
-  if (log) {
-    return [...base.map((n) => (n.id === log.id ? { ...n, hidden: false } : n)), {
-      ...conciergeNode(),
-      x: log.x,
-      y: railY(log),
-    }];
-  }
-
-  const others = base.filter((n) => n.id !== CONCIERGE_ID);
-  const slot = placeBeside(others, RAIL_W, EST_H.log + GAP + EST_H.text);
-  const nextLog = { ...logNode(), x: slot.x, y: slot.y };
-  const nextConcierge = { ...(concierge ?? conciergeNode()), hidden: false, railed: true, x: slot.x, y: railY(nextLog) };
-  return [nextLog, ...others, nextConcierge];
+  if (concierge) return base.map(hideConcierge);
+  return [...base, hideConcierge(conciergeNode())];
 }
 
 /** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes. */
@@ -106,16 +109,17 @@ export function openAppNodes(
   session: Session | null,
   app: WorkspaceApp,
   z: number,
-  opts?: { parentId?: string; query?: string; design?: PlyworksDesign },
+  opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number; x?: number; y?: number } },
 ): { nodes: WorkspaceNode[]; id: string } | null {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta || !openable(session, app)) return null;
 
+  const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
+  const origin = { x: box.x ?? 20, y: box.y ?? 20 };
   const reuse = !JOB_APPS.includes(app);
   const base = withRail(list);
   const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
   if (current) {
-    const box = appBox(app);
     return {
       id: current.id,
       nodes: base.map((n) => {
@@ -128,18 +132,16 @@ export function openAppNodes(
           parentId: opts?.parentId ?? n.parentId,
           query: opts?.query ?? n.query,
           design: opts?.design ?? n.design,
-          ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
+          w: box.w,
+          h: box.h,
+          autoSize: false,
         };
       }),
     };
   }
 
   const id = uid("a");
-  const iframe = isFixedSizeApp(app);
-  const box = appBox(app);
-  const appW = iframe ? box.w : APP_W;
-  const appH = iframe ? box.h : EST_H.app;
-  const slot = placeBeside(base, appW, appH);
+  const slot = placeAfterLast(base, origin);
   const node: WorkspaceNode = {
     id,
     kind: "app",
@@ -152,17 +154,17 @@ export function openAppNodes(
     x: slot.x,
     y: slot.y,
     z,
-    w: appW,
-    h: iframe ? box.h : 1,
+    w: box.w,
+    h: box.h,
     hidden: false,
-    autoSize: !iframe,
+    autoSize: false,
   };
   return { id, nodes: [...base, node] };
 }
 
 export function ensureConciergeNodes(list: WorkspaceNode[], z: number): WorkspaceNode[] {
   return withRail(list).map((n) => (
-    n.id === CONCIERGE_ID ? { ...n, z, hidden: false, parentId: n.parentId ?? LOG_ID } : n
+    n.id === CONCIERGE_ID ? { ...n, z, hidden: true } : n
   ));
 }
 
@@ -273,32 +275,28 @@ export function duplicateNodeCopies(
 
 export function tileNodes(
   list: WorkspaceNode[],
-  viewport: { width: number; height: number },
+  origin: { x: number; y: number } = { x: 20, y: 20 },
 ): WorkspaceNode[] {
-  const vis = list.filter((n) => !n.hidden && !n.locked);
+  const vis = [...boardWindows(list).filter((n) => !n.locked)]
+    .sort((a, b) => a.y - b.y || a.x - b.x);
   if (!vis.length) return list;
-  const pad = 24;
-  const limit = Math.max(viewport.width, 400);
-  let x = pad;
-  let y = pad;
-  let rowH = 0;
+  const cols = 2;
   const placed = new Map<string, { x: number; y: number }>();
-  for (const n of vis) {
-    const w = Math.max(n.w, 160);
-    const h = Math.max(n.h, 80);
-    if (x > pad && x + w + pad > limit) {
-      x = pad;
-      y += rowH + pad;
-      rowH = 0;
+  let rowY = origin.y;
+  for (let i = 0; i < vis.length; i += cols) {
+    const row = vis.slice(i, i + cols);
+    const rowH = Math.max(...row.map((n) => Math.max(n.h, 80)));
+    let x = origin.x;
+    for (const n of row) {
+      placed.set(n.id, { x, y: rowY });
+      x += Math.max(n.w, 160) + GAP;
     }
-    placed.set(n.id, { x, y });
-    x += w + pad;
-    rowH = Math.max(rowH, h);
+    rowY += rowH + GAP;
   }
   return list.map((n) => {
     const p = placed.get(n.id);
     if (!p) return n;
-    return n.id === CONCIERGE_ID ? { ...n, x: p.x, y: p.y, railed: false } : { ...n, x: p.x, y: p.y };
+    return { ...n, x: p.x, y: p.y };
   });
 }
 

@@ -31,6 +31,7 @@ export type StudioNodeData = {
   flash?: boolean;
   flashKey?: number;
   enter?: boolean;
+  preview?: boolean;
 };
 
 export type StudioFlowNode = Node<StudioNodeData, "studioWindow">;
@@ -82,7 +83,7 @@ function StudioWindowNodeImpl({
   width,
   height,
 }: NodeProps<StudioFlowNode>) {
-  const { close, hide, focus, fit } = useWorkspace();
+  const { close, hide, focus, fit, maximize, maximizedId } = useWorkspace();
   const { updateNode } = useReactFlow<StudioFlowNode>();
   const updateInternals = useUpdateNodeInternals();
   const host = useBoardHost();
@@ -124,9 +125,11 @@ function StudioWindowNodeImpl({
         enter={data.enter}
         flash={data.flash}
         flashKey={data.flashKey}
-        selected={selected}
+        selected={selected || !!data.preview}
         viewport={false}
         onFocus={() => focus(id)}
+        onMaximize={data.kind === "app" ? () => maximize(id) : undefined}
+        maximized={maximizedId === id}
         onClose={canClose ? () => close(id) : undefined}
         onHide={() => hide(id)}
         onDrag={() => { /* React Flow dragHandle owns this */ }}

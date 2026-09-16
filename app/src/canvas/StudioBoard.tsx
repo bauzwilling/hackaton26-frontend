@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Background,
   BackgroundVariant,
   MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
@@ -15,12 +17,13 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useSession } from "../context/session";
+import { CHAT_MOVE, LAYOUT_MINIMAP } from "../components/kit";
+import { lookTokens, useSession } from "../context/session";
 import {
   canDeleteNode,
   canDuplicateNode,
+  chatFitPadding,
   CONCIERGE_ID,
-  LOG_ID,
   useWorkspace,
   type WorkspaceNode,
 } from "../context/workspace";
@@ -33,14 +36,198 @@ import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./f
 import { useFineWheelZoom } from "./flow/wheelZoom";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
 
+const MAP_CORNERS = [
+  { id: "tl", closed: "tl", open: "br", d: "M12 2H2v10" },
+  { id: "tr", closed: "tr", open: "bl", d: "M4 2h10v10" },
+  { id: "bl", closed: "bl", open: "tr", d: "M12 14H2V4" },
+  { id: "br", closed: "br", open: "tl", d: "M4 14h10V4" },
+] as const;
+
+function CornerMark({ d }: { d: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
+function MapTip({ verb }: { verb: "Open" | "Close" }) {
+  return (
+    <span className="studio-tool-tip studio-map-tip" aria-hidden>
+      <span>{verb}</span>
+      <span>Minimap</span>
+    </span>
+  );
+}
+
+function MinimapDock({
+  interactive,
+  previewFill,
+  faded,
+}: {
+  interactive: boolean;
+  previewFill: string;
+  faded: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const [hot, setHot] = useState(true);
+  const [openTip, setOpenTip] = useState(true);
+  const dock = useRef<HTMLDivElement>(null);
+  const dimTimer = useRef<number | null>(null);
+  const holdHot = useRef(false);
+
+  useEffect(() => {
+    if (!interactive) {
+      setOpen(false);
+      setOpenTip(true);
+    }
+  }, [interactive]);
+
+  useEffect(() => {
+    if (faded) setOpen(false);
+  }, [faded]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: PointerEvent) {
+      if (dock.current?.contains(e.target as Node)) return;
+      if (dimTimer.current) window.clearTimeout(dimTimer.current);
+      dimTimer.current = window.setTimeout(() => setHot(false), 2000);
+    }
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
+  }, [open]);
+
+  useEffect(() => () => {
+    if (dimTimer.current) window.clearTimeout(dimTimer.current);
+  }, []);
+
+  function heat() {
+    if (dimTimer.current) window.clearTimeout(dimTimer.current);
+    dimTimer.current = null;
+    setHot(true);
+  }
+
+  function chill() {
+    if (holdHot.current) return;
+    if (dimTimer.current) window.clearTimeout(dimTimer.current);
+    dimTimer.current = window.setTimeout(() => setHot(false), 2000);
+  }
+
+  if (!interactive) return null;
+
+  const layout = reduce ? { duration: 0 } : CHAT_MOVE;
+
+  function openMap() {
+    holdHot.current = true;
+    setOpenTip(false);
+    setOpen(true);
+    setHot(true);
+    window.setTimeout(() => { holdHot.current = false; }, 600);
+  }
+
+  function closeMap() {
+    if (dimTimer.current) window.clearTimeout(dimTimer.current);
+    setOpenTip(false);
+    setOpen(false);
+  }
+
+  return (
+    <Panel position="bottom-right" className={`studio-minimap-dock${faded ? " is-faded" : ""}`}>
+      <motion.div
+        ref={dock}
+        layout
+        layoutId={LAYOUT_MINIMAP}
+        className={`studio-minimap-shell nowheel nopan${open ? " is-open" : " chrome-icon"}`}
+        transition={{ layout, opacity: layout }}
+        animate={{ opacity: faded ? 0 : 1 }}
+        role={open ? undefined : "button"}
+        tabIndex={open || faded ? -1 : 0}
+        aria-hidden={faded}
+        aria-label={open || faded ? undefined : "Open minimap"}
+        aria-expanded={open}
+        onPointerEnter={heat}
+        onPointerLeave={chill}
+        onClick={open ? undefined : openMap}
+        onKeyDown={open ? undefined : (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openMap();
+          }
+        }}
+        onLayoutAnimationComplete={() => {
+          if (!open) setOpenTip(true);
+        }}
+      >
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="studio-minimap-fade"
+              initial={reduce ? false : { opacity: 0, scale: 0.2 }}
+              animate={{ opacity: hot ? 0.9 : 0.2, scale: 1 }}
+              exit={reduce ? undefined : { opacity: 0, scale: 0.2 }}
+              transition={layout}
+              style={{ transformOrigin: "100% 100%" }}
+            >
+              <MiniMap
+                className="studio-minimap"
+                pannable
+                zoomable
+                nodeStrokeWidth={2}
+                nodeColor={(n) => {
+                  const data = n.data as StudioFlowNode["data"];
+                  if (n.selected || data.preview) return previewFill;
+                  const kind = data.kind;
+                  if (kind === "note") return "#e07a22";
+                  if (kind === "log" || kind === "text") return "#9aa0a6";
+                  return "#c5c0b6";
+                }}
+                nodeStrokeColor={(n) => {
+                  const data = n.data as StudioFlowNode["data"];
+                  if (n.selected || data.preview) return previewFill;
+                  return "transparent";
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {MAP_CORNERS.map((c) => (
+          <motion.button
+            key={c.id}
+            layout
+            layoutId={`f2f-map-${c.id}`}
+            type="button"
+            className={`studio-minimap-corner at-${open ? c.open : c.closed}`}
+            transition={{ layout }}
+            tabIndex={open ? 0 : -1}
+            aria-hidden={!open}
+            aria-label={open ? "Close minimap" : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (open) closeMap();
+            }}
+          >
+            <CornerMark d={c.d} />
+            {open && <MapTip verb="Close" />}
+          </motion.button>
+        ))}
+        {!open && openTip && <MapTip verb="Open" />}
+      </motion.div>
+    </Panel>
+  );
+}
+
 function StudioBoardInner() {
   const {
     nodes: workspaceNodes,
+    entries,
     edges: systemEdges,
     userEdges,
     viewport,
     flashIds,
     flashKey,
+    previewId,
     fitRequest,
     close,
     duplicateNodes,
@@ -50,8 +237,15 @@ function StudioBoardInner() {
     addUserEdge,
     removeUserEdges,
     unrail,
+    enteringNodeIds,
+    resuming,
+    historyCollapsed,
+    maximizedId,
+    commitStageSize,
+    dismissMaximize,
   } = useWorkspace();
-  const { showWires, showGrid } = useSession();
+  const { showWires, showGrid, accent, theme } = useSession();
+  const previewFill = lookTokens(theme, accent).acc;
   const { fitView, screenToFlowPosition, getNodes, setViewport } = useReactFlow();
   const { zoom } = useViewport();
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioFlowNode>([]);
@@ -65,9 +259,13 @@ function StudioBoardInner() {
   const [host, setHost] = useState({ width: 1200, height: 700 });
   const layer = useRef<HTMLDivElement>(null);
 
+  const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
+  const docked = interactive || entries.length > 0 || resuming;
+
   useFineWheelZoom(layer, {
     minZoom: flowInteraction.minZoom,
     maxZoom: flowInteraction.maxZoom,
+    enabled: interactive,
   });
 
   useEffect(() => {
@@ -89,13 +287,14 @@ function StudioBoardInner() {
     setNodes((current) => {
       const prev = new Map(current.map((n) => [n.id, n]));
       const draggingNow = dragging.current.size > 0;
-      return workspaceNodes.map((n) => {
+      return workspaceNodes.filter((n) => !n.hidden).map((n) => {
         const old = prev.get(n.id);
         const mapped = toFlowNode(n, {
           selected: old?.selected,
-          enter: conciergeEnter && n.id === CONCIERGE_ID,
+          enter: (conciergeEnter && n.id === CONCIERGE_ID) || enteringNodeIds.includes(n.id),
           flash: flashIds.includes(n.id),
           flashKey,
+          preview: previewId === n.id,
         });
         if (old && draggingNow) {
           mapped.position = old.position;
@@ -122,7 +321,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -166,20 +365,29 @@ function StudioBoardInner() {
 
   useEffect(() => {
     if (!fitRequest) return;
-    const ids = fitRequest.ids;
+    const ids = fitRequest.ids.filter((id) => nodes.some((n) => n.id === id));
+    if (!ids.length) return;
     const maxZoom = fitRequest.maxZoom;
+    const collapsed = fitRequest.collapsedGutter === true ? true : historyCollapsed;
     const t = window.requestAnimationFrame(() => {
-      void fitView({ nodes: ids.map((id) => ({ id })), maxZoom, padding: 0.2, duration: 220 });
+      void fitView({
+        nodes: ids.map((id) => ({ id })),
+        maxZoom,
+        padding: chatFitPadding(host.width, docked, collapsed),
+        duration: 220,
+      });
     });
     return () => window.cancelAnimationFrame(t);
-  }, [fitRequest, fitView]);
+  }, [fitRequest, fitView, nodes, docked, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
-    setHost({ width: box.width, height: box.height });
-  }, []);
+    const next = { width: box.width, height: box.height };
+    setHost(next);
+    commitStageSize(next);
+  }, [commitStageSize]);
 
   useEffect(() => {
     measureHost();
@@ -224,21 +432,9 @@ function StudioBoardInner() {
 
   const onNodeDragStart: OnNodeDrag<StudioFlowNode> = useCallback((_, node) => {
     dragging.current.add(node.id);
+    dismissMaximize(true);
     if (node.id === CONCIERGE_ID) unrail(CONCIERGE_ID);
-  }, [unrail]);
-
-  const onNodeDrag: OnNodeDrag<StudioFlowNode> = useCallback((_, node) => {
-    if (node.id !== LOG_ID) return;
-    setNodes((list) => {
-      const log = list.find((n) => n.id === LOG_ID);
-      const concierge = list.find((n) => n.id === CONCIERGE_ID);
-      if (!log || !concierge || !concierge.data.railed) return list;
-      const h = log.measured?.height ?? log.height ?? 280;
-      const y = log.position.y + h + 24;
-      if (concierge.position.x === log.position.x && concierge.position.y === y) return list;
-      return list.map((n) => (n.id === CONCIERGE_ID ? { ...n, position: { x: log.position.x, y } } : n));
-    });
-  }, [setNodes]);
+  }, [dismissMaximize, unrail]);
 
   const onNodeDragStop = useCallback(() => {
     dragging.current.clear();
@@ -254,7 +450,8 @@ function StudioBoardInner() {
 
   const onMove = useCallback(() => {
     panMoved.current = true;
-  }, []);
+    dismissMaximize();
+  }, [dismissMaximize]);
 
   const onMoveEnd = useCallback((_: unknown, next: { x: number; y: number; zoom: number }) => {
     appliedViewport.current = `${next.x},${next.y},${next.zoom}`;
@@ -339,7 +536,6 @@ function StudioBoardInner() {
           onNodesDelete={onNodesDelete}
           onEdgesDelete={onEdgesDelete}
           onNodeDragStart={onNodeDragStart}
-          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onMoveStart={onMoveStart}
           onMove={onMove}
@@ -349,12 +545,12 @@ function StudioBoardInner() {
           onPaneClick={() => { setAskMenu(null); setSelMenu(null); }}
           minZoom={flowInteraction.minZoom}
           maxZoom={flowInteraction.maxZoom}
-          panOnDrag={flowInteraction.panOnDrag}
+          panOnDrag={interactive ? flowInteraction.panOnDrag : false}
           panOnScroll={flowInteraction.panOnScroll}
           zoomOnScroll={flowInteraction.zoomOnScroll}
-          zoomOnPinch={flowInteraction.zoomOnPinch}
+          zoomOnPinch={interactive && flowInteraction.zoomOnPinch}
           zoomOnDoubleClick={flowInteraction.zoomOnDoubleClick}
-          selectionOnDrag={flowInteraction.selectionOnDrag}
+          selectionOnDrag={interactive && flowInteraction.selectionOnDrag}
           selectionMode={flowInteraction.selectionMode}
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
@@ -363,8 +559,8 @@ function StudioBoardInner() {
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-          nodesDraggable
-          elementsSelectable
+          nodesDraggable={interactive}
+          elementsSelectable={interactive}
           selectNodesOnDrag={false}
           connectionRadius={28}
           fitView={false}
@@ -378,18 +574,7 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MiniMap
-            className="studio-minimap"
-            pannable
-            zoomable
-            nodeStrokeWidth={0}
-            nodeColor={(n) => {
-              const kind = (n.data as StudioFlowNode["data"]).kind;
-              if (kind === "note") return "#e07a22";
-              if (kind === "log" || kind === "text") return "#9aa0a6";
-              return "#c5c0b6";
-            }}
-          />
+          <MinimapDock interactive={interactive} previewFill={previewFill} faded={!!maximizedId} />
         </ReactFlow>
         {askMenu && (
           <AskMenu

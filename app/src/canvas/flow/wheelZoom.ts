@@ -23,13 +23,13 @@ function wheelDelta(event: WheelEvent) {
  */
 export function useFineWheelZoom(
   paneRef: RefObject<HTMLElement | null>,
-  opts: { minZoom: number; maxZoom: number },
+  opts: { minZoom: number; maxZoom: number; enabled?: boolean },
 ) {
   const { getViewport, setViewport } = useReactFlow();
 
   useEffect(() => {
     const root = paneRef.current;
-    if (!root) return;
+    if (!root || opts.enabled === false) return;
     const pane = (root.querySelector(".react-flow") as HTMLElement | null) ?? root;
 
     const onWheel = (event: WheelEvent) => {
@@ -62,5 +62,5 @@ export function useFineWheelZoom(
 
     pane.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => pane.removeEventListener("wheel", onWheel, true);
-  }, [paneRef, opts.minZoom, opts.maxZoom, getViewport, setViewport]);
+  }, [paneRef, opts.enabled, opts.minZoom, opts.maxZoom, getViewport, setViewport]);
 }

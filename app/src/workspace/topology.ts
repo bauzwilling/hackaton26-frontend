@@ -39,14 +39,12 @@ export function topology(
     edges.push({ id: `sys:${key}`, from, to, hot });
   };
 
-  if (log) {
-    for (const entry of entries) {
-      const hot = entry.id === selectedEntryId;
-      const chain = entry.targetIds.filter((id) => live.has(id));
-      if (!chain.length) continue;
-      add(log.id, chain[0], hot);
-      for (let i = 1; i < chain.length; i++) add(chain[i - 1], chain[i], hot);
-    }
+  for (const entry of entries) {
+    const hot = entry.id === selectedEntryId;
+    const chain = entry.targetIds.filter((id) => live.has(id));
+    if (!chain.length) continue;
+    if (log) add(log.id, chain[0], hot);
+    for (let i = 1; i < chain.length; i++) add(chain[i - 1], chain[i], hot);
   }
 
   for (const n of vis) {

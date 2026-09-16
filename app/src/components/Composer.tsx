@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Surface } from "./kit";
+import { motion, useReducedMotion } from "framer-motion";
+import { CHAT_MOVE, LAYOUT_ATTACH, LAYOUT_COMPOSER, LAYOUT_FIELD, LAYOUT_SEND, Surface } from "./kit";
 import { useWorkspace } from "../context/workspace";
 import { FILE_ACCEPT } from "../lib/intake";
 
@@ -25,14 +26,18 @@ export function Composer({
   variant = "hero",
   autoFocus,
   placeholder = "Ask anything — or describe something to build...",
+  shareLayout = true,
 }: {
   variant?: "hero" | "panel";
   autoFocus?: boolean;
   placeholder?: string;
+  shareLayout?: boolean;
 }) {
   const { ask, ingestFiles } = useWorkspace();
+  const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const layout = reduce ? { duration: 0 } : CHAT_MOVE;
 
   function submit() {
     const q = query.trim();
@@ -48,39 +53,63 @@ export function Composer({
   }
 
   return (
-    <Surface className={`composer composer-${variant}`}>
+    <Surface
+      as={motion.div}
+      layout={shareLayout}
+      layoutId={shareLayout ? LAYOUT_COMPOSER : undefined}
+      className={`composer composer-${variant}`}
+      transition={{ layout }}
+    >
       <input
         ref={fileInput}
+        className="composer-file"
         type="file"
         accept={FILE_ACCEPT}
         multiple
-        hidden
+        tabIndex={-1}
         onChange={(e) => onPicked(e.target.files)}
       />
-      <Surface
-        as="button"
-        type="button"
-        relief="ghost"
-        className="composer-attach"
-        aria-label="Attach a file"
-        onClick={() => fileInput.current?.click()}
-      >
-        <ClipIcon />
-      </Surface>
-      <input
-        type="text"
-        value={query}
-        autoFocus={autoFocus}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
-        placeholder={placeholder}
-        aria-label="Describe what you want to build"
-      />
-      <Surface as="button" type="button" relief="accent" className="composer-send" onClick={submit} aria-label="Send">
-        <SendIcon />
-      </Surface>
+      <div className="composer-row">
+        <Surface
+          as={motion.button}
+          layout={shareLayout}
+          layoutId={shareLayout ? LAYOUT_ATTACH : undefined}
+          type="button"
+          relief="ghost"
+          className="composer-attach"
+          aria-label="Attach a file"
+          transition={{ layout }}
+          onClick={() => fileInput.current?.click()}
+        >
+          <ClipIcon />
+        </Surface>
+        <motion.div layout={shareLayout} layoutId={shareLayout ? LAYOUT_FIELD : undefined} className="composer-field" transition={{ layout }}>
+          <input
+            type="text"
+            value={query}
+            autoFocus={autoFocus}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder={placeholder}
+            aria-label="Describe what you want to build"
+          />
+        </motion.div>
+        <Surface
+          as={motion.button}
+          layout={shareLayout}
+          layoutId={shareLayout ? LAYOUT_SEND : undefined}
+          type="button"
+          relief="accent"
+          className="composer-send"
+          aria-label="Send"
+          transition={{ layout }}
+          onClick={submit}
+        >
+          <SendIcon />
+        </Surface>
+      </div>
     </Surface>
   );
 }
