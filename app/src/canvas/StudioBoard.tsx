@@ -22,8 +22,8 @@ import { lookTokens, useSession } from "../context/session";
 import {
   canDeleteNode,
   canDuplicateNode,
+  chatFitPadding,
   CONCIERGE_ID,
-  dockedChatWidth,
   useWorkspace,
   type WorkspaceNode,
 } from "../context/workspace";
@@ -63,9 +63,11 @@ function MapTip({ verb }: { verb: "Open" | "Close" }) {
 function MinimapDock({
   interactive,
   previewFill,
+  faded,
 }: {
   interactive: boolean;
   previewFill: string;
+  faded: boolean;
 }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -81,6 +83,10 @@ function MinimapDock({
       setOpenTip(true);
     }
   }, [interactive]);
+
+  useEffect(() => {
+    if (faded) setOpen(false);
+  }, [faded]);
 
   useEffect(() => {
     if (!open) return;
@@ -128,16 +134,18 @@ function MinimapDock({
   }
 
   return (
-    <Panel position="bottom-right" className="studio-minimap-dock">
+    <Panel position="bottom-right" className={`studio-minimap-dock${faded ? " is-faded" : ""}`}>
       <motion.div
         ref={dock}
         layout
         layoutId={LAYOUT_MINIMAP}
         className={`studio-minimap-shell nowheel nopan${open ? " is-open" : " chrome-icon"}`}
-        transition={{ layout }}
+        transition={{ layout, opacity: layout }}
+        animate={{ opacity: faded ? 0 : 1 }}
         role={open ? undefined : "button"}
-        tabIndex={open ? -1 : 0}
-        aria-label={open ? undefined : "Open minimap"}
+        tabIndex={open || faded ? -1 : 0}
+        aria-hidden={faded}
+        aria-label={open || faded ? undefined : "Open minimap"}
         aria-expanded={open}
         onPointerEnter={heat}
         onPointerLeave={chill}
@@ -232,6 +240,9 @@ function StudioBoardInner() {
     enteringNodeIds,
     resuming,
     historyCollapsed,
+    maximizedId,
+    commitStageSize,
+    dismissMaximize,
   } = useWorkspace();
   const { showWires, showGrid, accent, theme } = useSession();
   const previewFill = lookTokens(theme, accent).acc;
@@ -357,18 +368,12 @@ function StudioBoardInner() {
     const ids = fitRequest.ids.filter((id) => nodes.some((n) => n.id === id));
     if (!ids.length) return;
     const maxZoom = fitRequest.maxZoom;
-    const chatW = dockedChatWidth(historyCollapsed);
-    const chatGutter = docked ? Math.min(chatW, Math.max(0, host.width - 32)) + 32 : 16;
+    const collapsed = fitRequest.collapsedGutter === true ? true : historyCollapsed;
     const t = window.requestAnimationFrame(() => {
       void fitView({
         nodes: ids.map((id) => ({ id })),
         maxZoom,
-        padding: {
-          top: "48px",
-          right: "16px",
-          bottom: "56px",
-          left: `${chatGutter}px`,
-        },
+        padding: chatFitPadding(host.width, docked, collapsed),
         duration: 220,
       });
     });
@@ -379,8 +384,10 @@ function StudioBoardInner() {
     const el = layer.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
-    setHost({ width: box.width, height: box.height });
-  }, []);
+    const next = { width: box.width, height: box.height };
+    setHost(next);
+    commitStageSize(next);
+  }, [commitStageSize]);
 
   useEffect(() => {
     measureHost();
@@ -425,8 +432,9 @@ function StudioBoardInner() {
 
   const onNodeDragStart: OnNodeDrag<StudioFlowNode> = useCallback((_, node) => {
     dragging.current.add(node.id);
+    dismissMaximize(true);
     if (node.id === CONCIERGE_ID) unrail(CONCIERGE_ID);
-  }, [unrail]);
+  }, [dismissMaximize, unrail]);
 
   const onNodeDragStop = useCallback(() => {
     dragging.current.clear();
@@ -442,7 +450,8 @@ function StudioBoardInner() {
 
   const onMove = useCallback(() => {
     panMoved.current = true;
-  }, []);
+    dismissMaximize();
+  }, [dismissMaximize]);
 
   const onMoveEnd = useCallback((_: unknown, next: { x: number; y: number; zoom: number }) => {
     appliedViewport.current = `${next.x},${next.y},${next.zoom}`;
@@ -565,7 +574,7 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MinimapDock interactive={interactive} previewFill={previewFill} />
+          <MinimapDock interactive={interactive} previewFill={previewFill} faded={!!maximizedId} />
         </ReactFlow>
         {askMenu && (
           <AskMenu

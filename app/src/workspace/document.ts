@@ -65,7 +65,6 @@ export const RAIL_W = 340;
 export const LOG_W = 340;
 export const APP_W = 1760;
 export const IFRAME_H = 1040;
-export const JW_SIZE = 1040;
 export const NOTE_W = 240;
 export const NOTE_H = 160;
 export const FLASH_MS = 700;
@@ -87,15 +86,6 @@ export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
 
 export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
   return n.kind === "app" || n.kind === "note";
-}
-
-export function isFixedSizeApp(app?: WorkspaceApp): boolean {
-  return app === "boxouts" || app === "simpleparts" || app === "plyworks" || app === "plyworks-jw" || app === "plyworks-nesting";
-}
-
-export function appBox(app?: WorkspaceApp): { w: number; h: number } {
-  if (app === "plyworks-jw") return { w: JW_SIZE, h: JW_SIZE };
-  return { w: APP_W, h: IFRAME_H };
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
@@ -206,15 +196,20 @@ export function conciergeNode(): WorkspaceNode {
 export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
-  const iframe = isFixedSizeApp(n.appId);
-  const box = appBox(n.appId);
-  const square = n.appId === "plyworks-jw";
+  if (n.kind === "app") {
+    return {
+      ...n,
+      title: label ?? n.title,
+      autoSize: false,
+      w: Math.max(n.w || 320, 320),
+      h: Math.max(n.h || 240, 240),
+    };
+  }
   return {
     ...n,
-    title: n.kind === "app" && label ? label : n.title,
-    autoSize: iframe ? false : true,
-    w: iframe ? (square ? box.w : Math.max(n.w || box.w, box.w)) : Math.max(n.w || minW, minW),
-    h: iframe ? (square ? box.h : Math.max(n.h || box.h, box.h)) : Math.max(n.h || 80, 80),
+    autoSize: n.autoSize !== false,
+    w: Math.max(n.w || minW, minW),
+    h: Math.max(n.h || 80, 80),
   };
 }
 

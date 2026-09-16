@@ -10,6 +10,7 @@ import {
   cleanBoardNodes,
   dockedChatWidth,
   emptySession,
+  leftoverCanvas,
   loadSessionStore,
   NEW_CHAT_TITLE,
   openedAppIdsFrom,
@@ -70,7 +71,7 @@ import { useSession } from "./session";
 export type { SystemEdge, UserEdge, ViewportSnapshot };
 export type { NodeKind, WorkspaceApp, WorkspaceNode, WorkspaceEdge, RequestEntry };
 export type { ChatSession };
-export { dockedChatWidth, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
+export { chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
 export {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -91,7 +92,7 @@ export {
   activityName,
 };
 
-export type FitRequest = { ids: string[]; key: number; maxZoom?: number };
+export type FitRequest = { ids: string[]; key: number; maxZoom?: number; collapsedGutter?: boolean };
 
 type Ctx = {
   nodes: WorkspaceNode[];
@@ -124,6 +125,10 @@ type Ctx = {
   removeUserEdges: (ids: string[]) => void;
   unrail: (id: string) => void;
   fit: (id: string, w: number, h: number) => void;
+  maximize: (id: string) => void;
+  dismissMaximize: (force?: boolean) => void;
+  maximizedId: string | null;
+  commitStageSize: (size: { width: number; height: number }) => void;
   close: (id: string) => void;
   hide: (id: string) => void;
   show: (id: string) => void;
@@ -171,6 +176,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [resuming, setResuming] = useState(false);
   const [atLanding, setAtLanding] = useState(true);
   const [enteringNodeIds, setEnteringNodeIds] = useState<string[]>([]);
+  const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const zTop = useRef(10);
   const flashTimer = useRef<number | null>(null);
   const skipSave = useRef(0);
@@ -185,6 +191,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const collapsedRef = useRef(false);
   const atLandingRef = useRef(true);
   const resumingRef = useRef(false);
+  const maximizedIdRef = useRef<string | null>(null);
+  const maximizeIgnoreUntil = useRef(0);
+  const savedViewport = useRef<ViewportSnapshot | null>(null);
+  const stageSizeRef = useRef({ width: 1200, height: 700 });
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { entriesRef.current = entries; }, [entries]);
   useEffect(() => { userEdgesRef.current = userEdges; }, [userEdges]);
@@ -194,6 +204,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { collapsedRef.current = historyCollapsed; }, [historyCollapsed]);
   useEffect(() => { atLandingRef.current = atLanding; }, [atLanding]);
   useEffect(() => { resumingRef.current = resuming; }, [resuming]);
+  useEffect(() => { maximizedIdRef.current = maximizedId; }, [maximizedId]);
   useEffect(() => {
     if (!overviewOpen) setPreviewId(null);
   }, [overviewOpen]);
@@ -312,6 +323,56 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, [email, nodes, userEdges, viewport, entries, activeSessionId, flushList, persistStore]);
 
+  const stageOpts = useCallback(() => ({ stage: leftoverCanvas(stageSizeRef.current) }), []);
+
+  const commitStageSize = useCallback((size: { width: number; height: number }) => {
+    if (size.width < 32 || size.height < 32) return;
+    stageSizeRef.current = size;
+  }, []);
+
+  const dismissMaximize = useCallback((force = false) => {
+    if (!force && Date.now() < maximizeIgnoreUntil.current) return;
+    if (!maximizedIdRef.current) return;
+    maximizedIdRef.current = null;
+    setMaximizedId(null);
+    savedViewport.current = null;
+  }, []);
+
+  const maximize = useCallback((id: string) => {
+    const node = nodesRef.current.find((n) => n.id === id && n.kind === "app" && !n.hidden);
+    if (!node) return;
+    if (maximizedIdRef.current === id) {
+      const prev = savedViewport.current;
+      savedViewport.current = null;
+      maximizedIdRef.current = null;
+      setMaximizedId(null);
+      if (prev) {
+        maximizeIgnoreUntil.current = Date.now() + 400;
+        setViewport(prev);
+      }
+      return;
+    }
+    savedViewport.current = viewportRef.current;
+    maximizeIgnoreUntil.current = Date.now() + 500;
+    maximizedIdRef.current = id;
+    setHistoryCollapsedState(true);
+    collapsedRef.current = true;
+    persistStore({
+      activeId: activeIdRef.current,
+      sessions: flushList(sessionsRef.current, activeIdRef.current),
+      historyCollapsed: true,
+    });
+    setMaximizedId(id);
+    const box = leftoverCanvas(stageSizeRef.current);
+    zTop.current += 1;
+    setNodes((list) => list.map((n) => (
+      n.id === id
+        ? { ...n, z: zTop.current, hidden: false, w: box.w, h: box.h, autoSize: false }
+        : n
+    )));
+    setFitRequest({ ids: [id], key: Date.now(), maxZoom: ZOOM_MAX, collapsedGutter: true });
+  }, [flushList, persistStore]);
+
   const bumpZ = useCallback((id: string) => {
     zTop.current += 1;
     setNodes((list) => bumpZNode(list, id, zTop.current));
@@ -326,7 +387,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const z = zTop.current;
     let opened: string | null = null;
     setNodes((list) => {
-      const result = openAppNodes(list, session, app, z, opts);
+      const result = openAppNodes(list, session, app, z, { ...opts, ...stageOpts() });
       if (!result) return list;
       opened = result.id;
       return result.nodes;
@@ -346,7 +407,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }]);
     }
     return opened;
-  }, [session]);
+  }, [session, stageOpts]);
 
   const ensureConcierge = useCallback(() => {
     zTop.current += 1;
@@ -463,7 +524,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           const nextTargets = [...targetIds];
           if (status === "app" && appId) {
             const z = (board.zTop ?? 10) + 1;
-            const openedApp = openAppNodes(board.nodes, session, appId, z, { parentId: conciergeId, query: q, design });
+            const openedApp = openAppNodes(board.nodes, session, appId, z, { parentId: conciergeId, query: q, design, ...stageOpts() });
             if (openedApp) {
               nextTargets.push(openedApp.id);
               const label = appLabel(appId);
@@ -526,7 +587,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         });
       }
     })();
-  }, [openApp, ensureConcierge, session, patchInactiveSession]);
+  }, [openApp, ensureConcierge, session, patchInactiveSession, stageOpts]);
 
   const ask = useCallback((raw: string) => {
     const q = raw.trim();
@@ -745,6 +806,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback((id: string) => {
+    if (maximizedIdRef.current === id) dismissMaximize(true);
     const node = nodesRef.current.find((n) => n.id === id);
     setUserEdges((edges) => {
       const result = closeNode(nodesRef.current, edges, id);
@@ -766,11 +828,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         activity: "closed",
       }]);
     }
-  }, []);
+  }, [dismissMaximize]);
 
   const hide = useCallback((id: string) => {
+    if (maximizedIdRef.current === id) dismissMaximize(true);
     setNodes((list) => hideNode(list, id));
-  }, []);
+  }, [dismissMaximize]);
 
   const show = useCallback((id: string) => {
     bumpZ(id);
@@ -796,6 +859,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const beginResume = useCallback((next: ChatSession, flushed: ChatSession[]) => {
+    dismissMaximize(true);
     clearReveal();
     resumeLock.current = true;
     leaveLanding();
@@ -853,18 +917,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         show(1);
       });
     });
-  }, [clearReveal, later, leaveLanding, persistStore]);
+  }, [clearReveal, dismissMaximize, later, leaveLanding, persistStore]);
 
   const setHistoryCollapsed = useCallback((collapsed: boolean) => {
+    if (!collapsed) dismissMaximize(true);
     setHistoryCollapsedState(collapsed);
     persistStore({
       activeId: activeIdRef.current,
       sessions: flushList(sessionsRef.current, activeIdRef.current),
       historyCollapsed: collapsed,
     });
-  }, [flushList, persistStore]);
+  }, [dismissMaximize, flushList, persistStore]);
 
   const createSession = useCallback(() => {
+    dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
     setResuming(false);
@@ -881,9 +947,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveSessionId(fresh.id);
     hydrateSession(fresh);
     persistStore({ activeId: fresh.id, sessions: next, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, flushList, hydrateSession, persistStore]);
+  }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const returnToLanding = useCallback(() => {
+    dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
     setResuming(false);
@@ -907,8 +974,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSessions(list);
     setActiveSessionId(draft.id);
     hydrateSession(draft);
-    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, flushList, hydrateSession, persistStore]);
+  }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const switchSession = useCallback((id: string) => {
     if (id === activeIdRef.current) return;
@@ -966,6 +1032,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clear = useCallback((opts?: { transcript?: boolean }) => {
+    dismissMaximize(true);
     if (opts?.transcript) {
       setEntries([]);
       setSelectedEntryId(null);
@@ -979,7 +1046,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setViewport({ x: 0, y: 0, zoom: 1 });
     setFlashIds([]);
     zTop.current = 10;
-  }, []);
+  }, [dismissMaximize]);
 
   const wireEdges = useMemo(
     () => topology(nodes, entries, selectedEntryId),
@@ -1017,6 +1084,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     removeUserEdges,
     unrail,
     fit,
+    maximize,
+    dismissMaximize,
+    maximizedId,
+    commitStageSize,
     close,
     hide,
     show,
@@ -1041,7 +1112,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

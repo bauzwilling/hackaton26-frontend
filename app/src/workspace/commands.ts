@@ -6,15 +6,14 @@ import {
   CONCIERGE_ID,
   EST_H,
   GAP,
+  IFRAME_H,
   JOB_APPS,
   NOTE_H,
   NOTE_W,
   WORKSPACE_APPS,
-  appBox,
   canDeleteNode,
   canDuplicateNode,
   conciergeNode,
-  isFixedSizeApp,
   openable,
   type WorkspaceApp,
   type WorkspaceNode,
@@ -84,16 +83,16 @@ export function openAppNodes(
   session: Session | null,
   app: WorkspaceApp,
   z: number,
-  opts?: { parentId?: string; query?: string; design?: PlyworksDesign },
+  opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number } },
 ): { nodes: WorkspaceNode[]; id: string } | null {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta || !openable(session, app)) return null;
 
+  const box = opts?.stage ?? { w: APP_W, h: IFRAME_H };
   const reuse = !JOB_APPS.includes(app);
   const base = withRail(list);
   const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
   if (current) {
-    const box = appBox(app);
     return {
       id: current.id,
       nodes: base.map((n) => {
@@ -106,18 +105,16 @@ export function openAppNodes(
           parentId: opts?.parentId ?? n.parentId,
           query: opts?.query ?? n.query,
           design: opts?.design ?? n.design,
-          ...(app === "plyworks-jw" ? { w: box.w, h: box.h, autoSize: false } : {}),
+          w: box.w,
+          h: box.h,
+          autoSize: false,
         };
       }),
     };
   }
 
   const id = uid("a");
-  const iframe = isFixedSizeApp(app);
-  const box = appBox(app);
-  const appW = iframe ? box.w : APP_W;
-  const appH = iframe ? box.h : EST_H.app;
-  const slot = placeBeside(base, appW, appH);
+  const slot = placeBeside(base, box.w, box.h);
   const node: WorkspaceNode = {
     id,
     kind: "app",
@@ -130,10 +127,10 @@ export function openAppNodes(
     x: slot.x,
     y: slot.y,
     z,
-    w: appW,
-    h: iframe ? box.h : 1,
+    w: box.w,
+    h: box.h,
     hidden: false,
-    autoSize: !iframe,
+    autoSize: false,
   };
   return { id, nodes: [...base, node] };
 }

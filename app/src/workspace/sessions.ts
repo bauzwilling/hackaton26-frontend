@@ -54,6 +54,36 @@ export function dockedChatWidth(historyCollapsed: boolean) {
   return (historyCollapsed ? CHAT_RAIL_W : CHAT_SIDEBAR_W) + CHAT_THREAD_W;
 }
 
+/** Fit-view gutters around a window so it sits in the leftover next to docked chat. */
+export const STAGE_FIT_PAD = { top: 48, right: 16, bottom: 56 } as const;
+
+export function chatFitPadding(
+  hostWidth: number,
+  docked: boolean,
+  historyCollapsed: boolean,
+) {
+  const chatW = dockedChatWidth(historyCollapsed);
+  const left = docked
+    ? Math.min(chatW, Math.max(0, hostWidth - 32)) + 32
+    : 16;
+  return {
+    top: `${STAGE_FIT_PAD.top}px`,
+    right: `${STAGE_FIT_PAD.right}px`,
+    bottom: `${STAGE_FIT_PAD.bottom}px`,
+    left: `${left}px`,
+  };
+}
+
+/** Leftover canvas beside collapsed sidebar+chat, in screen pixels (= world units at zoom 1). */
+export function leftoverCanvas(host: { width: number; height: number }) {
+  const pad = chatFitPadding(host.width, true, true);
+  const left = Number.parseInt(pad.left, 10) || 0;
+  return {
+    w: Math.max(320, Math.round(host.width - left - STAGE_FIT_PAD.right)),
+    h: Math.max(240, Math.round(host.height - STAGE_FIT_PAD.top - STAGE_FIT_PAD.bottom)),
+  };
+}
+
 export function pastSessions(sessions: ChatSession[]) {
   return sessions.filter((s) => !sessionIsEmpty(s)).sort((a, b) => b.updatedAt - a.updatedAt);
 }

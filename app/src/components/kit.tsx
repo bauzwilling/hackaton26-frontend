@@ -239,7 +239,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, onFocus, onClose, onHide, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
@@ -247,7 +247,9 @@ export function Window({
   selected?: boolean; viewport?: boolean;
   nodeId?: string;
   flow?: boolean;
+  maximized?: boolean;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
+  onMaximize?: () => void;
   onDrag?: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
@@ -298,6 +300,9 @@ export function Window({
         <span className="win-title">{title}</span>
         <span className="win-code">{code}</span>
         {locked && <span className="win-lock" title="Locked in place">Locked</span>}
+        {onMaximize && (
+          <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize} title={maximized ? "Restore" : "Maximize"} aria-label={maximized ? "Restore" : "Maximize"}>{maximized ? "❐" : "□"}</Surface>
+        )}
         {onHide && (
           <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
         )}

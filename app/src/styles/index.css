@@ -830,6 +830,9 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   margin: 16px;
   z-index: 5;
 }
+.studio-minimap-dock.is-faded {
+  pointer-events: none;
+}
 .studio-minimap-shell {
   position: relative;
   box-sizing: border-box;

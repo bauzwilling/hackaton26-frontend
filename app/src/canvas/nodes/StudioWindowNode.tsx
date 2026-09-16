@@ -83,7 +83,7 @@ function StudioWindowNodeImpl({
   width,
   height,
 }: NodeProps<StudioFlowNode>) {
-  const { close, hide, focus, fit } = useWorkspace();
+  const { close, hide, focus, fit, maximize, maximizedId } = useWorkspace();
   const { updateNode } = useReactFlow<StudioFlowNode>();
   const updateInternals = useUpdateNodeInternals();
   const host = useBoardHost();
@@ -128,6 +128,8 @@ function StudioWindowNodeImpl({
         selected={selected || !!data.preview}
         viewport={false}
         onFocus={() => focus(id)}
+        onMaximize={data.kind === "app" ? () => maximize(id) : undefined}
+        maximized={maximizedId === id}
         onClose={canClose ? () => close(id) : undefined}
         onHide={() => hide(id)}
         onDrag={() => { /* React Flow dragHandle owns this */ }}
