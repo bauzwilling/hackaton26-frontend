@@ -11,9 +11,11 @@ import { TemplatePicker } from "./TemplatePicker";
 import { HelpOverlay } from "./HelpOverlay";
 import { PLYWORKS_TOUR } from "../lib/helpTour";
 import type { DesignId } from "../lib/designs";
+import { bindPlyworksStore, flushPlyworksOps } from "../../lib/plyworksSession";
 import "../plyworks.css";
 
 interface ConfiguratorProps {
+  sessionId?: string;
   design?: DesignId;
   helpActive?: boolean;
   onHelpReady?: () => void;
@@ -36,6 +38,7 @@ interface ConfiguratorProps {
  * to a parent and pass the store as a prop instead.
  */
 export function Configurator({
+  sessionId,
   design,
   helpActive = false,
   onHelpReady,
@@ -92,6 +95,24 @@ export function Configurator({
     onOpenJointWiz,
     onOpenNesting,
   );
+
+  useEffect(() => {
+    if (!sessionId) return;
+    bindPlyworksStore(sessionId, {
+      get boards() {
+        return storeRef.current.boards;
+      },
+      select: (id) => storeRef.current.select(id),
+      addBoard: (kind) => storeRef.current.addBoard(kind),
+      rotate: (axis) => storeRef.current.rotate(axis),
+      deleteSelected: () => storeRef.current.deleteSelected(),
+      loadDesign: (next) => storeRef.current.loadDesign(next),
+    });
+    flushPlyworksOps();
+    return () => {
+      bindPlyworksStore(sessionId, null);
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     if (!store.selIds.length) setMenu(null);
