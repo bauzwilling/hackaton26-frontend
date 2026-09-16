@@ -328,7 +328,10 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
     if (!nodeId) return;
     return registerAppChat(nodeId, {
       onText: (text) => apiRef.current.processText(text),
-      onFile: (file) => apiRef.current.processFile(file),
+      onFile: (file) => {
+        console.log(`boxouts ingest: ${file.name}`);
+        return apiRef.current.processFile(file);
+      },
     });
   }, [nodeId]);
 

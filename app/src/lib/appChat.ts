@@ -35,6 +35,7 @@ type Slot = {
   handlers: AppChatHandlers | null;
   queue: Pending[];
   echoTo: string | null;
+  draining: boolean;
 };
 
 const slots = new Map<string, Slot>();
@@ -43,7 +44,7 @@ let relaySink: ((nodeId: string, content: string, echoTo: string) => void) | nul
 function slotOf(nodeId: string): Slot {
   let slot = slots.get(nodeId);
   if (!slot) {
-    slot = { handlers: null, queue: [], echoTo: null };
+    slot = { handlers: null, queue: [], echoTo: null, draining: false };
     slots.set(nodeId, slot);
   }
   return slot;
@@ -59,10 +60,7 @@ export function setAppChatRelaySink(
 export function registerAppChat(nodeId: string, handlers: AppChatHandlers) {
   const slot = slotOf(nodeId);
   slot.handlers = handlers;
-  const queued = slot.queue.splice(0);
-  for (const item of queued) {
-    void flush(nodeId, item);
-  }
+  void drain(nodeId);
   return () => {
     const current = slots.get(nodeId);
     if (current?.handlers === handlers) current.handlers = null;
@@ -72,19 +70,18 @@ export function registerAppChat(nodeId: string, handlers: AppChatHandlers) {
 /**
  * Temporary: forward a Concierge turn into the already-open app chat UI.
  * Not a BFF action accept — replace with SuggestedAction when the BFF exists.
+ *
+ * Safe to call before the window has mounted: the payload queues until
+ * registerAppChat runs, then drains in order.
  */
 export function deliverAppChat(
   nodeId: string,
   payload: AppChatPayload,
   opts?: { echoTo?: string },
 ) {
-  const pending: Pending = { payload, echoTo: opts?.echoTo };
   const slot = slotOf(nodeId);
-  if (!slot.handlers) {
-    slot.queue.push(pending);
-    return;
-  }
-  void flush(nodeId, pending);
+  slot.queue.push({ payload, echoTo: opts?.echoTo });
+  void drain(nodeId);
 }
 
 /** Apps call this when they push an assistant message during a forwarded turn. */
@@ -97,22 +94,33 @@ export function reportAppChatReply(nodeId: string, content: string) {
   relaySink(nodeId, text, echoTo);
 }
 
-async function flush(nodeId: string, pending: Pending) {
+async function drain(nodeId: string) {
   const slot = slotOf(nodeId);
-  const handlers = slot.handlers;
-  if (!handlers) {
-    slot.queue.push(pending);
-    return;
-  }
-  const prev = slot.echoTo;
-  if (pending.echoTo) slot.echoTo = pending.echoTo;
+  if (slot.draining) return;
+  slot.draining = true;
   try {
-    if (pending.payload.kind === "text") {
-      await handlers.onText?.(pending.payload.text);
-    } else {
-      await handlers.onFile?.(pending.payload.file);
+    while (slot.handlers && slot.queue.length) {
+      const pending = slot.queue.shift()!;
+      const handlers = slot.handlers;
+      if (!handlers) {
+        slot.queue.unshift(pending);
+        break;
+      }
+      const prev = slot.echoTo;
+      if (pending.echoTo) slot.echoTo = pending.echoTo;
+      try {
+        if (pending.payload.kind === "text") {
+          await handlers.onText?.(pending.payload.text);
+        } else {
+          await handlers.onFile?.(pending.payload.file);
+        }
+      } finally {
+        slot.echoTo = prev;
+      }
     }
   } finally {
-    slot.echoTo = prev;
+    slot.draining = false;
+    // A deliver may have queued while we were finishing.
+    if (slot.handlers && slot.queue.length) void drain(nodeId);
   }
 }

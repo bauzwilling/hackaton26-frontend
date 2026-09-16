@@ -23,7 +23,10 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
     app.studioNodeId.value = nodeId;
     const unregister = registerAppChat(nodeId, {
       onText: (text) => app.onSendText(text),
-      onFile: (file) => app.onAttachFile(file),
+      onFile: (file) => {
+        console.log(`simpleparts ingest: ${file.name}`);
+        return app.onAttachFile(file);
+      },
     });
     return () => {
       unregister();

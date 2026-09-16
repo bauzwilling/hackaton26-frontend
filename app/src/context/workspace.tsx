@@ -616,7 +616,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // WAITING BFF: SuggestedAction accept will own this handoff
         // WAITING MODEL: the app chat still answers; our structuring model takes over later
         if (live && appTarget && appId && chatCapable(appId) && !inspect && !ops?.length) {
-          deliverAppChat(appTarget, { kind: "text", text: q }, { echoTo: entryId });
+          window.setTimeout(() => {
+            deliverAppChat(appTarget, { kind: "text", text: q }, { echoTo: entryId });
+          }, 0);
         }
 
         const focusIds = targetIds.filter((id) => id !== conciergeId);
@@ -749,8 +751,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             targetIds.push(appTarget);
             // WAITING BFF: SuggestedAction accept will own this handoff
             // WAITING MODEL: the app chat still answers; our structuring model takes over later
-            deliverAppChat(appTarget, { kind: "file", file }, { echoTo: entryId });
-            window.setTimeout(() => focusTargets([appTarget]), 0);
+            // Defer until after React mounts the window and registerAppChat runs.
+            window.setTimeout(() => {
+              deliverAppChat(appTarget, { kind: "file", file }, { echoTo: entryId });
+              focusTargets([appTarget]);
+            }, 0);
           }
           result = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
@@ -814,7 +819,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // WAITING BFF: SuggestedAction accept will own this handoff
     // WAITING MODEL: the app chat still answers; our structuring model takes over later
     if (appTarget && chatCapable(app) && query.trim()) {
-      deliverAppChat(appTarget, { kind: "text", text: query }, { echoTo: entryId });
+      window.setTimeout(() => {
+        deliverAppChat(appTarget, { kind: "text", text: query }, { echoTo: entryId });
+      }, 0);
     }
     if (appTarget) {
       window.setTimeout(() => focusTargets([appTarget]), 0);
