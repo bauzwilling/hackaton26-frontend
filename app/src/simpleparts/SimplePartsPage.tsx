@@ -1,5 +1,4 @@
-import { useCallback } from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import SidebarComponent from "./components/SidebarComponent";
 import ThreeMeshViewer, { type ThreeMeshViewerHandle } from "./components/ThreeMeshViewer";
 import NestingResultModalComponent from "./components/NestingResultModalComponent";
@@ -11,6 +10,8 @@ import "./simpleparts-react.css";
 
 export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
   const app = useSimplePartsApp();
+  const appRef = useRef(app);
+  appRef.current = app;
   const preview = app.summonedPreview.value;
   const leftover = app.leftoverNestPreview.value;
   const activeViewer = app.activeViewer.value;
@@ -20,19 +21,21 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
 
   useEffect(() => {
     if (!nodeId) return;
-    app.studioNodeId.value = nodeId;
+    appRef.current.studioNodeId.value = nodeId;
     const unregister = registerAppChat(nodeId, {
-      onText: (text) => app.onSendText(text),
+      onText: (text) => appRef.current.onSendText(text),
       onFile: (file) => {
         console.log(`simpleparts ingest: ${file.name}`);
-        return app.onAttachFile(file);
+        return appRef.current.onAttachFile(file);
       },
     });
     return () => {
       unregister();
-      if (app.studioNodeId.value === nodeId) app.studioNodeId.value = null;
+      if (appRef.current.studioNodeId.value === nodeId) {
+        appRef.current.studioNodeId.value = null;
+      }
     };
-  }, [nodeId, app]);
+  }, [nodeId]);
 
   return (
     <div className="simpleparts-app">

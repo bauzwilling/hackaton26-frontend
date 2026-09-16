@@ -191,6 +191,18 @@ function chatCapable(app: WorkspaceApp) {
   return app === "boxouts" || app === "simpleparts";
 }
 
+/** Highest-z open Door Box Out / Simple Parts window, if any. */
+function topChatAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
+  const apps = nodes.filter((n) => (
+    n.kind === "app"
+    && !n.hidden
+    && n.appId
+    && chatCapable(n.appId)
+  ));
+  if (!apps.length) return undefined;
+  return apps.slice().sort((a, b) => b.z - a.z)[0];
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const email = session?.email ?? "anon";
@@ -548,7 +560,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const settle = (result: ConciergeResult) => {
         const confirm = (result.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
-        const appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
+        let appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
         const targetIds: string[] = [conciergeId];
         let status: RequestEntry["result"] = "text";
         let routeLabel = "Concierge";
@@ -558,9 +570,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const kind = result.kind ?? inferConciergeKind(result);
         console.log(`kind: ${kind}`);
         const ops = result.plyworksOps ?? null;
-        const inspect = kind === "get" || kind === "set";
-        if (inspect) {
+        // get = focus-only. set to a chat app still forwards so follow-up edits reach the window.
+        const inspectGet = kind === "get";
+        const inspectSet = kind === "set";
+        if (inspectGet || inspectSet) {
           console.log(`inspect ${kind}`, { app: appId ?? null, message: q, plyworksOps: ops });
+        }
+
+        // Continue into the already-open chat app when the model drops `app` on a work turn.
+        if (
+          !appId
+          && !confirm.length
+          && !ops?.length
+          && kind !== "info"
+          && kind !== "deny"
+          && kind !== "clarify"
+          && kind !== "close"
+        ) {
+          const top = topChatAppNode(nodesRef.current);
+          if (top?.appId && chatCapable(top.appId) && openable(session, top.appId)) {
+            appId = top.appId;
+          }
         }
 
         if (confirm.length) {
@@ -596,7 +626,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             routeLabel = WORKSPACE_APPS.find((a) => a.id === appId)?.label ?? "Concierge";
             routeWhy = result.reply;
             badgeApp = appId;
-            if (!inspect) console.log(`sent to ${appLabel(appId)}`);
+            if (!inspectGet) console.log(`sent to ${appLabel(appId)}`);
           } else if (appId) {
             routeWhy = result.reply;
           }
@@ -615,14 +645,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         // WAITING BFF: SuggestedAction accept will own this handoff
         // WAITING MODEL: the app chat still answers; our structuring model takes over later
-        if (live && appTarget && appId && chatCapable(appId) && !inspect && !ops?.length) {
+        // Forward into Box Out / Simple Parts for open + set. get stays focus-only.
+        if (live && appTarget && appId && chatCapable(appId) && !inspectGet && !ops?.length) {
           window.setTimeout(() => {
             deliverAppChat(appTarget, { kind: "text", text: q }, { echoTo: entryId });
           }, 0);
         }
 
         const focusIds = targetIds.filter((id) => id !== conciergeId);
-        if (live && focusIds.length && (inspect || status === "app")) {
+        if (live && focusIds.length && (inspectGet || inspectSet || status === "app")) {
           window.setTimeout(() => focusTargets(focusIds), 0);
         }
 

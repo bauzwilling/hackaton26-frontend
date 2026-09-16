@@ -2356,9 +2356,9 @@ export function useApp() {
       } else {
         pushMessage('assistant', 'text', 'No nesting result yet. Upload a file and run Nest first.')
       }
-      return
+      return Promise.resolve()
     }
-    chat.onSendText(text)
+    return chat.onSendText(text)
   }
 
   return {

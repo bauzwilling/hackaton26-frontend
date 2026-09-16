@@ -130,7 +130,8 @@ export function openAppNodes(
           hidden: false,
           title: meta.label,
           parentId: opts?.parentId ?? n.parentId,
-          query: opts?.query ?? n.query,
+          // Keep the existing query on reuse so NodeBody does not churn on every follow-up.
+          query: n.query ?? opts?.query,
           design: opts?.design ?? n.design,
           w: box.w,
           h: box.h,
