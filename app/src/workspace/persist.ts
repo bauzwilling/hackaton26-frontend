@@ -25,7 +25,7 @@ export function persistKey(email: string) {
   return `f2f.workspace.${email || "anon"}`;
 }
 
-// WAITING DATABASE: request log on the user profile
+// WAITING DATABASE: request log on the user profile (legacy — migrated into chat.sessions)
 export function requestsKey(email: string) {
   return `f2f.requests.${email || "anon"}`;
 }

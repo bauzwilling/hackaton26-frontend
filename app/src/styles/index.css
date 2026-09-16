@@ -758,17 +758,24 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   min-height: 0;
   overflow: hidden;
   background-color: var(--bg);
+  --studio-chat-w: 340px;
 }
 .studio.is-leaving .studio-chat-slot,
 .studio.is-leaving .studio-hint,
 .studio.is-leaving .pan-hint,
 .studio.is-leaving .help-fab,
+.studio.is-leaving .session-history,
+.studio.is-leaving .session-sidebar,
+.studio.is-leaving .session-resume,
 .studio.is-leaving .studio-minimap-dock {
   pointer-events: none;
 }
 .studio.is-leaving .studio-hint,
 .studio.is-leaving .pan-hint,
 .studio.is-leaving .help-fab,
+.studio.is-leaving .session-history,
+.studio.is-leaving .session-sidebar,
+.studio.is-leaving .session-resume,
 .studio.is-leaving .studio-minimap-dock {
   opacity: 0;
   transition: opacity 0.28s ease;
@@ -1348,22 +1355,59 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   gap: 8px;
   flex: none;
 }
-.concierge-log-btn {
+.concierge-new {
+  flex: none;
   border: none;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   padding: 6px 8px;
   border-radius: 8px;
   cursor: pointer;
 }
-.concierge-log-btn.is-on {
+.concierge-new:hover { color: var(--ink); background: var(--recess); }
+.concierge-title {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--ink);
-  background: var(--recess);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.concierge-settings { position: relative; flex: none; }
+.concierge-settings-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+}
+.concierge-settings-card {
+  width: 180px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.concierge-settings-item {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.concierge-settings-item:hover,
+.concierge-settings-item.is-on { background: var(--recess); }
+.concierge-settings-item.is-danger { color: var(--acc-deep); }
+.concierge-settings-item:disabled { opacity: 0.45; cursor: default; }
 .chat-activity {
   align-self: center;
   margin: 0;
@@ -1398,8 +1442,18 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 .chat-activity.is-selected .chat-activity-app:hover { color: var(--acc-deep); }
 .chat-turn { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
 .chat-bubble {
-  padding: 10px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45;
+  position: relative;
+  padding: 10px 12px; border-radius: 14px; font-size: 13px; line-height: 1.4;
   max-width: 85%;
+}
+.chat-bubble time {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--muted);
 }
 .chat-user {
   align-self: flex-end;
@@ -1447,8 +1501,29 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   text-align: center;
 }
 .studio-chat-slot.is-docked .studio-chat-col {
-  width: min(380px, 100%);
+  width: min(var(--studio-chat-w, 380px), 100%);
   height: 100%;
+}
+.studio-chat-dock {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--face);
+  border: 1px solid var(--line);
+  box-shadow: var(--elev);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.studio-chat-dock .studio-chat-card.is-docked {
+  min-width: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 .studio-chat-col > * {
   pointer-events: auto;
@@ -1518,7 +1593,7 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   white-space: nowrap;
 }
 .studio.is-chat-docked .studio-hint {
-  left: calc(16px + min(380px, calc(100% - 32px)) + 16px + 40px);
+  left: calc(16px + min(var(--studio-chat-w, 380px), calc(100% - 32px)) + 16px + 40px);
 }
 
 .login-wrap {
@@ -1758,8 +1833,190 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   z-index: 45;
 }
 .studio.is-chat-docked .help-fab {
-  left: calc(16px + min(380px, calc(100% - 32px)) + 16px);
+  left: calc(16px + min(var(--studio-chat-w, 380px), calc(100% - 32px)) + 16px);
 }
+
+.session-sidebar {
+  flex: 0 0 220px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: color-mix(in oklab, var(--recess) 55%, var(--face));
+}
+.session-sidebar.is-collapsed {
+  flex-basis: 40px;
+  width: 40px;
+  overflow: hidden;
+}
+.session-sidebar-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px 6px 6px;
+  flex: none;
+}
+.session-sidebar.is-collapsed .session-sidebar-tools {
+  justify-content: center;
+}
+.session-history { position: relative; }
+.session-history.is-hero {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 46;
+}
+.session-history-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+}
+.session-history-card {
+  width: 220px;
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  padding: 8px;
+}
+.session-history-empty {
+  margin: 0;
+  padding: 10px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.session-resume {
+  position: absolute;
+  inset: 0;
+  z-index: 48;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  background: color-mix(in oklab, var(--bg) 28%, transparent);
+}
+.session-resume-spin {
+  width: 28px;
+  height: 28px;
+  border: 2px solid color-mix(in oklab, var(--ink) 16%, transparent);
+  border-top-color: var(--acc);
+  border-radius: 50%;
+  animation: login-spin 0.65s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-resume-spin { animation: none; }
+}
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px 10px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+  padding: 2px;
+}
+.session-row.is-active { background: color-mix(in oklab, var(--acc) 12%, var(--face)); }
+.session-row.is-confirm {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  background: var(--face);
+}
+.session-confirm-copy {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink);
+}
+.session-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.session-row-hit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.session-row-hit:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+.session-title {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-when {
+  font-size: 11px;
+  color: var(--muted);
+}
+.session-row-tools {
+  display: flex;
+  flex: none;
+  opacity: 0;
+}
+.session-row:hover .session-row-tools,
+.session-row:focus-within .session-row-tools { opacity: 1; }
+.session-icon-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.session-icon-btn.is-lg { width: 28px; height: 28px; }
+.session-icon-btn:hover,
+.session-icon-btn.is-on { background: var(--face); color: var(--ink); }
+.session-text-btn {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.session-text-btn.is-danger { color: var(--acc-deep); }
+.session-rename {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--acc);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  background: var(--face);
+  color: var(--ink);
+  outline: none;
+}
+.session-history-fab { color: var(--muted); }
 .help-overlay {
   position: fixed;
   inset: 0;

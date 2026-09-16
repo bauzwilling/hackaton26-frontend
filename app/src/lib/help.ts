@@ -90,11 +90,18 @@ export const STUDIO_TOUR: HelpStep[] = [
     pad: 10,
   },
   {
+    id: "history",
+    title: "Chat history",
+    body: "On the landing page, the history mark lists earlier chats. After Concierge docks, that list lives in the sidebar. Each chat keeps its own windows.",
+    anchor: { type: "help", id: "session-history" },
+    pad: 8,
+  },
+  {
     id: "log",
     title: "Activity log",
-    body: "Opened and closed windows show up as timestamped italic lines in Concierge. The app name jumps to that window. Use Log to see only those.",
+    body: "Opened and closed windows show up as timestamped italic lines in Concierge. The app name jumps to that window. Settings → Log shows only those.",
     anchor: { type: "help", id: "concierge-log" },
-    prepare: "focus-concierge",
+    prepare: "focus-log",
     pad: 10,
   },
   {

@@ -23,6 +23,7 @@ import {
   canDeleteNode,
   canDuplicateNode,
   CONCIERGE_ID,
+  dockedChatWidth,
   useWorkspace,
   type WorkspaceNode,
 } from "../context/workspace";
@@ -228,6 +229,9 @@ function StudioBoardInner() {
     addUserEdge,
     removeUserEdges,
     unrail,
+    enteringNodeIds,
+    resuming,
+    historyCollapsed,
   } = useWorkspace();
   const { showWires, showGrid, accent, theme } = useSession();
   const previewFill = lookTokens(theme, accent).acc;
@@ -245,7 +249,7 @@ function StudioBoardInner() {
   const layer = useRef<HTMLDivElement>(null);
 
   const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
-  const docked = interactive || entries.length > 0;
+  const docked = interactive || entries.length > 0 || resuming;
 
   useFineWheelZoom(layer, {
     minZoom: flowInteraction.minZoom,
@@ -276,7 +280,7 @@ function StudioBoardInner() {
         const old = prev.get(n.id);
         const mapped = toFlowNode(n, {
           selected: old?.selected,
-          enter: conciergeEnter && n.id === CONCIERGE_ID,
+          enter: (conciergeEnter && n.id === CONCIERGE_ID) || enteringNodeIds.includes(n.id),
           flash: flashIds.includes(n.id),
           flashKey,
           preview: previewId === n.id,
@@ -306,7 +310,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, previewId, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -353,7 +357,8 @@ function StudioBoardInner() {
     const ids = fitRequest.ids.filter((id) => nodes.some((n) => n.id === id));
     if (!ids.length) return;
     const maxZoom = fitRequest.maxZoom;
-    const chatGutter = docked ? Math.min(380, Math.max(0, host.width - 32)) + 32 : 16;
+    const chatW = dockedChatWidth(historyCollapsed);
+    const chatGutter = docked ? Math.min(chatW, Math.max(0, host.width - 32)) + 32 : 16;
     const t = window.requestAnimationFrame(() => {
       void fitView({
         nodes: ids.map((id) => ({ id })),
@@ -368,7 +373,7 @@ function StudioBoardInner() {
       });
     });
     return () => window.cancelAnimationFrame(t);
-  }, [fitRequest, fitView, nodes, docked, host.width]);
+  }, [fitRequest, fitView, nodes, docked, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;

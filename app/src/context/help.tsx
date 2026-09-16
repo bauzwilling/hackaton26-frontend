@@ -128,8 +128,17 @@ export function HelpProvider({ children }: { children: ReactNode }) {
 
   const runPrepare = useCallback((prepare?: HelpPrepare) => {
     if (!prepare) return;
-    if (prepare === "focus-concierge" || prepare === "focus-log") {
+    if (prepare === "focus-concierge") {
       zoomConcierge();
+      return;
+    }
+    if (prepare === "focus-log") {
+      zoomConcierge();
+      window.setTimeout(() => {
+        if (document.querySelector('[data-help="concierge-log"]')) return;
+        const settings = document.querySelector('[data-help="concierge-settings"]') as HTMLButtonElement | null;
+        settings?.click();
+      }, 80);
       return;
     }
     if (prepare === "overview-open") {

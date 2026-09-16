@@ -9,6 +9,7 @@ import {
   activityName,
   appLabel,
   isActivityEntry,
+  sessionIsEmpty,
   useWorkspace,
   type RequestEntry,
 } from "../context/workspace";
@@ -18,10 +19,78 @@ function replyOf(entry: RequestEntry) {
   return entry.reply ?? entry.routeWhy ?? "Answered on the canvas";
 }
 
+function ThreadSettings({
+  logOnly,
+  onLog,
+}: {
+  logOnly: boolean;
+  onLog: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: Event) => {
+      const t = e.target as HTMLElement;
+      if (box.current?.contains(t)) return;
+      if (t.closest?.(".help-overlay, .help-fab")) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const arm = window.setTimeout(() => {
+      window.addEventListener("pointerdown", onDoc);
+      window.addEventListener("keydown", onKey);
+    }, 0);
+    return () => {
+      window.clearTimeout(arm);
+      window.removeEventListener("pointerdown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="concierge-settings" ref={box}>
+      <button
+        type="button"
+        className={`session-icon-btn is-lg${open ? " is-on" : ""}`}
+        data-help="concierge-settings"
+        title="Settings"
+        aria-label="Settings"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="5" cy="12" r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="19" cy="12" r="1.7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="concierge-settings-pop" role="dialog" aria-label="Settings">
+          <Surface className="concierge-settings-card">
+            <button
+              type="button"
+              className={`concierge-settings-item${logOnly ? " is-on" : ""}`}
+              data-help="concierge-log"
+              aria-pressed={logOnly}
+              onClick={onLog}
+            >
+              Log
+            </button>
+          </Surface>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ConciergeThread() {
   const {
-    entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake, clearTranscript,
-    nodes, focusTargets,
+    entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake,
+    nodes, focusTargets, activeSession, createSession, returnToLanding,
   } = useWorkspace();
   const { pickTopic } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
@@ -43,19 +112,27 @@ export function ConciergeThread() {
   return (
     <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
       <div className="concierge-head">
+        <h2 className="concierge-title">{activeSession?.title ?? "New chat"}</h2>
+        {activeSession && !sessionIsEmpty(activeSession) && (
+          <button type="button" className="concierge-new" onClick={createSession}>
+            New chat
+          </button>
+        )}
+        <ThreadSettings
+          logOnly={logOnly}
+          onLog={() => setLogOnly((on) => !on)}
+        />
         <button
           type="button"
-          className={`concierge-log-btn${logOnly ? " is-on" : ""}`}
-          data-help="concierge-log"
-          aria-pressed={logOnly}
-          title={logOnly ? "Show the conversation" : "Show window activity only"}
-          onClick={() => setLogOnly((on) => !on)}
+          className="session-icon-btn is-lg concierge-close"
+          title="Close"
+          aria-label="Close"
+          onClick={returnToLanding}
         >
-          Log
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
         </button>
-        <Surface as="button" type="button" className="chip" onClick={clearTranscript} disabled={entries.length === 0}>
-          Clear
-        </Surface>
       </div>
       {visible.length === 0 && (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
@@ -87,8 +164,12 @@ export function ConciergeThread() {
             className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
             onClick={() => setSelectedEntryId(e.id)}
           >
-            <div className="chat-bubble chat-user">{e.query}</div>
+            <div className="chat-bubble chat-user">
+              <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+              {e.query}
+            </div>
             <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
+              <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
               {e.confirmApps && e.confirmApps.length > 0 && (
                 <div className="concierge-confirm">

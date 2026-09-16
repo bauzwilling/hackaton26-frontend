@@ -33,7 +33,8 @@ export type WorkspaceNode = {
 
 export type WorkspaceEdge = { from: string; to: string; hot?: boolean };
 
-/** Session transcript. Later this is the API payload for a user chat thread. */
+/** Session transcript. Later this is the API payload for a user chat thread.
+ *  WAITING BFF: attachment refs can hang on a turn later — do not invent a second shape. */
 export type RequestEntry = {
   id: string;
   at: number;
@@ -217,7 +218,7 @@ export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   };
 }
 
-function migrateEntry(e: RequestEntry): RequestEntry {
+export function migrateEntry(e: RequestEntry): RequestEntry {
   const mapped = (e.targetIds ?? []).map((id) => (id.startsWith("t-") ? CONCIERGE_ID : id));
   const seen = new Set<string>();
   const targetIds = mapped.filter((id) => {
