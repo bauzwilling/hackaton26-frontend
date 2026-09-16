@@ -7,7 +7,6 @@ import {
   EST_H,
   GAP,
   IFRAME_H,
-  JOB_APPS,
   NOTE_H,
   NOTE_W,
   WORKSPACE_APPS,
@@ -103,25 +102,26 @@ export function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
   return [...base, hideConcierge(conciergeNode())];
 }
 
-/** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes. */
+/** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes.
+ *  At most one window per app id (including job apps): reuse and unhide when present. */
 export function openAppNodes(
   list: WorkspaceNode[],
   session: Session | null,
   app: WorkspaceApp,
   z: number,
   opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number; x?: number; y?: number } },
-): { nodes: WorkspaceNode[]; id: string } | null {
+): { nodes: WorkspaceNode[]; id: string; reused: boolean } | null {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta || !openable(session, app)) return null;
 
   const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
   const origin = { x: box.x ?? 20, y: box.y ?? 20 };
-  const reuse = !JOB_APPS.includes(app);
   const base = withRail(list);
-  const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
+  const current = base.find((n) => n.kind === "app" && n.appId === app);
   if (current) {
     return {
       id: current.id,
+      reused: true,
       nodes: base.map((n) => {
         if (n.id !== current.id) return n;
         return {
@@ -159,7 +159,7 @@ export function openAppNodes(
     hidden: false,
     autoSize: false,
   };
-  return { id, nodes: [...base, node] };
+  return { id, nodes: [...base, node], reused: false };
 }
 
 export function ensureConciergeNodes(list: WorkspaceNode[], z: number): WorkspaceNode[] {

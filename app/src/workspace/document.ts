@@ -84,8 +84,12 @@ export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
   return n.kind === "app" || n.kind === "note";
 }
 
-export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
-  return n.kind === "app" || n.kind === "note";
+export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id" | "appId">) {
+  if (n.kind === "note") return true;
+  if (n.kind !== "app") return false;
+  // One window per job app — Concierge routes follow-ups into the same instance.
+  if (n.appId && JOB_APPS.includes(n.appId)) return false;
+  return true;
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [

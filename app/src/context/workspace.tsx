@@ -408,13 +408,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     zTop.current += 1;
     const z = zTop.current;
     let opened: string | null = null;
+    let reused = false;
     setNodes((list) => {
       const result = openAppNodes(list, session, app, z, { ...opts, ...stageOpts() });
       if (!result) return list;
       opened = result.id;
+      reused = result.reused;
       return result.nodes;
     });
-    if (opened) {
+    if (opened && !reused) {
       const label = appLabel(app);
       setEntries((list) => [...list, {
         id: uid("e"),
@@ -571,18 +573,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             const openedApp = openAppNodes(board.nodes, session, appId, z, { parentId: conciergeId, query: q, design, ...stageOpts() });
             if (openedApp) {
               nextTargets.push(openedApp.id);
-              const label = appLabel(appId);
-              entries = [...entries, {
-                id: uid("e"),
-                at: Date.now(),
-                query: label,
-                routeLabel: "Activity",
-                routeWhy: `Opened ${label}`,
-                targetIds: [openedApp.id],
-                appId,
-                result: "activity",
-                activity: "opened",
-              }];
+              if (!openedApp.reused) {
+                const label = appLabel(appId);
+                entries = [...entries, {
+                  id: uid("e"),
+                  at: Date.now(),
+                  query: label,
+                  routeLabel: "Activity",
+                  routeWhy: `Opened ${label}`,
+                  targetIds: [openedApp.id],
+                  appId,
+                  result: "activity",
+                  activity: "opened",
+                }];
+              }
               board = { ...board, nodes: openedApp.nodes, zTop: z };
             }
           }
