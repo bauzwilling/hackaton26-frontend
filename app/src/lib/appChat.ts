@@ -36,15 +36,19 @@ type Slot = {
   queue: Pending[];
   echoTo: string | null;
   draining: boolean;
+  /** Workspace app id when this slot belongs to a single-instance job app. */
+  appId: string | null;
 };
 
 const slots = new Map<string, Slot>();
+/** One live node per job app — deliver by app id even if the caller only knows the app. */
+const nodeByApp = new Map<string, string>();
 let relaySink: ((nodeId: string, content: string, echoTo: string) => void) | null = null;
 
 function slotOf(nodeId: string): Slot {
   let slot = slots.get(nodeId);
   if (!slot) {
-    slot = { handlers: null, queue: [], echoTo: null, draining: false };
+    slot = { handlers: null, queue: [], echoTo: null, draining: false, appId: null };
     slots.set(nodeId, slot);
   }
   return slot;
@@ -57,13 +61,24 @@ export function setAppChatRelaySink(
   relaySink = sink;
 }
 
-export function registerAppChat(nodeId: string, handlers: AppChatHandlers) {
+export function registerAppChat(
+  nodeId: string,
+  handlers: AppChatHandlers,
+  opts?: { appId?: string },
+) {
   const slot = slotOf(nodeId);
   slot.handlers = handlers;
+  if (opts?.appId) {
+    slot.appId = opts.appId;
+    nodeByApp.set(opts.appId, nodeId);
+  }
   void drain(nodeId);
   return () => {
     const current = slots.get(nodeId);
     if (current?.handlers === handlers) current.handlers = null;
+    if (opts?.appId && nodeByApp.get(opts.appId) === nodeId) {
+      nodeByApp.delete(opts.appId);
+    }
   };
 }
 
@@ -71,8 +86,7 @@ export function registerAppChat(nodeId: string, handlers: AppChatHandlers) {
  * Temporary: forward a Concierge turn into the already-open app chat UI.
  * Not a BFF action accept — replace with SuggestedAction when the BFF exists.
  *
- * Safe to call before the window has mounted: the payload queues until
- * registerAppChat runs, then drains in order.
+ * Prefer deliverToApp() for job apps. Safe to call before mount: queues until register.
  */
 export function deliverAppChat(
   nodeId: string,
@@ -81,7 +95,29 @@ export function deliverAppChat(
 ) {
   const slot = slotOf(nodeId);
   slot.queue.push({ payload, echoTo: opts?.echoTo });
+  console.log(`appChat deliver → node ${nodeId}`, payload.kind === "text" ? payload.text : payload.file.name, {
+    hasHandlers: Boolean(slot.handlers),
+    queued: slot.queue.length,
+  });
   void drain(nodeId);
+}
+
+/** Deliver into the single Door Box Out / Simple Parts window by app id. */
+export function deliverToApp(
+  appId: string,
+  payload: AppChatPayload,
+  opts?: { echoTo?: string; nodeId?: string | null },
+) {
+  const nodeId = opts?.nodeId || nodeByApp.get(appId);
+  if (!nodeId) {
+    console.warn(`appChat: no registered window for ${appId}; dropping`, payload);
+    return;
+  }
+  deliverAppChat(nodeId, payload, opts);
+}
+
+export function appChatNodeId(appId: string): string | null {
+  return nodeByApp.get(appId) ?? null;
 }
 
 /** Apps call this when they push an assistant message during a forwarded turn. */
@@ -110,8 +146,10 @@ async function drain(nodeId: string) {
       if (pending.echoTo) slot.echoTo = pending.echoTo;
       try {
         if (pending.payload.kind === "text") {
+          console.log(`appChat onText → ${nodeId}`, pending.payload.text);
           await handlers.onText?.(pending.payload.text);
         } else {
+          console.log(`appChat onFile → ${nodeId}`, pending.payload.file.name);
           await handlers.onFile?.(pending.payload.file);
         }
       } finally {
@@ -120,7 +158,6 @@ async function drain(nodeId: string) {
     }
   } finally {
     slot.draining = false;
-    // A deliver may have queued while we were finishing.
     if (slot.handlers && slot.queue.length) void drain(nodeId);
   }
 }

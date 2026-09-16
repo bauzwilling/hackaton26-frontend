@@ -327,12 +327,15 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   useEffect(() => {
     if (!nodeId) return;
     return registerAppChat(nodeId, {
-      onText: (text) => apiRef.current.processText(text),
+      onText: (text) => {
+        console.log(`boxouts text: ${text}`);
+        return apiRef.current.processText(text);
+      },
       onFile: (file) => {
         console.log(`boxouts ingest: ${file.name}`);
         return apiRef.current.processFile(file);
       },
-    });
+    }, { appId: "boxouts" });
   }, [nodeId]);
 
   return (

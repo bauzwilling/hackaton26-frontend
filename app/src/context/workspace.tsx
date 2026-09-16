@@ -8,7 +8,7 @@ import {
 } from "../lib/plyworksSession";
 import type { PlyworksOp } from "../lib/plyworksOps";
 import { classifyFile } from "../lib/intake";
-import { deliverAppChat, setAppChatRelaySink } from "../lib/appChat";
+import { deliverToApp, setAppChatRelaySink } from "../lib/appChat";
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
@@ -646,15 +646,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // WAITING BFF: SuggestedAction accept will own this handoff
         // WAITING MODEL: the app chat still answers; our structuring model takes over later
         // Forward into Box Out / Simple Parts for open + set. get stays focus-only.
+        // Focus first so the window is on-screen, then deliver (RF used to unmount off-screen apps).
         if (live && appTarget && appId && chatCapable(appId) && !inspectGet && !ops?.length) {
+          window.setTimeout(() => focusTargets([appTarget]), 0);
           window.setTimeout(() => {
-            deliverAppChat(appTarget, { kind: "text", text: q }, { echoTo: entryId });
-          }, 0);
-        }
-
-        const focusIds = targetIds.filter((id) => id !== conciergeId);
-        if (live && focusIds.length && (inspectGet || inspectSet || status === "app")) {
-          window.setTimeout(() => focusTargets(focusIds), 0);
+            deliverToApp(appId, { kind: "text", text: q }, { echoTo: entryId, nodeId: appTarget });
+          }, 50);
+        } else {
+          const focusIds = targetIds.filter((id) => id !== conciergeId);
+          if (live && focusIds.length && (inspectGet || inspectSet || status === "app")) {
+            window.setTimeout(() => focusTargets(focusIds), 0);
+          }
         }
 
         const settled = {
@@ -782,11 +784,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             targetIds.push(appTarget);
             // WAITING BFF: SuggestedAction accept will own this handoff
             // WAITING MODEL: the app chat still answers; our structuring model takes over later
-            // Defer until after React mounts the window and registerAppChat runs.
+            // Focus first, then deliver once the window is mounted/registered.
+            window.setTimeout(() => focusTargets([appTarget]), 0);
             window.setTimeout(() => {
-              deliverAppChat(appTarget, { kind: "file", file }, { echoTo: entryId });
-              focusTargets([appTarget]);
-            }, 0);
+              deliverToApp(verdict.appId, { kind: "file", file }, { echoTo: entryId, nodeId: appTarget });
+            }, 50);
           }
           result = "app";
           routeLabel = WORKSPACE_APPS.find((a) => a.id === verdict.appId)?.label ?? "Concierge";
@@ -849,13 +851,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     // WAITING BFF: SuggestedAction accept will own this handoff
     // WAITING MODEL: the app chat still answers; our structuring model takes over later
-    if (appTarget && chatCapable(app) && query.trim()) {
-      window.setTimeout(() => {
-        deliverAppChat(appTarget, { kind: "text", text: query }, { echoTo: entryId });
-      }, 0);
-    }
     if (appTarget) {
       window.setTimeout(() => focusTargets([appTarget]), 0);
+    }
+    if (appTarget && chatCapable(app) && query.trim()) {
+      window.setTimeout(() => {
+        deliverToApp(app, { kind: "text", text: query }, { echoTo: entryId, nodeId: appTarget });
+      }, 50);
     }
 
     setEntries((prev) => prev.map((e) => {

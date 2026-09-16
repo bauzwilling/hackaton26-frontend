@@ -23,12 +23,15 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
     if (!nodeId) return;
     appRef.current.studioNodeId.value = nodeId;
     const unregister = registerAppChat(nodeId, {
-      onText: (text) => appRef.current.onSendText(text),
+      onText: (text) => {
+        console.log(`simpleparts text: ${text}`);
+        return appRef.current.onSendText(text);
+      },
       onFile: (file) => {
         console.log(`simpleparts ingest: ${file.name}`);
         return appRef.current.onAttachFile(file);
       },
-    });
+    }, { appId: "simpleparts" });
     return () => {
       unregister();
       if (appRef.current.studioNodeId.value === nodeId) {
