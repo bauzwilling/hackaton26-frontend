@@ -22,6 +22,7 @@ import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
 import type { ViewportSnapshot } from "../workspace/persist";
 import {
+  capStoredSessions,
   cleanBoardNodes,
   dockedChatWidth,
   emptySession,
@@ -90,7 +91,7 @@ import { useSession } from "./session";
 export type { SystemEdge, UserEdge, ViewportSnapshot };
 export type { NodeKind, WorkspaceApp, WorkspaceNode, WorkspaceEdge, RequestEntry };
 export type { ChatSession };
-export { CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
+export { CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, HERO_LEAVE_MS, MAX_STORED_CHATS, PAIR_FADE_MS, PAIR_SHAPE_MS, chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
 export {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -174,6 +175,7 @@ type Ctx = {
   switchSession: (id: string) => void;
   renameSession: (id: string, title: string) => void;
   deleteSession: (id: string) => void;
+  clearPastSessions: () => void;
   returnToLanding: () => void;
   departLanding: (fn: () => void) => void;
   atLanding: boolean;
@@ -297,7 +299,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persistStore = useCallback((next: { sessions: ChatSession[]; activeId: string; historyCollapsed: boolean }) => {
-    saveSessionStore(email, next);
+    const capped = capStoredSessions(next.sessions, next.activeId);
+    if (capped.length !== next.sessions.length) setSessions(capped);
+    saveSessionStore(email, { ...next, sessions: capped });
   }, [email]);
 
   const clearReveal = useCallback(() => {
@@ -1271,12 +1275,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const flushed = flushList(sessionsRef.current, activeIdRef.current);
     const current = flushed.find((s) => s.id === activeIdRef.current);
     if (current && sessionIsEmpty(current)) {
-      setSessions(flushed);
-      persistStore({ activeId: current.id, sessions: flushed, historyCollapsed: collapsedRef.current });
+      const kept = capStoredSessions(flushed, current.id);
+      setSessions(kept);
+      persistStore({ activeId: current.id, sessions: kept, historyCollapsed: collapsedRef.current });
       return;
     }
     const fresh = emptySession();
-    const next = [fresh, ...flushed];
+    const next = capStoredSessions([fresh, ...flushed], fresh.id);
     setSessions(next);
     setActiveSessionId(fresh.id);
     hydrateSession(fresh);
@@ -1294,9 +1299,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     atLandingRef.current = true;
     setAtLanding(true);
     if (current && sessionIsEmpty(current)) {
-      setSessions(flushed);
+      const kept = capStoredSessions(flushed, current.id);
+      setSessions(kept);
       hydrateSession(current);
-      persistStore({ activeId: current.id, sessions: flushed, historyCollapsed: collapsedRef.current });
+      persistStore({ activeId: current.id, sessions: kept, historyCollapsed: collapsedRef.current });
       return;
     }
     let list = flushed;
@@ -1305,6 +1311,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       draft = emptySession();
       list = [draft, ...list];
     }
+    list = capStoredSessions(list, draft.id);
     setSessions(list);
     setActiveSessionId(draft.id);
     hydrateSession(draft);
@@ -1360,6 +1367,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     beginResume(nextActive, remaining);
   }, [beginResume, clearReveal, flushList, hydrateSession, persistStore]);
+
+  const clearPastSessions = useCallback(() => {
+    const flushed = flushList(sessionsRef.current, activeIdRef.current);
+    const current = flushed.find((s) => s.id === activeIdRef.current) ?? emptySession();
+    const next = [current];
+    setSessions(next);
+    persistStore({ activeId: current.id, sessions: next, historyCollapsed: collapsedRef.current });
+  }, [flushList, persistStore]);
 
   const clearTranscript = useCallback(() => {
     setEntries([]);
@@ -1441,6 +1456,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     switchSession,
     renameSession,
     deleteSession,
+    clearPastSessions,
     returnToLanding,
     departLanding,
     atLanding,
@@ -1448,7 +1464,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

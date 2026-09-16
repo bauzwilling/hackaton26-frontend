@@ -134,11 +134,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     }
     if (prepare === "focus-log") {
       zoomConcierge();
-      window.setTimeout(() => {
-        if (document.querySelector('[data-help="concierge-log"]')) return;
-        const settings = document.querySelector('[data-help="concierge-settings"]') as HTMLButtonElement | null;
-        settings?.click();
-      }, 80);
       return;
     }
     if (prepare === "overview-open") {

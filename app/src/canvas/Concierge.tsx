@@ -10,7 +10,6 @@ import {
   appLabel,
   isActivityEntry,
   isRelayEntry,
-  sessionIsEmpty,
   useWorkspace,
   type RequestEntry,
   type WorkspaceApp,
@@ -19,6 +18,48 @@ import { useHelp } from "../context/help";
 
 function replyOf(entry: RequestEntry) {
   return entry.reply ?? entry.routeWhy ?? "Answered on the canvas";
+}
+
+/** Keep extension visible: thisIsTheFi...dxf */
+function truncateFileName(name: string, max = 24) {
+  const t = name.trim();
+  if (t.length <= max) return t;
+  const dot = t.lastIndexOf(".");
+  const ext = dot > 0 && dot < t.length - 1 ? t.slice(dot) : "";
+  const stem = ext ? t.slice(0, dot) : t;
+  const budget = max - ext.length - 3;
+  if (budget < 4) return `${t.slice(0, Math.max(1, max - 3))}...`;
+  return `${stem.slice(0, budget)}...${ext}`;
+}
+
+function displayQuery(entry: RequestEntry) {
+  if (entry.attachment) return truncateFileName(entry.query);
+  return entry.query;
+}
+
+function ActivityLine({
+  entry,
+  selected,
+  verb,
+  onOpen,
+}: {
+  entry: RequestEntry;
+  selected: boolean;
+  verb: "Opened" | "Closed";
+  onOpen: () => void;
+}) {
+  return (
+    <p className={`chat-activity${selected ? " is-selected" : ""}`}>
+      <time dateTime={new Date(entry.at).toISOString()}>{activityClock(entry.at)}</time>
+      {" "}
+      <span className="chat-activity-text">
+        {verb}{" "}
+        <button type="button" className="chat-activity-app" onClick={onOpen}>
+          {activityName(entry)}
+        </button>
+      </span>
+    </p>
+  );
 }
 
 function AppBadge({
@@ -43,83 +84,28 @@ function AppBadge({
   );
 }
 
-function ThreadSettings({
-  logOnly,
-  onLog,
-}: {
-  logOnly: boolean;
-  onLog: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: Event) => {
-      const t = e.target as HTMLElement;
-      if (box.current?.contains(t)) return;
-      if (t.closest?.(".help-overlay, .help-fab")) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    const arm = window.setTimeout(() => {
-      window.addEventListener("pointerdown", onDoc);
-      window.addEventListener("keydown", onKey);
-    }, 0);
-    return () => {
-      window.clearTimeout(arm);
-      window.removeEventListener("pointerdown", onDoc);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
+function LogIcon() {
   return (
-    <div className="concierge-settings" ref={box}>
-      <button
-        type="button"
-        className={`session-icon-btn is-lg${open ? " is-on" : ""}`}
-        data-help="concierge-settings"
-        title="Settings"
-        aria-label="Settings"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="5" cy="12" r="1.7" />
-          <circle cx="12" cy="12" r="1.7" />
-          <circle cx="19" cy="12" r="1.7" />
-        </svg>
-      </button>
-      {open && (
-        <div className="concierge-settings-pop" role="dialog" aria-label="Settings">
-          <Surface className="concierge-settings-card">
-            <button
-              type="button"
-              className={`concierge-settings-item${logOnly ? " is-on" : ""}`}
-              data-help="concierge-log"
-              aria-pressed={logOnly}
-              onClick={onLog}
-            >
-              Log
-            </button>
-          </Surface>
-        </div>
-      )}
-    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8M8 17h8M8 9h2" />
+    </svg>
   );
 }
 
 export function ConciergeThread() {
   const {
     entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake,
-    nodes, focusTargets, activeSession, createSession, returnToLanding,
+    nodes, focusTargets, activeSession, returnToLanding,
   } = useWorkspace();
   const { pickTopic } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
   const [logOnly, setLogOnly] = useState(false);
-  const visible = logOnly ? entries.filter(isActivityEntry) : entries;
+  // Opened lines from chat handoffs live on the turn (windowOpened); Closed is a dedicated activity entry.
+  const visible = logOnly
+    ? entries.filter((e) => isActivityEntry(e) || Boolean(e.windowOpened))
+    : entries;
 
   useEffect(() => {
     const el = listRef.current;
@@ -141,18 +127,20 @@ export function ConciergeThread() {
   }
 
   return (
-    <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
+    <div className="concierge-thread">
       <div className="concierge-head">
         <h2 className="concierge-title">{activeSession?.title ?? "New chat"}</h2>
-        {activeSession && !sessionIsEmpty(activeSession) && (
-          <button type="button" className="concierge-new" onClick={createSession}>
-            New chat
-          </button>
-        )}
-        <ThreadSettings
-          logOnly={logOnly}
-          onLog={() => setLogOnly((on) => !on)}
-        />
+        <button
+          type="button"
+          className={`session-icon-btn is-lg${logOnly ? " is-on" : ""}`}
+          data-help="concierge-log"
+          title={logOnly ? "Show full chat" : "Logs"}
+          aria-label="Logs"
+          aria-pressed={logOnly}
+          onClick={() => setLogOnly((on) => !on)}
+        >
+          <LogIcon />
+        </button>
         <button
           type="button"
           className="session-icon-btn is-lg concierge-close"
@@ -165,58 +153,97 @@ export function ConciergeThread() {
           </svg>
         </button>
       </div>
-      {visible.length === 0 && (
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          {logOnly ? "No window activity yet." : "Ask anything or drop a file — replies land here."}
-        </p>
-      )}
-      {visible.map((e) => (
-        isActivityEntry(e) ? (
-          <p
-            key={e.id}
-            className={`chat-activity${selectedEntryId === e.id ? " is-selected" : ""}`}
-          >
-            <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-            {" "}
-            <span className="chat-activity-text">
-              {e.activity === "closed" ? "Closed" : "Opened"}{" "}
-              <button
-                type="button"
-                className="chat-activity-app"
-                onClick={() => onActivity(e)}
-              >
-                {activityName(e)}
-              </button>
-            </span>
+      <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
+        {visible.length === 0 && (
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            {logOnly ? "No window activity yet." : "Ask anything or drop a file — replies land here."}
           </p>
-        ) : isRelayEntry(e) ? (
-          <div
-            key={e.id}
-            className={`chat-turn chat-relay${selectedEntryId === e.id ? " is-selected" : ""}`}
-            onClick={() => onBadge(e)}
-          >
-            <div className="chat-bubble chat-assistant">
-              <div className="chat-assistant-meta">
-                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                {(e.badgeApp ?? e.appId) && (
-                  <AppBadge app={(e.badgeApp ?? e.appId)!} onClick={() => onBadge(e)} />
-                )}
+        )}
+        {visible.map((e) => {
+          if (isActivityEntry(e)) {
+            return (
+              <ActivityLine
+                key={e.id}
+                entry={e}
+                selected={selectedEntryId === e.id}
+                verb={e.activity === "closed" ? "Closed" : "Opened"}
+                onOpen={() => onActivity(e)}
+              />
+            );
+          }
+          if (logOnly && e.windowOpened) {
+            return (
+              <ActivityLine
+                key={e.id}
+                entry={e}
+                selected={selectedEntryId === e.id}
+                verb="Opened"
+                onOpen={() => onActivity(e)}
+              />
+            );
+          }
+          if (isRelayEntry(e)) {
+            return (
+            <div
+              key={e.id}
+              className={`chat-turn chat-relay${selectedEntryId === e.id ? " is-selected" : ""}`}
+              onClick={() => onBadge(e)}
+            >
+              <div className="chat-bubble chat-assistant">
+                <div className="chat-assistant-meta">
+                  <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                  {(e.badgeApp ?? e.appId) && (
+                    <AppBadge app={(e.badgeApp ?? e.appId)!} onClick={() => onBadge(e)} />
+                  )}
+                </div>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
               </div>
-              <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
             </div>
-          </div>
-        ) : e.result === "app"
-          && e.appId
-          && !(e.confirmApps && e.confirmApps.length)
-          && !(e.choices && e.choices.length)
-          && !(e.helpTopics && e.helpTopics.length) ? (
-          <div
-            key={e.id}
-            className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
-            onClick={() => setSelectedEntryId(e.id)}
-          >
-            {e.query.trim() ? (
-              <div className="chat-bubble chat-user">
+            );
+          }
+          if (e.result === "app"
+            && e.appId
+            && !(e.confirmApps && e.confirmApps.length)
+            && !(e.choices && e.choices.length)
+            && !(e.helpTopics && e.helpTopics.length)) {
+            return (
+            <div
+              key={e.id}
+              className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
+              onClick={() => setSelectedEntryId(e.id)}
+            >
+              {e.query.trim() ? (
+                <div className="chat-bubble chat-user" title={e.attachment ? e.query : undefined}>
+                  {e.attachment ? (
+                    <div className="chat-user-meta">
+                      <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                      <span className="chat-user-meta-sep" aria-hidden>|</span>
+                      <span>Attached File</span>
+                    </div>
+                  ) : (
+                    <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                  )}
+                  {displayQuery(e)}
+                </div>
+              ) : null}
+              {e.windowOpened ? (
+                <ActivityLine
+                  entry={e}
+                  selected={selectedEntryId === e.id}
+                  verb="Opened"
+                  onOpen={() => onBadge(e)}
+                />
+              ) : null}
+            </div>
+            );
+          }
+          return (
+            <div
+              key={e.id}
+              className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
+              onClick={() => setSelectedEntryId(e.id)}
+            >
+              <div className="chat-bubble chat-user" title={e.attachment ? e.query : undefined}>
                 {e.attachment ? (
                   <div className="chat-user-meta">
                     <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
@@ -226,110 +253,72 @@ export function ConciergeThread() {
                 ) : (
                   <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
                 )}
-                {e.query}
+                {displayQuery(e)}
               </div>
-            ) : null}
-            {e.windowOpened ? (
-              <p className={`chat-activity${selectedEntryId === e.id ? " is-selected" : ""}`}>
-                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                {" "}
-                <span className="chat-activity-text">
-                  Opened{" "}
-                  <button
-                    type="button"
-                    className="chat-activity-app"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      onBadge(e);
-                    }}
-                  >
-                    {appLabel(e.appId)}
-                  </button>
-                </span>
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <div
-            key={e.id}
-            className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
-            onClick={() => setSelectedEntryId(e.id)}
-          >
-            <div className="chat-bubble chat-user">
-              {e.attachment ? (
-                <div className="chat-user-meta">
+              <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
+                <div className="chat-assistant-meta">
                   <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                  <span className="chat-user-meta-sep" aria-hidden>|</span>
-                  <span>Attached File</span>
                 </div>
-              ) : (
-                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-              )}
-              {e.query}
-            </div>
-            <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
-              <div className="chat-assistant-meta">
-                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
+                {e.confirmApps && e.confirmApps.length > 0 && (
+                  <div className="concierge-confirm">
+                    {e.confirmApps.map((app) => (
+                      <Surface
+                        key={app}
+                        as="button"
+                        type="button"
+                        className="chip"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          confirmIntake(e.id, app);
+                        }}
+                      >
+                        {appLabel(app)}
+                      </Surface>
+                    ))}
+                  </div>
+                )}
+                {e.choices && e.choices.length > 0 && (
+                  <div className="concierge-confirm">
+                    {e.choices.map((id) => (
+                      <Surface
+                        key={id}
+                        as="button"
+                        type="button"
+                        className="chip"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          ask(id);
+                        }}
+                      >
+                        {plyworksDesignLabel(id)}
+                      </Surface>
+                    ))}
+                  </div>
+                )}
+                {e.helpTopics && e.helpTopics.length > 0 && (
+                  <div className="concierge-confirm">
+                    {e.helpTopics.map((id: HelpTopicId) => (
+                      <Surface
+                        key={id}
+                        as="button"
+                        type="button"
+                        className="chip"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          pickTopic(id);
+                        }}
+                      >
+                        {HELP_TOPIC_LABEL[id]}
+                      </Surface>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
-              {e.confirmApps && e.confirmApps.length > 0 && (
-                <div className="concierge-confirm">
-                  {e.confirmApps.map((app) => (
-                    <Surface
-                      key={app}
-                      as="button"
-                      type="button"
-                      className="chip"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        confirmIntake(e.id, app);
-                      }}
-                    >
-                      {appLabel(app)}
-                    </Surface>
-                  ))}
-                </div>
-              )}
-              {e.choices && e.choices.length > 0 && (
-                <div className="concierge-confirm">
-                  {e.choices.map((id) => (
-                    <Surface
-                      key={id}
-                      as="button"
-                      type="button"
-                      className="chip"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        ask(id);
-                      }}
-                    >
-                      {plyworksDesignLabel(id)}
-                    </Surface>
-                  ))}
-                </div>
-              )}
-              {e.helpTopics && e.helpTopics.length > 0 && (
-                <div className="concierge-confirm">
-                  {e.helpTopics.map((id: HelpTopicId) => (
-                    <Surface
-                      key={id}
-                      as="button"
-                      type="button"
-                      className="chip"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        pickTopic(id);
-                      }}
-                    >
-                      {HELP_TOPIC_LABEL[id]}
-                    </Surface>
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
-        )
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }
