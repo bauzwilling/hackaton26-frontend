@@ -325,7 +325,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, [email, nodes, userEdges, viewport, entries, activeSessionId, flushList, persistStore]);
 
-  const stageOpts = useCallback(() => ({ stage: leftoverCanvas(stageSizeRef.current) }), []);
+  const stageOpts = useCallback(() => ({ stage: leftoverCanvas(stageSizeRef.current, viewportRef.current) }), []);
 
   const commitStageSize = useCallback((size: { width: number; height: number }) => {
     if (size.width < 32 || size.height < 32) return;
@@ -856,8 +856,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return copies.map((n) => n.id);
   }, []);
 
-  const tile = useCallback((viewport: { width: number; height: number }) => {
-    setNodes((list) => tileNodes(list, viewport));
+  const tile = useCallback((_viewport?: { width: number; height: number }) => {
+    setNodes((list) => tileNodes(list, leftoverCanvas(stageSizeRef.current, viewportRef.current)));
   }, []);
 
   const beginResume = useCallback((next: ChatSession, flushed: ChatSession[]) => {

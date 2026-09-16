@@ -80,11 +80,17 @@ export function chatFitPadding(
   };
 }
 
-/** Leftover canvas beside collapsed sidebar+chat, in screen pixels (= world units at zoom 1). */
-export function leftoverCanvas(host: { width: number; height: number }) {
+/** Leftover canvas beside collapsed sidebar+chat. Size is screen pixels (= world at zoom 1); x/y is that slot in current viewport. */
+export function leftoverCanvas(
+  host: { width: number; height: number },
+  viewport: { x: number; y: number; zoom: number } = { x: 0, y: 0, zoom: 1 },
+) {
   const pad = chatFitPadding(host.width, true, true);
   const left = Number.parseInt(pad.left, 10) || 0;
+  const zoom = viewport.zoom || 1;
   return {
+    x: (left - (viewport.x ?? 0)) / zoom,
+    y: (STAGE_FIT_PAD.top - (viewport.y ?? 0)) / zoom,
     w: Math.max(320, Math.round(host.width - left - STAGE_FIT_PAD.right)),
     h: Math.max(240, Math.round(host.height - STAGE_FIT_PAD.top - STAGE_FIT_PAD.bottom)),
   };

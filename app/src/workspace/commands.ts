@@ -34,20 +34,46 @@ function hits(
   return a.x < b.x + b.w + GAP && a.x + a.w + GAP > b.x && a.y < b.y + b.h + GAP && a.y + a.h + GAP > b.y;
 }
 
-export function placeBeside(nodes: WorkspaceNode[], w: number, h: number, ignoreId?: string) {
-  const others = nodes.filter((n) => !n.hidden && n.id !== ignoreId).map(boxOf);
-  if (!others.length) return { x: 20, y: 20 };
+function boardWindows(nodes: WorkspaceNode[], ignoreId?: string) {
+  return nodes.filter((n) => (
+    !n.hidden
+    && n.id !== ignoreId
+    && n.id !== CONCIERGE_ID
+    && n.kind !== "log"
+  ));
+}
+
+export function placeBeside(
+  nodes: WorkspaceNode[],
+  w: number,
+  h: number,
+  ignoreId?: string,
+  origin: { x: number; y: number } = { x: 20, y: 20 },
+) {
+  const others = boardWindows(nodes, ignoreId).map(boxOf);
+  if (!others.length) return { x: origin.x, y: origin.y };
   const candidates: { x: number; y: number }[] = [];
   for (const b of others) candidates.push({ x: b.x + b.w + GAP, y: b.y });
   for (const b of others) candidates.push({ x: b.x, y: b.y + b.h + GAP });
   const maxR = Math.max(...others.map((b) => b.x + b.w));
-  candidates.push({ x: maxR + GAP, y: 20 });
+  candidates.push({ x: maxR + GAP, y: origin.y });
   candidates.sort((a, b) => a.y - b.y || a.x - b.x);
   for (const c of candidates) {
-    const rect = { x: Math.max(20, c.x), y: Math.max(20, c.y), w, h };
+    const rect = { x: Math.max(origin.x, c.x), y: Math.max(origin.y, c.y), w, h };
     if (!others.some((b) => hits(rect, b))) return { x: rect.x, y: rect.y };
   }
-  return { x: maxR + GAP, y: 20 };
+  return { x: maxR + GAP, y: origin.y };
+}
+
+/** Next slot in a single row: leftover origin, then always to the right of the last app. */
+export function placeAfterLast(
+  nodes: WorkspaceNode[],
+  origin: { x: number; y: number } = { x: 20, y: 20 },
+) {
+  const others = boardWindows(nodes).filter((n) => n.kind === "app");
+  if (!others.length) return { x: origin.x, y: origin.y };
+  const prev = [...others].sort((a, b) => a.y - b.y || a.x - b.x).at(-1)!;
+  return { x: prev.x + prev.w + GAP, y: prev.y };
 }
 
 /** Hugs the log's measured height; before the first fit, h is still the estimate. */
@@ -83,12 +109,13 @@ export function openAppNodes(
   session: Session | null,
   app: WorkspaceApp,
   z: number,
-  opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number } },
+  opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number; x?: number; y?: number } },
 ): { nodes: WorkspaceNode[]; id: string } | null {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta || !openable(session, app)) return null;
 
-  const box = opts?.stage ?? { w: APP_W, h: IFRAME_H };
+  const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
+  const origin = { x: box.x ?? 20, y: box.y ?? 20 };
   const reuse = !JOB_APPS.includes(app);
   const base = withRail(list);
   const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
@@ -114,7 +141,7 @@ export function openAppNodes(
   }
 
   const id = uid("a");
-  const slot = placeBeside(base, box.w, box.h);
+  const slot = placeAfterLast(base, origin);
   const node: WorkspaceNode = {
     id,
     kind: "app",
@@ -248,32 +275,28 @@ export function duplicateNodeCopies(
 
 export function tileNodes(
   list: WorkspaceNode[],
-  viewport: { width: number; height: number },
+  origin: { x: number; y: number } = { x: 20, y: 20 },
 ): WorkspaceNode[] {
-  const vis = list.filter((n) => !n.hidden && !n.locked);
+  const vis = [...boardWindows(list).filter((n) => !n.locked)]
+    .sort((a, b) => a.y - b.y || a.x - b.x);
   if (!vis.length) return list;
-  const pad = 24;
-  const limit = Math.max(viewport.width, 400);
-  let x = pad;
-  let y = pad;
-  let rowH = 0;
+  const cols = 2;
   const placed = new Map<string, { x: number; y: number }>();
-  for (const n of vis) {
-    const w = Math.max(n.w, 160);
-    const h = Math.max(n.h, 80);
-    if (x > pad && x + w + pad > limit) {
-      x = pad;
-      y += rowH + pad;
-      rowH = 0;
+  let rowY = origin.y;
+  for (let i = 0; i < vis.length; i += cols) {
+    const row = vis.slice(i, i + cols);
+    const rowH = Math.max(...row.map((n) => Math.max(n.h, 80)));
+    let x = origin.x;
+    for (const n of row) {
+      placed.set(n.id, { x, y: rowY });
+      x += Math.max(n.w, 160) + GAP;
     }
-    placed.set(n.id, { x, y });
-    x += w + pad;
-    rowH = Math.max(rowH, h);
+    rowY += rowH + GAP;
   }
   return list.map((n) => {
     const p = placed.get(n.id);
     if (!p) return n;
-    return n.id === CONCIERGE_ID ? { ...n, x: p.x, y: p.y, railed: false } : { ...n, x: p.x, y: p.y };
+    return { ...n, x: p.x, y: p.y };
   });
 }
 
