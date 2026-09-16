@@ -69,9 +69,9 @@ export function StudioPage() {
     const app = params.get("app");
     if (!app || !isWorkspaceApp(app)) return;
     departLanding(() => {
-      const id = openApp(app);
-      if (!id) ask(`Open ${appLabel(app)}`);
-      else announceOpen(app, id);
+      const opened = openApp(app, { skipActivity: app === "plyworks" });
+      if (!opened) ask(`Open ${appLabel(app)}`);
+      else announceOpen(app, opened.id, opened.reused);
     });
     const next = new URLSearchParams(params);
     next.delete("app");

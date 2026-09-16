@@ -7,7 +7,6 @@ import {
   EST_H,
   GAP,
   IFRAME_H,
-  JOB_APPS,
   NOTE_H,
   NOTE_W,
   WORKSPACE_APPS,
@@ -103,25 +102,32 @@ export function withRail(list: WorkspaceNode[]): WorkspaceNode[] {
   return [...base, hideConcierge(conciergeNode())];
 }
 
-/** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes. */
+/** Writes workspace x/y for StudioBoard to hydrate into React Flow — not live RF addNodes.
+ *  At most one window per app id (including job apps): reuse and unhide when present. */
 export function openAppNodes(
   list: WorkspaceNode[],
   session: Session | null,
   app: WorkspaceApp,
   z: number,
-  opts?: { parentId?: string; query?: string; design?: PlyworksDesign; stage?: { w: number; h: number; x?: number; y?: number } },
-): { nodes: WorkspaceNode[]; id: string } | null {
+  opts?: {
+    parentId?: string;
+    query?: string;
+    design?: PlyworksDesign;
+    chatIntake?: WorkspaceNode["chatIntake"];
+    stage?: { w: number; h: number; x?: number; y?: number };
+  },
+): { nodes: WorkspaceNode[]; id: string; reused: boolean } | null {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta || !openable(session, app)) return null;
 
   const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
   const origin = { x: box.x ?? 20, y: box.y ?? 20 };
-  const reuse = !JOB_APPS.includes(app);
   const base = withRail(list);
-  const current = reuse ? base.find((n) => n.kind === "app" && n.appId === app) : undefined;
+  const current = base.find((n) => n.kind === "app" && n.appId === app);
   if (current) {
     return {
       id: current.id,
+      reused: true,
       nodes: base.map((n) => {
         if (n.id !== current.id) return n;
         return {
@@ -130,8 +136,11 @@ export function openAppNodes(
           hidden: false,
           title: meta.label,
           parentId: opts?.parentId ?? n.parentId,
-          query: opts?.query ?? n.query,
+          // Keep the existing query on reuse so NodeBody does not churn on every follow-up.
+          query: n.query ?? opts?.query,
           design: opts?.design ?? n.design,
+          // New handoff always wins so follow-ups reach the open window.
+          chatIntake: opts?.chatIntake !== undefined ? opts.chatIntake : n.chatIntake,
           w: box.w,
           h: box.h,
           autoSize: false,
@@ -150,6 +159,7 @@ export function openAppNodes(
     appId: app,
     query: opts?.query,
     design: opts?.design,
+    chatIntake: opts?.chatIntake,
     parentId: opts?.parentId,
     x: slot.x,
     y: slot.y,
@@ -159,7 +169,20 @@ export function openAppNodes(
     hidden: false,
     autoSize: false,
   };
-  return { id, nodes: [...base, node] };
+  return { id, nodes: [...base, node], reused: false };
+}
+
+/** Clears a consumed Concierge → app chat intake stamp. */
+export function clearChatIntakeNodes(
+  list: WorkspaceNode[],
+  nodeId: string,
+  intakeId: string,
+): WorkspaceNode[] {
+  return list.map((n) => (
+    n.id === nodeId && n.chatIntake?.id === intakeId
+      ? { ...n, chatIntake: undefined }
+      : n
+  ));
 }
 
 export function ensureConciergeNodes(list: WorkspaceNode[], z: number): WorkspaceNode[] {

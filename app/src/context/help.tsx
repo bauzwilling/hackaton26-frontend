@@ -116,14 +116,14 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       }, 40);
       return existing.id;
     }
-    const id = openApp(app, { parentId: CONCIERGE_ID, query: "Help" });
-    if (id) {
-      setAppNodeId(id);
+    const opened = openApp(app, { parentId: CONCIERGE_ID, query: "Help" });
+    if (opened) {
+      setAppNodeId(opened.id);
       window.setTimeout(() => {
-        focusTargets([id], studioViewport());
+        focusTargets([opened.id], studioViewport());
       }, 80);
     }
-    return id;
+    return opened?.id ?? null;
   }, [focusTargets, openApp, show]);
 
   const runPrepare = useCallback((prepare?: HelpPrepare) => {
@@ -134,11 +134,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     }
     if (prepare === "focus-log") {
       zoomConcierge();
-      window.setTimeout(() => {
-        if (document.querySelector('[data-help="concierge-log"]')) return;
-        const settings = document.querySelector('[data-help="concierge-settings"]') as HTMLButtonElement | null;
-        settings?.click();
-      }, 80);
       return;
     }
     if (prepare === "overview-open") {

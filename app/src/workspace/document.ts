@@ -1,4 +1,5 @@
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import type { AppChatIntake } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
@@ -19,6 +20,11 @@ export type WorkspaceNode = {
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
+  /**
+   * One-shot Concierge → app chat handoff. Not persisted.
+   * WAITING BFF: SuggestedAction accept replaces this stamp.
+   */
+  chatIntake?: AppChatIntake;
   x: number;
   y: number;
   z: number;
@@ -43,16 +49,22 @@ export type RequestEntry = {
   routeWhy: string;
   targetIds: string[];
   appId?: WorkspaceApp;
-  result: "app" | "text" | "denied" | "activity";
+  result: "app" | "text" | "denied" | "activity" | "relay";
   activity?: "opened" | "closed";
   reply?: string;
   /** Additive intent label from concierge — not used for side effects yet. */
   kind?: ConciergeKind;
+  /** Show an app-name badge on the assistant reply (routed / relayed turns). */
+  badgeApp?: WorkspaceApp;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
   helpTopics?: HelpTopicId[];
+  /** True when this turn created the app window (false on reuse / focus-only). */
+  windowOpened?: boolean;
   pending?: boolean;
+  /** User turn was a file drop — Concierge shows "Attached File" beside the clock. */
+  attachment?: boolean;
 };
 
 export const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
@@ -84,8 +96,12 @@ export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
   return n.kind === "app" || n.kind === "note";
 }
 
-export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id">) {
-  return n.kind === "app" || n.kind === "note";
+export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id" | "appId">) {
+  if (n.kind === "note") return true;
+  if (n.kind !== "app") return false;
+  // One window per job app — Concierge routes follow-ups into the same instance.
+  if (n.appId && JOB_APPS.includes(n.appId)) return false;
+  return true;
 }
 
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
@@ -196,9 +212,11 @@ export function conciergeNode(): WorkspaceNode {
 export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
+  // Drop ephemeral Concierge handoff — must not survive localStorage restore.
+  const { chatIntake: _drop, ...rest } = n;
   if (n.kind === "app") {
     return {
-      ...n,
+      ...rest,
       title: label ?? n.title,
       autoSize: false,
       w: Math.max(n.w || 320, 320),
@@ -206,7 +224,7 @@ export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
     };
   }
   return {
-    ...n,
+    ...rest,
     autoSize: n.autoSize !== false,
     w: Math.max(n.w || minW, minW),
     h: Math.max(n.h || 80, 80),
@@ -253,6 +271,10 @@ export function isActivityEntry(entry: RequestEntry) {
   return entry.result === "activity";
 }
 
+export function isRelayEntry(entry: RequestEntry) {
+  return entry.result === "relay";
+}
+
 export function activityClock(at: number) {
   const d = new Date(at);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -273,8 +295,9 @@ export function activityFocusIds(entry: RequestEntry, nodes: WorkspaceNode[]) {
   ));
   const fromEntry = live(entry.targetIds);
   if (fromEntry.length) return fromEntry;
-  if (!entry.appId) return [];
-  const match = nodes.find((n) => n.kind === "app" && n.appId === entry.appId);
+  if (!entry.appId && !entry.badgeApp) return [];
+  const app = entry.appId ?? entry.badgeApp;
+  const match = nodes.find((n) => n.kind === "app" && n.appId === app);
   return match ? [match.id] : [];
 }
 

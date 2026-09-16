@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, motion, useReducedMotion } from "framer-motion";
 import { CHAT_MOVE } from "../components/kit";
-import { CHAT_RAIL_W, CHAT_SIDEBAR_W, PAIR_SHAPE_MS, pastSessions, relativeSessionTime, useWorkspace, type ChatSession } from "../context/workspace";
+import { CHAT_RAIL_W, CHAT_SIDEBAR_W, MAX_STORED_CHATS, PAIR_SHAPE_MS, pastSessions, relativeSessionTime, useWorkspace, type ChatSession } from "../context/workspace";
 
 const WIDTH_S = 0.28;
 const HEIGHT_S = 0.34;
@@ -165,6 +165,7 @@ export function SessionRail({
     switchSession,
     renameSession,
     deleteSession,
+    clearPastSessions,
   } = useWorkspace();
   const reduce = useReducedMotion();
   const host = useRef<HTMLDivElement>(null);
@@ -173,12 +174,18 @@ export function SessionRail({
   const boot = useRef(true);
   const wasDocked = useRef(docked);
   const listed = pastSessions(sessions);
+  const canClearPast = sessions.some((s) => s.id !== activeSessionId);
+  const [clearConfirm, setClearConfirm] = useState(false);
   const expanded = railExpanded(docked, peek, historyCollapsed, pair);
   const filled = docked && expanded && !pair;
   const [tallH, setTallH] = useState(480);
   const [showChats, setShowChats] = useState(expanded);
   const tallHRef = useRef(tallH);
   tallHRef.current = tallH;
+
+  useEffect(() => {
+    if (!showChats) setClearConfirm(false);
+  }, [showChats]);
 
   useEffect(() => {
     const el = host.current;
@@ -315,6 +322,39 @@ export function SessionRail({
       >
         <IconPanel filled={filled} />
       </button>
+      {showChats && (
+        <div className="session-rail-clear">
+          {clearConfirm ? (
+            <div className="session-rail-clear-confirm">
+              <button type="button" className="session-text-btn" onClick={() => setClearConfirm(false)}>Back</button>
+              <button
+                type="button"
+                className="session-text-btn is-danger"
+                onClick={() => {
+                  clearPastSessions();
+                  setClearConfirm(false);
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="session-icon-btn"
+              title="Clear all chats"
+              aria-label="Clear all chats"
+              disabled={!canClearPast}
+              onClick={() => setClearConfirm(true)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
       {listed.length > 0 && (
         <ul className="session-rail-dots" aria-hidden={!showDots} aria-label="Chat history">
           {listed.map((s) => (
@@ -358,6 +398,14 @@ export function SessionRail({
                 onDelete={() => deleteSession(s.id)}
               />
             ))}
+            {import.meta.env.DEV && listed.length >= MAX_STORED_CHATS && (
+              <li
+                className="session-history-cap"
+                style={{ opacity: showChats ? 1 : 0 }}
+              >
+                In dev mode, app only stores {MAX_STORED_CHATS} chats at most.
+              </li>
+            )}
           </ul>
         )}
         </div>

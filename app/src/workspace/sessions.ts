@@ -17,6 +17,7 @@ import {
 import { uid } from "./commands";
 
 export const NEW_CHAT_TITLE = "New chat";
+export const MAX_STORED_CHATS = 10;
 export const CHAT_THREAD_W = 340;
 export const CHAT_SIDEBAR_W = 220;
 export const CHAT_RAIL_W = 32;
@@ -51,7 +52,7 @@ export type SessionStore = {
   historyCollapsed: boolean;
 };
 
-// WAITING DATABASE: chat.sessions — list + active id on the user profile
+// WAITING DATABASE: chat.sessions — list + active id on the user profile (local MAX_STORED_CHATS stand-in)
 export function sessionsKey(email: string) {
   return `f2f.sessions.${email || "anon"}`;
 }
@@ -98,6 +99,23 @@ export function leftoverCanvas(
 
 export function pastSessions(sessions: ChatSession[]) {
   return sessions.filter((s) => !sessionIsEmpty(s)).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** Keep the active session and at most MAX_STORED_CHATS non-empty chats (newest first). */
+export function capStoredSessions(sessions: ChatSession[], activeId: string): ChatSession[] {
+  const nonempty = sessions
+    .filter((s) => !sessionIsEmpty(s))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const keepNonempty = new Set<string>();
+  if (sessions.some((s) => s.id === activeId && !sessionIsEmpty(s))) {
+    keepNonempty.add(activeId);
+  }
+  for (const s of nonempty) {
+    if (keepNonempty.has(s.id)) continue;
+    if (keepNonempty.size >= MAX_STORED_CHATS) break;
+    keepNonempty.add(s.id);
+  }
+  return sessions.filter((s) => keepNonempty.has(s.id) || s.id === activeId);
 }
 
 export function cleanBoardNodes(nodes: WorkspaceNode[]): WorkspaceNode[] {
@@ -211,7 +229,9 @@ function parseStore(raw: unknown): SessionStore | null {
     }));
   if (!sessions.length) return null;
   const activeId = sessions.some((s) => s.id === data.activeId) ? data.activeId : sessions[0].id;
-  return { activeId, sessions, historyCollapsed: !!data.historyCollapsed };
+  const capped = capStoredSessions(sessions, activeId);
+  const nextActive = capped.some((s) => s.id === activeId) ? activeId : capped[0].id;
+  return { activeId: nextActive, sessions: capped, historyCollapsed: !!data.historyCollapsed };
 }
 
 // WAITING BFF: thread payload shape (session id, title, entries, board snapshot)
@@ -231,7 +251,11 @@ export function loadSessionStore(email: string): SessionStore {
 
 export function saveSessionStore(email: string, store: SessionStore) {
   try {
-    localStorage.setItem(sessionsKey(email), JSON.stringify(store));
+    const capped = {
+      ...store,
+      sessions: capStoredSessions(store.sessions, store.activeId),
+    };
+    localStorage.setItem(sessionsKey(email), JSON.stringify(capped));
   } catch { /* ignore */ }
 }
 

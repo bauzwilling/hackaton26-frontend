@@ -1,20 +1,52 @@
-import { useCallback } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import SidebarComponent from "./components/SidebarComponent";
 import ThreeMeshViewer, { type ThreeMeshViewerHandle } from "./components/ThreeMeshViewer";
 import NestingResultModalComponent from "./components/NestingResultModalComponent";
 import ModifiedPartsToggle from "./components/ModifiedPartsToggle";
 import { useSimplePartsApp } from "./hooks/useSimplePartsApp";
+import { useWorkspace } from "../context/workspace";
 import "./simpleparts.css";
 import "./simpleparts-react.css";
 
-export function SimplePartsPage() {
+export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
+  const { registerAppIntake } = useWorkspace();
   const app = useSimplePartsApp();
+  const appRef = useRef(app);
+  appRef.current = app;
   const preview = app.summonedPreview.value;
   const leftover = app.leftoverNestPreview.value;
   const activeViewer = app.activeViewer.value;
   const setMeshViewer = useCallback((viewer: ThreeMeshViewerHandle | null) => {
     app.meshViewerRef.value = viewer;
   }, [app]);
+
+  useLayoutEffect(() => {
+    if (!nodeId) {
+      console.warn("simpleparts: mounted without nodeId — Concierge cannot forward");
+      return;
+    }
+    appRef.current.studioNodeId.value = nodeId;
+    // WAITING BFF: SuggestedAction accept will own this handoff
+    const unregister = registerAppIntake("simpleparts", nodeId, async (intake, file) => {
+      if (intake.kind === "text") {
+        console.log(`simpleparts text: ${intake.text}`);
+        await appRef.current.onSendText(intake.text);
+        return;
+      }
+      if (!file) {
+        console.warn(`simpleparts: missing file for ${intake.name}`);
+        return;
+      }
+      console.log(`simpleparts ingest: ${file.name}`);
+      await appRef.current.onAttachFile(file);
+    });
+    return () => {
+      unregister();
+      if (appRef.current.studioNodeId.value === nodeId) {
+        appRef.current.studioNodeId.value = null;
+      }
+    };
+  }, [nodeId, registerAppIntake]);
 
   return (
     <div className="simpleparts-app">

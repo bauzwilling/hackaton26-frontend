@@ -99,7 +99,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "log",
     title: "Activity log",
-    body: "Opened and closed windows show up as timestamped italic lines in Concierge. The app name jumps to that window. Settings → Log shows only those.",
+    body: "Opened and closed windows show up as timestamped italic lines in Concierge. The app name jumps to that window. The Logs button shows only those.",
     anchor: { type: "help", id: "concierge-log" },
     prepare: "focus-log",
     pad: 10,

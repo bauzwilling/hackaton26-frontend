@@ -37,5 +37,5 @@ export const flowInteraction = {
   nodesFocusable: true,
   edgesFocusable: true,
   elevateNodesOnSelect: true,
-  onlyRenderVisibleElements: true,
+  onlyRenderVisibleElements: false,
 };
