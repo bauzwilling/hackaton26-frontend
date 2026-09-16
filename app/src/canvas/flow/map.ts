@@ -30,6 +30,7 @@ export function sameStudioData(a: StudioNodeData, b: StudioNodeData) {
     && a.flashKey === b.flashKey
     && a.enter === b.enter
     && a.preview === b.preview
+    && a.chatIntake?.id === b.chatIntake?.id
     && sameConfirmApps(a.confirmApps, b.confirmApps)
   );
 }
@@ -73,6 +74,7 @@ export function toFlowNode(
     routeWhy: n.routeWhy,
     confirmApps: n.confirmApps,
     design: n.design,
+    chatIntake: n.chatIntake,
     locked: n.locked,
     railed: n.railed,
     autoSize: n.autoSize,

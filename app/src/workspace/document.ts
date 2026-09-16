@@ -1,4 +1,5 @@
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import type { AppChatIntake } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
@@ -19,6 +20,11 @@ export type WorkspaceNode = {
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
+  /**
+   * One-shot Concierge → app chat handoff. Not persisted.
+   * WAITING BFF: SuggestedAction accept replaces this stamp.
+   */
+  chatIntake?: AppChatIntake;
   x: number;
   y: number;
   z: number;
@@ -54,7 +60,11 @@ export type RequestEntry = {
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
   helpTopics?: HelpTopicId[];
+  /** True when this turn created the app window (false on reuse / focus-only). */
+  windowOpened?: boolean;
   pending?: boolean;
+  /** User turn was a file drop — Concierge shows "Attached File" beside the clock. */
+  attachment?: boolean;
 };
 
 export const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
@@ -202,9 +212,11 @@ export function conciergeNode(): WorkspaceNode {
 export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
   const minW = n.kind === "note" ? 140 : 240;
   const label = n.appId ? WORKSPACE_APPS.find((a) => a.id === n.appId)?.label : undefined;
+  // Drop ephemeral Concierge handoff — must not survive localStorage restore.
+  const { chatIntake: _drop, ...rest } = n;
   if (n.kind === "app") {
     return {
-      ...n,
+      ...rest,
       title: label ?? n.title,
       autoSize: false,
       w: Math.max(n.w || 320, 320),
@@ -212,7 +224,7 @@ export function normalizeNode(n: WorkspaceNode): WorkspaceNode {
     };
   }
   return {
-    ...n,
+    ...rest,
     autoSize: n.autoSize !== false,
     w: Math.max(n.w || minW, minW),
     h: Math.max(n.h || 80, 80),

@@ -205,6 +205,50 @@ export function ConciergeThread() {
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
             </div>
           </div>
+        ) : e.result === "app"
+          && e.appId
+          && !(e.confirmApps && e.confirmApps.length)
+          && !(e.choices && e.choices.length)
+          && !(e.helpTopics && e.helpTopics.length) ? (
+          <div
+            key={e.id}
+            className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
+            onClick={() => setSelectedEntryId(e.id)}
+          >
+            {e.query.trim() ? (
+              <div className="chat-bubble chat-user">
+                {e.attachment ? (
+                  <div className="chat-user-meta">
+                    <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                    <span className="chat-user-meta-sep" aria-hidden>|</span>
+                    <span>Attached File</span>
+                  </div>
+                ) : (
+                  <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                )}
+                {e.query}
+              </div>
+            ) : null}
+            {e.windowOpened ? (
+              <p className={`chat-activity${selectedEntryId === e.id ? " is-selected" : ""}`}>
+                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                {" "}
+                <span className="chat-activity-text">
+                  Opened{" "}
+                  <button
+                    type="button"
+                    className="chat-activity-app"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onBadge(e);
+                    }}
+                  >
+                    {appLabel(e.appId)}
+                  </button>
+                </span>
+              </p>
+            ) : null}
+          </div>
         ) : (
           <div
             key={e.id}
@@ -212,15 +256,20 @@ export function ConciergeThread() {
             onClick={() => setSelectedEntryId(e.id)}
           >
             <div className="chat-bubble chat-user">
-              <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+              {e.attachment ? (
+                <div className="chat-user-meta">
+                  <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+                  <span className="chat-user-meta-sep" aria-hidden>|</span>
+                  <span>Attached File</span>
+                </div>
+              ) : (
+                <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
+              )}
               {e.query}
             </div>
             <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
               <div className="chat-assistant-meta">
                 <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                {e.badgeApp && (
-                  <AppBadge app={e.badgeApp} onClick={() => onBadge(e)} />
-                )}
               </div>
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{replyOf(e)}</p>
               {e.confirmApps && e.confirmApps.length > 0 && (

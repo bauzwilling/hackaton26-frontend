@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import { Window } from "../../components/kit";
 import { canDeleteNode, useWorkspace, type NodeKind, type WorkspaceApp, type WorkspaceNode } from "../../context/workspace";
+import type { AppChatIntake } from "../../lib/appChat";
 import type { PlyworksDesign } from "../../lib/concierge";
 import { useBoardHost } from "../boardHost";
 import { NodeBody } from "../NodeBody";
@@ -25,6 +26,7 @@ export type StudioNodeData = {
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
+  chatIntake?: AppChatIntake;
   locked?: boolean;
   railed?: boolean;
   autoSize?: boolean;
@@ -64,6 +66,7 @@ function toWorkspaceNode(
     routeWhy: data.routeWhy,
     confirmApps: data.confirmApps,
     design: data.design,
+    chatIntake: data.chatIntake,
     x: 0,
     y: 0,
     z: 0,

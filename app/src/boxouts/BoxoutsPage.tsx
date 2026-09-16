@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { ChatPanel } from "./components/ChatPanel";
 import { BoxTable } from "./components/BoxTable";
@@ -24,7 +24,10 @@ import {
   tryParseCleanCsv,
 } from "./lib/csv.js";
 import { createSolveState } from "./lib/solveState.js";
-import { registerAppChat, reportAppChatReply } from "../lib/appChat";
+import {
+  reportAppChatReply,
+} from "../lib/appChat";
+import { useWorkspace } from "../context/workspace";
 import "./boxouts.css";
 import "./boxouts-react.css";
 
@@ -82,6 +85,7 @@ async function imageBody(file: File) {
 }
 
 export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
+  const { registerAppIntake } = useWorkspace();
   const [inputLists, setInputLists] = useState<InputLists | null>(null);
   const [sourceLists, setSourceLists] = useState<InputLists | null>(null);
   const [emptyCellKeys, setEmptyCellKeys] = useState(new Set<string>());
@@ -324,19 +328,26 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   const apiRef = useRef({ processText, processFile });
   apiRef.current = { processText, processFile };
 
-  useEffect(() => {
-    if (!nodeId) return;
-    return registerAppChat(nodeId, {
-      onText: (text) => {
-        console.log(`boxouts text: ${text}`);
-        return apiRef.current.processText(text);
-      },
-      onFile: (file) => {
-        console.log(`boxouts ingest: ${file.name}`);
-        return apiRef.current.processFile(file);
-      },
-    }, { appId: "boxouts" });
-  }, [nodeId]);
+  // WAITING BFF: SuggestedAction accept will own this handoff
+  useLayoutEffect(() => {
+    if (!nodeId) {
+      console.warn("boxouts: mounted without nodeId — Concierge cannot forward");
+      return;
+    }
+    return registerAppIntake("boxouts", nodeId, async (intake, file) => {
+      if (intake.kind === "text") {
+        console.log(`boxouts text: ${intake.text}`);
+        await apiRef.current.processText(intake.text);
+        return;
+      }
+      if (!file) {
+        console.warn(`boxouts: missing file for ${intake.name}`);
+        return;
+      }
+      console.log(`boxouts ingest: ${file.name}`);
+      await apiRef.current.processFile(file);
+    });
+  }, [nodeId, registerAppIntake]);
 
   return (
     <div className="boxouts-app">

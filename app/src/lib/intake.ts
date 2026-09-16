@@ -47,12 +47,12 @@ function appForFormat(format: IntakeFormat): IntakeApp {
 // WAITING MODEL: canned copy stands in for the model's message about the file
 export function openingMessage(app: IntakeApp, fileName: string, format?: IntakeFormat | null) {
   if (app === "boxouts") {
-    return `This looks like a table of box dimensions in ${fileName}. Opening Door Box Out for you.`;
+    return `This looks like a table of box dimensions in ${fileName}.`;
   }
   if (format === "3dm") {
-    return `This looks like a Rhino model (${fileName}). Opening Simple Parts for you.`;
+    return `This looks like a Rhino model (${fileName}).`;
   }
-  return `This looks like a part drawing (${fileName}). Opening Simple Parts for you.`;
+  return `This looks like a part drawing (${fileName}).`;
 }
 
 // WAITING BFF: it should be a reply to an uploaded artifact, not a synchronous local call

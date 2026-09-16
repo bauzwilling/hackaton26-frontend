@@ -1460,6 +1460,27 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   font-weight: 500;
   color: var(--muted);
 }
+.chat-user-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--muted);
+}
+.chat-user-meta time {
+  display: inline;
+  margin-bottom: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+.chat-user-meta-sep {
+  opacity: 0.7;
+}
 .chat-assistant-meta {
   display: flex;
   align-items: center;
