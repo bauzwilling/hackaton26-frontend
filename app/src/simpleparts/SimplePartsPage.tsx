@@ -10,7 +10,7 @@ import "./simpleparts-react.css";
 
 export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
   const { registerAppIntake, registerAppChatActions, relayAppChatReply, focusTargets, openApp, placeOrder } = useWorkspace();
-  const app = useSimplePartsApp();
+  const app = useSimplePartsApp(nodeId);
   const appRef = useRef(app);
   appRef.current = app;
   const preview = app.summonedPreview.value;
