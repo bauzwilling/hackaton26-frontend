@@ -129,8 +129,9 @@ button.sf:disabled:active { transform: none; }
   line-height: 0;
 }
 .chrome-mark {
-  width: 36px;
-  height: 36px;
+  --chrome-mark-size: 36px;
+  width: var(--chrome-mark-size);
+  height: var(--chrome-mark-size);
   flex: none;
   color: var(--ink);
   display: block;
@@ -146,7 +147,6 @@ button.sf:disabled:active { transform: none; }
   line-height: 1;
   text-transform: uppercase;
 }
-.chrome-title-arrow { color: var(--acc); }
 .chrome-network-dot,
 .login-network-dot {
   display: inline-flex;
@@ -1839,7 +1839,18 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   width: min(400px, 100%);
 }
 .login-brand { margin-bottom: 22px; }
-.login-network-dot { cursor: default; }
+.login-brand .chrome-brand {
+  width: 100%;
+  align-items: flex-start;
+  /* Half logo height — matches .chrome-mark size (36px) */
+  padding-right: calc(36px / 2);
+}
+.login-network-dot {
+  cursor: default;
+  margin-left: auto;
+  /* Center on the logo: mark 36px, status dot 12px → (36 − 12) / 2 */
+  margin-top: calc((36px - 12px) / 2);
+}
 .sf.login-card {
   padding: 28px 28px 24px;
   background: color-mix(in oklab, var(--face) 52%, transparent);
