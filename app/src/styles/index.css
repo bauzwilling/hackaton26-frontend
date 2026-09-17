@@ -601,6 +601,10 @@ button.sf:disabled:active { transform: none; }
   opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
 .win-bar:active { cursor: grabbing; }
+.win.is-maximized .win-bar,
+.win.is-maximized .win-bar:active {
+  cursor: default;
+}
 .win-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); flex: none; }
 .win-title {
   flex: 1;
@@ -751,6 +755,12 @@ html[data-bubble="on"] .win {
 html[data-bubble="on"] .win:active { cursor: grabbing; }
 html[data-bubble="on"] .win-bar { cursor: grab; }
 html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
+html[data-bubble="on"] .win.is-maximized,
+html[data-bubble="on"] .win.is-maximized:active,
+html[data-bubble="on"] .win.is-maximized .win-bar,
+html[data-bubble="on"] .win.is-maximized .win-bar:active {
+  cursor: default;
+}
 
 .studio {
   position: relative;
@@ -803,6 +813,10 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
 }
 .studio-flow .react-flow__node-studioWindow.dragging {
   cursor: grabbing;
+}
+/* Maximized: canvas navigation is off, but the focused window must stay clickable. */
+.studio-layer.is-maximized .react-flow__node {
+  pointer-events: auto;
 }
 .studio-window-node {
   position: relative;
@@ -1499,6 +1513,34 @@ html[data-bubble="on"] .win-bar:active { cursor: grabbing; }
   box-shadow: 0 0 0 1px var(--acc);
 }
 .concierge-confirm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.concierge-app-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: stretch;
+}
+.concierge-app-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #d4d4d8);
+  border-radius: 6px;
+  background: var(--panel, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.concierge-app-prompt .chip { align-self: flex-start; }
+.concierge-app-prompt .chip.is-warn {
+  border-color: var(--warn, #c9782c);
+  color: var(--warn, #c9782c);
+}
+.concierge-app-prompt .chip:disabled,
+.concierge-confirm .chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
 .studio-hero { width: 100%; }
 

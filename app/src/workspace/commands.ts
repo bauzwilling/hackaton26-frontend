@@ -75,6 +75,39 @@ export function placeAfterLast(
   return { x: prev.x + prev.w + GAP, y: prev.y };
 }
 
+/** Roots that stack vertically when the peer is already on the board. */
+const PEER_STACK_APPS = new Set<WorkspaceApp>(["plyworks", "simpleparts"]);
+
+/**
+ * Child apps open to the right of their parent; plyworks ↔ simpleparts open below
+ * each other; otherwise fall back to the end of the app row.
+ */
+export function placeAppSlot(
+  nodes: WorkspaceNode[],
+  app: WorkspaceApp,
+  opts: { parentId?: string; origin?: { x: number; y: number } } = {},
+) {
+  const origin = opts.origin ?? { x: 20, y: 20 };
+  if (opts.parentId) {
+    const parent = nodes.find((n) => (
+      n.id === opts.parentId
+      && n.kind === "app"
+      && !n.hidden
+    ));
+    if (parent) {
+      return { x: parent.x + parent.w + GAP, y: parent.y };
+    }
+  }
+  if (PEER_STACK_APPS.has(app)) {
+    const peerId = app === "plyworks" ? "simpleparts" : "plyworks";
+    const peer = nodes.find((n) => n.kind === "app" && n.appId === peerId && !n.hidden);
+    if (peer) {
+      return { x: peer.x, y: peer.y + peer.h + GAP };
+    }
+  }
+  return placeAfterLast(nodes, origin);
+}
+
 /** Hugs the log's measured height; before the first fit, h is still the estimate. */
 export function railY(log: WorkspaceNode) {
   return log.y + log.h + GAP;
@@ -123,8 +156,15 @@ export function openAppNodes(
   const box = opts?.stage ?? { w: APP_W, h: IFRAME_H, x: 20, y: 20 };
   const origin = { x: box.x ?? 20, y: box.y ?? 20 };
   const base = withRail(list);
+  const parentId = opts?.parentId;
   const current = base.find((n) => n.kind === "app" && n.appId === app);
   if (current) {
+    // Keep children parked to the right of their parent when they reopen.
+    const childOfOther = parentId && parentId !== current.id;
+    const without = childOfOther ? base.filter((n) => n.id !== current.id) : base;
+    const slot = childOfOther
+      ? placeAppSlot(without, app, { parentId, origin })
+      : null;
     return {
       id: current.id,
       reused: true,
@@ -135,12 +175,13 @@ export function openAppNodes(
           z,
           hidden: false,
           title: meta.label,
-          parentId: opts?.parentId ?? n.parentId,
-          // Keep the existing query on reuse so NodeBody does not churn on every follow-up.
-          query: n.query ?? opts?.query,
+          parentId: parentId ?? n.parentId,
+          // Prefer a fresh query when supplied (nesting windows need the latest jobId).
+          query: opts?.query !== undefined ? opts.query : n.query,
           design: opts?.design ?? n.design,
           // New handoff always wins so follow-ups reach the open window.
           chatIntake: opts?.chatIntake !== undefined ? opts.chatIntake : n.chatIntake,
+          ...(slot ? { x: slot.x, y: slot.y } : {}),
           w: box.w,
           h: box.h,
           autoSize: false,
@@ -150,7 +191,7 @@ export function openAppNodes(
   }
 
   const id = uid("a");
-  const slot = placeAfterLast(base, origin);
+  const slot = placeAppSlot(base, app, { parentId, origin });
   const node: WorkspaceNode = {
     id,
     kind: "app",
@@ -160,7 +201,7 @@ export function openAppNodes(
     query: opts?.query,
     design: opts?.design,
     chatIntake: opts?.chatIntake,
-    parentId: opts?.parentId,
+    parentId,
     x: slot.x,
     y: slot.y,
     z,

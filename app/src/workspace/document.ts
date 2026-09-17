@@ -1,11 +1,11 @@
 import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
-import type { AppChatIntake } from "../lib/appChat";
+import type { AppChatIntake, AppChatPrompt } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
 
 export type WorkspaceNode = {
   id: string;
@@ -65,6 +65,11 @@ export type RequestEntry = {
   pending?: boolean;
   /** User turn was a file drop — Concierge shows "Attached File" beside the clock. */
   attachment?: boolean;
+  /**
+   * Interactive app questionnaire relayed into Concierge (material/sheet/Nest…).
+   * WAITING BFF: SuggestedAction / streamed tool UI replaces this stamp.
+   */
+  appPrompt?: AppChatPrompt;
 };
 
 export const JOB_APPS: WorkspaceApp[] = ["boxouts", "simpleparts", "plyworks"];
@@ -107,6 +112,7 @@ export function canDuplicateNode(n: Pick<WorkspaceNode, "kind" | "id" | "appId">
 export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId; perm?: string; ready?: boolean }[] = [
   { id: "boxouts", label: "Door Box Out", licensed: "boxouts" },
   { id: "simpleparts", label: "Simple Parts", licensed: "simpleparts" },
+  { id: "simpleparts-nesting", label: "Simple Parts nesting", licensed: "simpleparts" },
   { id: "plyworks", label: "Plyworks", licensed: "plyworks" },
   { id: "plyworks-jw", label: "Plyworks JointWiz", licensed: "plyworks" },
   { id: "plyworks-nesting", label: "Plyworks nesting", licensed: "plyworks" },
@@ -121,6 +127,7 @@ export function isWorkspaceApp(v: string): v is WorkspaceApp {
 
 export function appLabel(app: WorkspaceApp) {
   if (app === "boxouts") return "Door Box Out";
+  if (app === "simpleparts-nesting") return "Simple Parts nesting";
   if (app === "plyworks-jw") return "Plyworks JointWiz";
   if (app === "plyworks-nesting") return "Plyworks nesting";
   if (app === "projects") return "Projects";
@@ -145,7 +152,12 @@ export function openable(session: Session | null, app: WorkspaceApp) {
 }
 
 export function licensedApps(session: Session | null): WorkspaceApp[] {
-  return WORKSPACE_APPS.filter((a) => a.id !== "plyworks-nesting" && a.id !== "plyworks-jw" && openable(session, a.id)).map((a) => a.id);
+  return WORKSPACE_APPS.filter((a) => (
+    a.id !== "plyworks-nesting"
+    && a.id !== "plyworks-jw"
+    && a.id !== "simpleparts-nesting"
+    && openable(session, a.id)
+  )).map((a) => a.id);
 }
 
 export function restrictedApps(session: Session | null): WorkspaceApp[] {

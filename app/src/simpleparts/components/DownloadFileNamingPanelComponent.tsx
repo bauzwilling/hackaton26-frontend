@@ -8,7 +8,7 @@ import {
   hasSheetSizeForDownload,
 } from '../features/shared/downloadFilename.js'
 
-type DownloadKind = 'nesting' | 'unassigned'
+type DownloadKind = 'nesting' | 'unassigned' | 'sheet'
 interface DownloadNamingProps {
   open?: boolean
   downloadKind?: DownloadKind
@@ -88,7 +88,7 @@ export default function DownloadFileNamingPanelComponent({
             {input('owner', 'Owner', true)}{separator}{input('projectId', 'Project Id', true)}{separator}{input('element', 'Element', true)}{separator}{input('material', 'Material', true)}{separator}
             <div className="download-naming__segment"><span className="download-naming__label">Dimensions</span><span className="download-naming__static-value">{dimensions}</span></div>{separator}
             <div className="download-naming__segment"><span className="download-naming__label">Thickness</span><span className="download-naming__static-value">{thickness}</span></div>{separator}
-            {input('comments', 'Comments')}<span className="download-naming__static-suffix" aria-hidden="true">{downloadKind === 'unassigned' ? '-unassigned.dxf' : '-nesting.zip'}</span>
+            {input('comments', 'Comments')}<span className="download-naming__static-suffix" aria-hidden="true">{downloadKind === 'unassigned' ? '-unassigned.dxf' : downloadKind === 'sheet' ? '-sheet.dxf' : '-nesting.zip'}</span>
           </div>
         </div>
         <footer className="download-naming__footer"><button type="button" className="download-naming__btn download-naming__btn--secondary" onClick={onClose}>Cancel</button><button type="submit" className="download-naming__btn download-naming__btn--primary">Download</button></footer>

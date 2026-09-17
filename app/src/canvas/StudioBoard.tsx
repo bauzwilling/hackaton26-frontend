@@ -24,6 +24,8 @@ import {
   canDuplicateNode,
   chatFitPadding,
   CONCIERGE_ID,
+  PAIR_FADE_MS,
+  PAIR_SHAPE_MS,
   useWorkspace,
   type WorkspaceNode,
 } from "../context/workspace";
@@ -251,6 +253,7 @@ function StudioBoardInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const dragging = useRef(new Set<string>());
+  const appliedFitKey = useRef<number | null>(null);
   const panMoved = useRef(false);
   const hadConcierge = useRef<boolean | null>(null);
   const [conciergeEnter, setConciergeEnter] = useState(false);
@@ -261,11 +264,12 @@ function StudioBoardInner() {
 
   const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const docked = interactive || entries.length > 0 || resuming;
+  const canvasLocked = !!maximizedId;
 
   useFineWheelZoom(layer, {
     minZoom: flowInteraction.minZoom,
     maxZoom: flowInteraction.maxZoom,
-    enabled: interactive,
+    enabled: interactive && !canvasLocked,
   });
 
   useEffect(() => {
@@ -295,6 +299,7 @@ function StudioBoardInner() {
           flash: flashIds.includes(n.id),
           flashKey,
           preview: previewId === n.id,
+          maximized: maximizedId === n.id,
         });
         if (old && draggingNow) {
           mapped.position = old.position;
@@ -321,7 +326,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, maximizedId, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -365,20 +370,53 @@ function StudioBoardInner() {
 
   useEffect(() => {
     if (!fitRequest) return;
+    // One-shot: do not re-fit when z/size/selection churns after the request.
+    if (appliedFitKey.current === fitRequest.key) return;
+    if (dragging.current.size > 0) return;
     const ids = fitRequest.ids.filter((id) => nodes.some((n) => n.id === id));
     if (!ids.length) return;
+    // Wait until RF has the workspace size (maximize / fresh open) before filling.
+    const ready = ids.every((id) => {
+      const ws = workspaceNodes.find((n) => n.id === id && !n.hidden);
+      const rf = nodes.find((n) => n.id === id);
+      if (!ws || !rf) return false;
+      if (ws.autoSize === false) {
+        const rfW = rf.width ?? rf.measured?.width ?? 0;
+        const rfH = rf.height ?? rf.measured?.height ?? 0;
+        return Math.abs(rfW - ws.w) < 4 && Math.abs(rfH - ws.h) < 4;
+      }
+      return true;
+    });
+    if (!ready) return;
+
+    const key = fitRequest.key;
     const maxZoom = fitRequest.maxZoom;
     const collapsed = fitRequest.collapsedGutter === true ? true : historyCollapsed;
-    const t = window.requestAnimationFrame(() => {
-      void fitView({
-        nodes: ids.map((id) => ({ id })),
-        maxZoom,
-        padding: chatFitPadding(host.width, docked, collapsed),
-        duration: 220,
+    // Let the history rail collapse before framing so leftover padding matches the screen.
+    const delay = fitRequest.collapsedGutter ? PAIR_FADE_MS + PAIR_SHAPE_MS : 0;
+    let cancelled = false;
+    let frame = 0;
+
+    const timer = window.setTimeout(() => {
+      frame = window.requestAnimationFrame(() => {
+        if (cancelled || appliedFitKey.current === key) return;
+        // Mark applied only when the camera move starts (avoids cancelled-rAF races).
+        appliedFitKey.current = key;
+        void fitView({
+          nodes: ids.map((id) => ({ id })),
+          maxZoom,
+          padding: chatFitPadding(host.width, docked, collapsed),
+          duration: 280,
+        });
       });
-    });
-    return () => window.cancelAnimationFrame(t);
-  }, [fitRequest, fitView, nodes, docked, host.width, historyCollapsed]);
+    }, delay);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [fitRequest, fitView, nodes, workspaceNodes, docked, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;
@@ -432,9 +470,11 @@ function StudioBoardInner() {
 
   const onNodeDragStart: OnNodeDrag<StudioFlowNode> = useCallback((_, node) => {
     dragging.current.add(node.id);
+    // Abandon any pending camera fit so drag and "keep in focus" do not fight.
+    if (fitRequest) appliedFitKey.current = fitRequest.key;
     dismissMaximize(true);
     if (node.id === CONCIERGE_ID) unrail(CONCIERGE_ID);
-  }, [dismissMaximize, unrail]);
+  }, [fitRequest, dismissMaximize, unrail]);
 
   const onNodeDragStop = useCallback(() => {
     dragging.current.clear();
@@ -450,8 +490,10 @@ function StudioBoardInner() {
 
   const onMove = useCallback(() => {
     panMoved.current = true;
+    // While maximized the canvas is locked; fitView must not soft-dismiss.
+    if (maximizedId) return;
     dismissMaximize();
-  }, [dismissMaximize]);
+  }, [dismissMaximize, maximizedId]);
 
   const onMoveEnd = useCallback((_: unknown, next: { x: number; y: number; zoom: number }) => {
     appliedViewport.current = `${next.x},${next.y},${next.zoom}`;
@@ -460,6 +502,7 @@ function StudioBoardInner() {
 
   const onPaneContextMenu = useCallback((e: MouseEvent | ReactMouseEvent) => {
     e.preventDefault();
+    if (canvasLocked) return;
     if (panMoved.current) {
       panMoved.current = false;
       return;
@@ -474,7 +517,7 @@ function StudioBoardInner() {
       y: e.clientY - box.top,
       world: { x: flow.x, y: flow.y },
     });
-  }, [measureHost, screenToFlowPosition]);
+  }, [canvasLocked, measureHost, screenToFlowPosition]);
 
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
     e.preventDefault();
@@ -515,7 +558,7 @@ function StudioBoardInner() {
   return (
     <BoardHostProvider value={host}>
       <div
-        className="studio-layer"
+        className={`studio-layer${canvasLocked ? " is-maximized" : ""}`}
         data-help="studio-canvas"
         ref={layer}
         style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
@@ -545,12 +588,12 @@ function StudioBoardInner() {
           onPaneClick={() => { setAskMenu(null); setSelMenu(null); }}
           minZoom={flowInteraction.minZoom}
           maxZoom={flowInteraction.maxZoom}
-          panOnDrag={interactive ? flowInteraction.panOnDrag : false}
-          panOnScroll={flowInteraction.panOnScroll}
-          zoomOnScroll={flowInteraction.zoomOnScroll}
-          zoomOnPinch={interactive && flowInteraction.zoomOnPinch}
-          zoomOnDoubleClick={flowInteraction.zoomOnDoubleClick}
-          selectionOnDrag={interactive && flowInteraction.selectionOnDrag}
+          panOnDrag={interactive && !canvasLocked ? flowInteraction.panOnDrag : false}
+          panOnScroll={false}
+          zoomOnScroll={false}
+          zoomOnPinch={interactive && !canvasLocked && flowInteraction.zoomOnPinch}
+          zoomOnDoubleClick={false}
+          selectionOnDrag={interactive && !canvasLocked && flowInteraction.selectionOnDrag}
           selectionMode={flowInteraction.selectionMode}
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
@@ -559,7 +602,8 @@ function StudioBoardInner() {
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-          nodesDraggable={interactive}
+          nodesDraggable={interactive && !canvasLocked}
+          nodesConnectable={interactive && !canvasLocked}
           elementsSelectable={interactive}
           selectNodesOnDrag={false}
           connectionRadius={28}

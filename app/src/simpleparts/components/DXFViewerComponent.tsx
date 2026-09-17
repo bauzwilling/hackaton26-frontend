@@ -64,6 +64,7 @@ interface DXFViewerProps {
   showLayerPanel?: boolean
   showEditLayers?: boolean
   exportLayerNames?: Record<string, string> | null
+  clampZoomToFit?: boolean
   modifiedHandles?: string[]
   metadataOverrides?: MetadataOverrides
   selectedHandles?: string[]
@@ -131,6 +132,7 @@ const DXFViewerComponent = forwardRef<DXFViewerHandle, DXFViewerProps>(function 
   showLayerPanel = true,
   showEditLayers = false,
   exportLayerNames = null,
+  clampZoomToFit = false,
   modifiedHandles = [],
   metadataOverrides = {},
   selectedHandles = [],
@@ -472,6 +474,7 @@ const DXFViewerComponent = forwardRef<DXFViewerHandle, DXFViewerProps>(function 
     hiddenLayers,
     showLayerPanel,
     showEditLayers,
+    clampZoomToFit,
     highlightColor: Number.parseInt(readPartColorHex('orange').replace('#', ''), 16),
     selectedHandles,
     onHiddenLayersChange: setHiddenLayers,

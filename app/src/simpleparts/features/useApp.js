@@ -1,6 +1,6 @@
 import { computed, watch } from '../reactivity.js'
 import { createAppState, METADATA_MODIFIED_NEST_PROMPT, normalizeMaterialsCatalog, sheetDefaultsForMaterial, sheetFitsMaterial } from './shared/createAppState.js'
-import { createMessaging, safeFilename } from './shared/curveHelpers.js'
+import { createMessaging, safeFilename, reportNestCta } from './shared/curveHelpers.js'
 import { useChat } from './chat/useChat.js'
 import { useMetadataPanel } from './metadata/useMetadataPanel.js'
 import {
@@ -38,6 +38,7 @@ import { buildPool } from './thinking/thinkingMessages.js'
 import { createThinkingRotator } from './thinking/createThinkingRotator.js'
 import { createThinkingChat } from './thinking/createThinkingChat.js'
 import { partsApi } from '../api.js'
+import { publishSimplePartsNesting } from '../nestingResultStore.js'
 import {
   buildLeftoverNestFingerprint,
   buildNestFingerprint,
@@ -62,17 +63,6 @@ function buildNestingResultMessage(nestedCount, unassignedCount) {
 function buildLeftoverCompleteMessage(nestedCount, previouslyUnassignedCount) {
   const previouslyLabel = previouslyUnassignedCount === 1 ? 'part' : 'parts'
   return `Nesting complete — ${nestedCount} nested + ${previouslyUnassignedCount} previously unassigned ${previouslyLabel} nested`
-}
-
-async function fetchJobDxfText(jobId) {
-  if (!jobId) return ''
-  // WAITING BFF: GET /api/jobs/:id/download/preview — Simple Parts Flask stand-in
-  const res = await fetch(partsApi(`/jobs/${jobId}/download/preview`))
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}))
-    throw new Error(errBody.error || 'Failed to load nesting DXF')
-  }
-  return await res.text()
 }
 
 function resetFileState(state) {
@@ -442,11 +432,14 @@ export function useApp() {
     return partKeysMissingMat().length
   }
 
-  function promptMaterial() {
+  async function promptMaterial() {
     if (hasNestResult(state.summonedPreview.value)) return
     if (state.activeMaterialSelectId.value || hasMaterialPrompt()) return
 
     ensureInitialNestProcessId()
+    if (!state.materials.value.length) {
+      await loadMaterialsCatalog()
+    }
     const missingCount = countMissingMat()
     const content = missingCount > 0
       ? `${missingCount} ${missingCount === 1 ? 'part is' : 'parts are'} missing material. Choose a material for nesting:`
@@ -488,7 +481,7 @@ export function useApp() {
   watch(
     () => state.readyForNesting.value && !state.viewerBusy.value,
     (ready) => {
-      if (ready) promptMaterial()
+      if (ready) void promptMaterial()
     },
   )
 
@@ -599,6 +592,9 @@ export function useApp() {
       if (await applyMeshPreviewResult(data, { generation })) {
         if (!stillCurrent()) return
         pushMessage('assistant', 'text', previewProcessedLabel())
+        // Do not rely on the readyForNesting×viewerBusy watch — it can miss when both
+        // flip in the same turn (short-circuit leaves viewerBusy unsubscribed).
+        void promptMaterial()
       }
       return
     }
@@ -659,10 +655,9 @@ export function useApp() {
 
     const inputTextDxf = normalizeInputText(data.inputText, data.inputTextPt)
 
-    let dxfText = typeof data.dxfText === 'string' ? data.dxfText : ''
-    if (!dxfText && data.jobId) {
-      dxfText = await fetchJobDxfText(data.jobId)
-    }
+    // Do not fetch combined /download/preview — it hangs the nesting window.
+    // Handouts load per-sheet via /download/sheet/:index after the window opens.
+    const dxfText = typeof data.dxfText === 'string' ? data.dxfText : ''
 
     state.meshPreview.value = null
     if (!is2dNest) {
@@ -724,8 +719,60 @@ export function useApp() {
             : {}),
         }),
       )
-      state.showNestingModal.value = true
+      revealNestingResultWindow()
     }
+  }
+
+  function buildNestingSnapshot() {
+    const preview = state.summonedPreview.value
+    const leftover = state.leftoverNestPreview.value
+    const jobId = preview?.jobId
+    if (!jobId) return null
+    return {
+      jobId,
+      partCount: preview?.partCount ?? 0,
+      nestedCount: preview?.nestedCount ?? preview?.partCount ?? 0,
+      unassignedCount: preview?.unassignedCount ?? 0,
+      unassignedIds: preview?.unassignedIds ?? [],
+      unassignedReasons: preview?.unassignedReasons ?? [],
+      hasUnassignedDxf: Boolean(preview?.hasUnassignedDxf),
+      dxfText: preview?.dxfText ?? '',
+      boundaries: preview?.boundaries ?? [],
+      blockInserts: preview?.blockInserts ?? [],
+      sheetCount: preview?.sheetCount ?? 1,
+      sheetX: preview?.sheetX ?? null,
+      sheetY: preview?.sheetY ?? null,
+      sheetThickness: preview?.sheetThickness ?? null,
+      defaultMaterial: state.pendingSheetMaterial.value?.label ?? '',
+      leftoverDefaultMaterial: leftover?.materialLabel ?? state.pendingLeftoverSheetMaterial.value?.label ?? '',
+      leftoverJobId: leftover?.jobId ?? null,
+      leftoverDxfText: leftover?.dxfText ?? '',
+      leftoverBoundaries: leftover?.boundaries ?? [],
+      leftoverBlockInserts: leftover?.blockInserts ?? [],
+      leftoverSheetCount: leftover?.sheetCount ?? 1,
+      leftoverSheetX: leftover?.sheetX ?? null,
+      leftoverSheetY: leftover?.sheetY ?? null,
+      leftoverSheetThickness: leftover?.sheetThickness ?? null,
+      nestingMetrics: preview?.nestingMetrics ?? null,
+      leftoverNestingMetrics: leftover?.nestingMetrics ?? null,
+      onNestUnassigned: () => onNestUnassignedParts(),
+    }
+  }
+
+  function revealNestingResultWindow() {
+    const snapshot = buildNestingSnapshot()
+    if (!snapshot) {
+      state.showNestingModal.value = true
+      return
+    }
+    publishSimplePartsNesting(snapshot)
+    const openWindow = state.openNestingWindow?.value
+    if (typeof openWindow === 'function') {
+      state.showNestingModal.value = false
+      openWindow(snapshot.jobId)
+      return
+    }
+    state.showNestingModal.value = true
   }
 
   function cacheInputPreviewState() {
@@ -1116,9 +1163,7 @@ export function useApp() {
     const sheetY = data.sheetY
     const sheetThickness = data.sheetThickness
     let dxfText = typeof data.dxfText === 'string' ? data.dxfText : ''
-    if (!dxfText && data.jobId) {
-      dxfText = await fetchJobDxfText(data.jobId)
-    }
+    // Do not fetch combined /download/preview — leftover handouts use per-sheet endpoints.
     state.leftoverNestPreview.value = {
       jobId: data.jobId ?? null,
       dxfText,
@@ -1148,7 +1193,7 @@ export function useApp() {
         jobId: data.jobId ?? null,
       }),
     )
-    state.showNestingModal.value = true
+    revealNestingResultWindow()
   }
 
   function currentLeftoverNestFingerprint() {
@@ -1874,6 +1919,7 @@ export function useApp() {
       state.activeSheetSizeSelectId.value = null
       clearNestRevealInterrupted('leftover')
       kickstartLeftoverNest()
+      offerNestCta()
       return
     }
 
@@ -1910,6 +1956,7 @@ export function useApp() {
         clearNestRevealInterrupted('initial')
         kickstartInitialNest()
       }
+      offerNestCta()
       return
     }
 
@@ -1934,6 +1981,7 @@ export function useApp() {
 
     clearNestRevealInterrupted('initial')
     kickstartInitialNest()
+    offerNestCta()
   }
 
   function onMaterialChoice({ id, label, allowedThicknessesMm, allowedSizesMm }) {
@@ -2298,6 +2346,33 @@ export function useApp() {
       state.sheetSizeModifiedSinceNest.value || state.metadataModifiedSinceNest.value,
   )
 
+  // Concierge hosts Nest CTAs that used to be in-app chat buttons only.
+  function offerNestCta() {
+    queueMicrotask(() => {
+      if (showNestingButton.value) {
+        reportNestCta(state, {
+          leftover: false,
+          content: nestingButtonPrompt.value,
+          nestingNeedsRerun: nestingNeedsRerun.value,
+        })
+        return
+      }
+      if (showLeftoverNestingButton.value) {
+        reportNestCta(state, {
+          leftover: true,
+          content: leftoverNestingButtonPrompt.value,
+        })
+      }
+    })
+  }
+
+  watch(showNestingButton, (show) => {
+    if (show) offerNestCta()
+  })
+  watch(showLeftoverNestingButton, (show) => {
+    if (show) offerNestCta()
+  })
+
   function onAttachError(message) {
     pushFileError(message)
   }
@@ -2324,7 +2399,7 @@ export function useApp() {
 
   function openNestingModal() {
     if (!state.summonedPreview.value) return
-    state.showNestingModal.value = true
+    revealNestingResultWindow()
   }
 
   function onNestUnassignedParts() {

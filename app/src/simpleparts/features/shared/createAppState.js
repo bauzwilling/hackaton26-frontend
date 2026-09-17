@@ -96,6 +96,17 @@ export function createAppState() {
   const messages = ref([])
   /** Studio canvas node id — Concierge uses this to echo assistant replies. */
   const studioNodeId = ref(null)
+  /**
+   * Concierge relay wired from SimplePartsPage (React context) so Vite chunk
+   * duplication cannot drop module-level reportAppChatReply sinks.
+   * @type {{ value: null | ((content: string, prompt?: object) => void) }}
+   */
+  const relayToConcierge = { value: null }
+  /**
+   * Open the Studio nesting window (like Plyworks nesting).
+   * @type {{ value: null | ((jobId: string) => void) }}
+   */
+  const openNestingWindow = { value: null }
   const busy = ref(false)
   const busyMessage = ref('')
   const viewerBusy = ref(false)
@@ -238,6 +249,8 @@ export function createAppState() {
     dxfText,
     messages,
     studioNodeId,
+    relayToConcierge,
+    openNestingWindow,
     busy,
     busyMessage,
     viewerBusy,

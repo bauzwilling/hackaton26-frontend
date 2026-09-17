@@ -14,7 +14,10 @@ import {
   makeFileIntake,
   makeTextIntake,
   setAppChatRelaySink,
+  type AppChatAction,
+  type AppChatActionHandler,
   type AppChatIntake,
+  type AppChatPrompt,
   type AppIntakeHandler,
 } from "../lib/appChat";
 import { matchLocalRoute } from "../lib/routing";
@@ -113,7 +116,12 @@ export {
   activityName,
 };
 
-export type FitRequest = { ids: string[]; key: number; maxZoom?: number; collapsedGutter?: boolean };
+export type FitRequest = {
+  ids: string[];
+  key: number;
+  maxZoom?: number;
+  collapsedGutter?: boolean;
+};
 
 type Ctx = {
   nodes: WorkspaceNode[];
@@ -140,6 +148,12 @@ type Ctx = {
   setNodeBody: (id: string, body: string) => void;
   /** Job apps register their chat intake handler while mounted. */
   registerAppIntake: (appId: "boxouts" | "simpleparts", nodeId: string, handler: AppIntakeHandler) => () => void;
+  /** Job apps register questionnaire action handlers (material/sheet/Nest…). */
+  registerAppChatActions: (appId: "boxouts" | "simpleparts", nodeId: string, handler: AppChatActionHandler) => () => void;
+  /** Concierge → app: answer a relayed questionnaire prompt. */
+  dispatchAppChatAction: (appId: WorkspaceApp, action: AppChatAction, entryId?: string) => void;
+  /** App → Concierge: echo an assistant prompt into the Studio thread. */
+  relayAppChatReply: (nodeId: string, content: string, prompt?: AppChatPrompt) => void;
   ask: (query: string) => void;
   ingestFiles: (files: File[]) => void;
   confirmIntake: (entryId: string, app: WorkspaceApp) => void;
@@ -262,9 +276,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   /** Same React tree as Concierge — handlers cannot get lost across Vite chunks. */
   const appChatRef = useRef<{
     handlers: Map<string, { nodeId: string; handler: AppIntakeHandler }>;
+    actions: Map<string, { nodeId: string; handler: AppChatActionHandler }>;
     pending: Array<{ appId: string; intake: AppChatIntake; file: File | null }>;
     done: Set<string>;
-  }>({ handlers: new Map(), pending: [], done: new Set() });
+  }>({ handlers: new Map(), actions: new Map(), pending: [], done: new Set() });
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { entriesRef.current = entries; }, [entries]);
   useEffect(() => { userEdgesRef.current = userEdges; }, [userEdges]);
@@ -439,14 +454,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       historyCollapsed: true,
     });
     setMaximizedId(id);
-    const box = leftoverCanvas(stageSizeRef.current);
     zTop.current += 1;
     setNodes((list) => list.map((n) => (
       n.id === id
-        ? { ...n, z: zTop.current, hidden: false, w: box.w, h: box.h, autoSize: false }
+        ? { ...n, z: zTop.current, hidden: false }
         : n
     )));
-    setFitRequest({ ids: [id], key: Date.now(), maxZoom: ZOOM_MAX, collapsedGutter: true });
+    // Pan/zoom to fill leftover beside chat (canvas lock does not block fitView).
+    setFitRequest({
+      ids: [id],
+      key: Date.now(),
+      maxZoom: ZOOM_MAX,
+      collapsedGutter: true,
+    });
   }, [flushList, persistStore]);
 
   const bumpZ = useCallback((id: string) => {
@@ -579,6 +599,41 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
   }, [flushAppIntake]);
 
+  const registerAppChatActions = useCallback((
+    appId: "boxouts" | "simpleparts",
+    nodeId: string,
+    handler: AppChatActionHandler,
+  ) => {
+    const box = appChatRef.current;
+    box.actions.set(appId, { nodeId, handler });
+    console.log(`appChat actions ${appId} @ ${nodeId}`);
+    return () => {
+      const cur = box.actions.get(appId);
+      if (cur?.handler === handler) box.actions.delete(appId);
+    };
+  }, []);
+
+  const dispatchAppChatAction = useCallback((
+    appId: WorkspaceApp,
+    action: AppChatAction,
+    entryId?: string,
+  ) => {
+    if (entryId) {
+      setEntries((list) => list.map((e) => {
+        if (e.id !== entryId || !e.appPrompt || e.appPrompt.resolved) return e;
+        return { ...e, appPrompt: { ...e.appPrompt, resolved: true } };
+      }));
+    }
+    const live = appChatRef.current.actions.get(appId);
+    if (!live) {
+      console.warn(`appChat: no action handler for ${appId}`, action.type);
+      return;
+    }
+    void Promise.resolve(live.handler(action)).catch((err) => {
+      console.error(`appChat action ${appId}/${action.type} failed`, err);
+    });
+  }, []);
+
   const deliverAppIntake = useCallback(async (
     appId: "boxouts" | "simpleparts",
     intake: AppChatIntake,
@@ -637,28 +692,41 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return opened;
   }, [openApp, focusTargets, deliverAppIntake]);
 
+  const relayAppChatReply = useCallback((
+    nodeId: string,
+    content: string,
+    prompt?: AppChatPrompt,
+  ) => {
+    const text = (content || prompt?.content || "").trim();
+    if (!text && !prompt) return;
+    const node = nodesRef.current.find((n) => n.id === nodeId);
+    const appId = node?.appId;
+    const conciergeId = CONCIERGE_ID;
+    const entry: RequestEntry = {
+      id: uid("e"),
+      at: Date.now(),
+      query: "",
+      routeLabel: appId ? appLabel(appId) : "App",
+      routeWhy: text || "(app)",
+      targetIds: appId ? [conciergeId, nodeId] : [conciergeId],
+      appId,
+      result: "relay",
+      reply: text || "(app)",
+      badgeApp: appId,
+      appPrompt: prompt,
+    };
+    console.log(`appChat relay ← ${appId ?? "app"}`, prompt?.kind ?? "text", text.slice(0, 80));
+    setEntries((list) => [...list, entry]);
+    setSelectedEntryId(entry.id);
+  }, []);
+
   useEffect(() => {
-    setAppChatRelaySink((nodeId, content, _echoTo) => {
-      const node = nodesRef.current.find((n) => n.id === nodeId);
-      const appId = node?.appId;
-      const conciergeId = CONCIERGE_ID;
-      const entry: RequestEntry = {
-        id: uid("e"),
-        at: Date.now(),
-        query: "",
-        routeLabel: appId ? appLabel(appId) : "App",
-        routeWhy: content,
-        targetIds: appId ? [conciergeId, nodeId] : [conciergeId],
-        appId,
-        result: "relay",
-        reply: content,
-        badgeApp: appId,
-      };
-      setEntries((list) => [...list, entry]);
-      setSelectedEntryId(entry.id);
+    // Keep module sink as a fallback for apps that do not wire React relay yet (boxouts).
+    setAppChatRelaySink((nodeId, content, _echoTo, prompt?: AppChatPrompt) => {
+      relayAppChatReply(nodeId, content, prompt);
     });
     return () => setAppChatRelaySink(null);
-  }, []);
+  }, [relayAppChatReply]);
 
   const askNow = useCallback((q: string) => {
     const conciergeId = ensureConcierge();
@@ -1421,6 +1489,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     addNote,
     setNodeBody,
     registerAppIntake,
+    registerAppChatActions,
+    dispatchAppChatAction,
+    relayAppChatReply,
     ask,
     ingestFiles,
     confirmIntake,
@@ -1464,7 +1535,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

@@ -1,46 +1,102 @@
-import NestingCurvePreview from "../nesting-preview/NestingCurvePreviewComponent";
-import { nestingZipUrl } from "../lib/produceApi";
+import { useEffect, useMemo, useState } from "react";
+import NestingResultModalComponent from "../../simpleparts/components/NestingResultModalComponent";
+import type { NestingSheetPayload } from "../../simpleparts/components/NestingSheetsViewer";
+import { getProduce, nestingZipUrl, type ProduceJob } from "../lib/produceApi";
+import { loadPlyworksNestingSheets } from "../lib/loadNestingSheets";
+import "../../simpleparts/simpleparts.css";
+import "../../simpleparts/simpleparts-react.css";
 
-const PREVIEW_TOKENS: React.CSSProperties = {
-  ["--color-neutral-bg" as string]: "#fafaf9",
-  ["--color-neutral-bg-hover" as string]: "#f5f5f4",
-  ["--color-neutral-selected" as string]: "#e7e5e4",
-  ["--color-neutral-edited-accent" as string]: "#a8a29e",
-  ["--color-result-text" as string]: "#78716c",
-};
+const NA = "n/a";
 
-function previewZipUrl(jobId: string): string {
-  return nestingZipUrl(jobId, true);
-}
-
+/**
+ * Plyworks nesting Studio window — same chrome/logic as Simple Parts nesting.
+ * Sheet DXFs come from the produce ZIP; missing nest metadata shows as n/a.
+ */
 export function NestingPage({ jobId = "" }: { jobId?: string }) {
+  const [sheets, setSheets] = useState<NestingSheetPayload[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [job, setJob] = useState<ProduceJob | null>(null);
+
+  useEffect(() => {
+    if (!jobId) {
+      setSheets([]);
+      setError("");
+      setJob(null);
+      return;
+    }
+    const controller = new AbortController();
+    setLoading(true);
+    setError("");
+    setSheets([]);
+
+    void (async () => {
+      try {
+        // WAITING BFF: produce job + ZIP become run/artifact downloads via Platform BFF.
+        const [produce, loaded] = await Promise.all([
+          getProduce(jobId).catch(() => null),
+          loadPlyworksNestingSheets(nestingZipUrl(jobId, true), controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setJob(produce);
+        setSheets(loaded);
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setError(caught instanceof Error ? caught.message : "Failed to load nesting sheets");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [jobId]);
+
+  const sheetCount = sheets.length || job?.sheetCount || 0;
+  const nestingMetrics = useMemo(() => ({
+    sheetAmount: sheetCount > 0 ? sheetCount : null,
+    cutLength: null,
+    boreCount: null,
+    grossArea: null,
+    netArea: null,
+  } as Record<string, number | null>), [sheetCount]);
+
+  const activeMaterial = useMemo(() => {
+    const first = sheets[0]?.label ?? "";
+    if (/^kiefer/i.test(first)) return "Kiefer";
+    if (/^film/i.test(first)) return "Film";
+    return NA;
+  }, [sheets]);
+
+  if (!jobId) {
+    return <div className="simpleparts-preview-notice">No nesting result selected.</div>;
+  }
+
   return (
-    <div style={{ ...styles.root, ...PREVIEW_TOKENS }}>
-      <div style={styles.canvas}>
-        <NestingCurvePreview
-          jobId={jobId}
-          open
-          solving={false}
-          layout="fill"
-          zipUrl={previewZipUrl}
-        />
-      </div>
-    </div>
+    <NestingResultModalComponent
+      open
+      variant="page"
+      jobId={jobId}
+      partCount={0}
+      nestedCount={0}
+      unassignedCount={0}
+      unassignedIds={[]}
+      unassignedReasons={[]}
+      hasUnassignedDxf={false}
+      sheetCount={Math.max(1, sheetCount)}
+      sheetX={null}
+      sheetY={null}
+      sheetThickness={null}
+      defaultMaterial={activeMaterial}
+      nestingMetrics={nestingMetrics}
+      preloadedSheets={sheets}
+      sheetsLoading={loading}
+      sheetsError={error}
+      emptyValue={NA}
+      nestZipHref={(filename) => {
+        const url = nestingZipUrl(jobId, false);
+        const sep = url.includes("?") ? "&" : "?";
+        return `${url}${sep}filename=${encodeURIComponent(filename)}`;
+      }}
+    />
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  root: {
-    position: "relative",
-    width: "100%",
-    height: "100vh",
-    overflow: "hidden",
-    background: "var(--bg, #f5ead8)",
-    fontFamily: "Figtree, system-ui, sans-serif",
-    color: "var(--ink, #201e1d)",
-  },
-  canvas: {
-    position: "absolute",
-    inset: 0,
-  },
-};

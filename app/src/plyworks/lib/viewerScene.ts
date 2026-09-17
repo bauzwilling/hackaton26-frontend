@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadRhino } from "./loadRhino";
+import { resolveBg } from "./look";
 
 const VIEW_SIZE = 2000;
 const FIT_PADDING = 1.2;
@@ -15,13 +16,6 @@ const MATERIAL_COLORS = {
   film: 0x332b0f,
   kiefer: 0xf6f3d7,
 };
-
-function viewerBackgroundFromEl(el: HTMLElement): string {
-  return (
-    getComputedStyle(el).getPropertyValue("--color-viewer-background").trim() ||
-    "#333333"
-  );
-}
 
 function userString(rhinoObject: { attributes?: () => { getUserString?: (key: string) => string }; geometry?: () => { getUserString?: (key: string) => string } }, key: string): string {
   const fromAttrs = rhinoObject.attributes?.()?.getUserString?.(key);
@@ -167,7 +161,10 @@ export function createViewerScene(containerEl: HTMLElement) {
       applyFallbackFrustum(w / h);
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Keep CSS at 100% so the canvas always fills the host; only the buffer tracks pixels.
     renderer.setSize(w, h, false);
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
   }
 
   async function showDoc(doc: { objects: () => { count: number; get: (i: number) => any } }) {
@@ -226,7 +223,7 @@ export function createViewerScene(containerEl: HTMLElement) {
 
   function init() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(viewerBackgroundFromEl(containerEl));
+    scene.background = new THREE.Color(resolveBg(containerEl));
 
     const w = containerEl.clientWidth || 400;
     const h = containerEl.clientHeight || 300;
@@ -244,6 +241,7 @@ export function createViewerScene(containerEl: HTMLElement) {
     camera.updateProjectionMatrix();
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.domElement.style.display = "block";
     containerEl.appendChild(renderer.domElement);
     resize();
 

@@ -36,8 +36,8 @@ export function buildDownloadFilename(
     .filter(Boolean)
   const commentsPart = sanitizeFilenameSegment(comments)
   if (commentsPart) parts.push(commentsPart)
-  const kindSuffix = kind === 'unassigned' ? 'unassigned' : 'nesting'
-  const extension = kind === 'unassigned' ? 'dxf' : 'zip'
+  const kindSuffix = kind === 'unassigned' ? 'unassigned' : kind === 'sheet' ? 'sheet' : 'nesting'
+  const extension = kind === 'unassigned' || kind === 'sheet' ? 'dxf' : 'zip'
   return `${parts.join('-')}-${kindSuffix}.${extension}`
 }
 

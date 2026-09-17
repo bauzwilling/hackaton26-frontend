@@ -16,6 +16,8 @@ interface Dxf2DViewerProps {
   highlightSafeHandles: (handles: string[]) => string[]
   pickingEnabled?: boolean
   rectangleCrossingMode?: 'intersect' | 'center'
+  /** After fit-to-view, clamp OrbitControls so the user can only zoom in. */
+  clampZoomToFit?: boolean
   onHiddenLayersChange?: (layers: string[]) => void
   onReady?: () => void
   onEntityClick?: (event: UnknownRecord) => void
@@ -33,6 +35,7 @@ const Dxf2DViewer = forwardRef<ViewerHandle, Dxf2DViewerProps>(function Dxf2DVie
   highlightSafeHandles,
   pickingEnabled = true,
   rectangleCrossingMode = 'intersect',
+  clampZoomToFit = false,
   onHiddenLayersChange,
   onReady,
   onEntityClick,
@@ -213,12 +216,20 @@ const Dxf2DViewer = forwardRef<ViewerHandle, Dxf2DViewerProps>(function Dxf2DVie
       state.scene.add(group)
       if (cameraStateToRestore) restoreCameraState(cameraStateToRestore)
       else fitGroup(state, group)
+      if (clampZoomToFit && !cameraStateToRestore) {
+        // Orthographic OrbitControls: higher zoom = closer. Lock floor to fit.
+        state.controls.minZoom = state.camera.zoom
+        state.controls.maxZoom = Math.max(state.camera.zoom * 40, 40)
+      } else {
+        state.controls.minZoom = 0
+        state.controls.maxZoom = Infinity
+      }
       applyVisibility()
       applyHighlight(selectedHandles)
       onReady?.()
     })
     return () => { cancelled = true }
-  }, [dxf])
+  }, [clampZoomToFit, dxf])
 
   useEffect(applyVisibility, [hiddenLayers])
   useEffect(() => applyHighlight(selectedHandles), [selectedHandles])
