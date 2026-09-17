@@ -26,6 +26,17 @@ export const DOMAINS: Record<string, CompanyId> = {
   "peri.example": "C",
 };
 
+/**
+ * WAITING DATABASE: company onboarding decides who is live.
+ * Only DataB is enabled for now; the other fixtures stay below and are
+ * switched back on by adding their id here.
+ */
+export const ACTIVE_COMPANY_IDS: CompanyId[] = ["D"];
+
+export function companyIsActive(id: CompanyId | null | undefined): id is CompanyId {
+  return !!id && ACTIVE_COMPANY_IDS.includes(id);
+}
+
 export const DIRECTORY = [
   { email: "admin@dashboard.example", name: "Alex Morgan", role: "admin" as const, by: "DataB" },
   { email: "manager@dashboard.example", name: "Morgan Lee", role: "manager" as const, by: "DataB" },
@@ -85,7 +96,8 @@ export const APP_LABELS: Record<AppId, string> = {
 
 export function companyOf(email: string) {
   const domain = String(email || "").trim().toLowerCase().split("@")[1];
-  return domain ? DOMAINS[domain] ?? null : null;
+  const id = domain ? DOMAINS[domain] ?? null : null;
+  return companyIsActive(id) ? id : null;
 }
 
 export function findUser(email: string) {
