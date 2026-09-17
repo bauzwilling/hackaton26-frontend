@@ -287,9 +287,10 @@ export function Window({
       }}
       onPointerDown={(e) => {
         if (!flow) e.stopPropagation();
-        if (e.button === 0) onFocus(e);
-        if (flow || e.button !== 0 || locked) return;
         const t = e.target as HTMLElement;
+        // Studio selection / raise only from the title bar — body clicks stay inside the app.
+        if (e.button === 0 && (!flow || t.closest(".win-bar"))) onFocus(e);
+        if (flow || e.button !== 0 || locked) return;
         if (t.closest("button, input, textarea, a, select, .composer")) return;
         if (onGrab) onGrab(e);
         else if (t.closest(".win-bar")) onDrag?.(e);
@@ -310,7 +311,13 @@ export function Window({
           <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
         )}
       </div>
-      <div className={`win-body${flow ? " nowheel nodrag nopan" : ""}`}>{children}</div>
+      <div
+        className={`win-body${flow ? " nowheel nodrag nopan" : ""}`}
+        onPointerDown={flow ? (e) => e.stopPropagation() : undefined}
+        onClick={flow ? (e) => e.stopPropagation() : undefined}
+      >
+        {children}
+      </div>
       <div className="win-far-label" aria-hidden>
         <span className="win-far-title">{title}</span>
         {query ? <span className="win-far-query">{query}</span> : null}
