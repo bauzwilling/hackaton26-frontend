@@ -853,6 +853,26 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   margin: 2px 0 0;
   font-size: 26px;
 }
+.operator-machine-picker {
+  display: grid;
+  gap: 5px;
+  min-width: 220px;
+}
+.operator-machine-picker span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.operator-machine-picker select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--face);
+  color: var(--text);
+}
 .jobs-kicker {
   margin: 0;
   color: var(--muted);
@@ -906,7 +926,9 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .job-actions { justify-content: flex-end; }
 .job-assign select,
 .job-assign button,
-.job-actions button {
+.job-actions button,
+.job-feedback-button,
+.job-feedback-form button {
   min-height: 30px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -914,6 +936,47 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   background: var(--face);
   color: var(--text);
 }
+.job-machine,
+.job-feedback-summary {
+  display: grid;
+  gap: 3px;
+}
+.job-machine small,
+.job-feedback-summary small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.job-feedback-summary {
+  min-width: 180px;
+  max-width: 280px;
+}
+.job-feedback-summary span {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.job-feedback-empty { color: var(--muted); }
+.job-feedback-form {
+  display: grid;
+  min-width: 220px;
+  gap: 6px;
+}
+.job-feedback-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 8px;
+  background: var(--face);
+  color: var(--text);
+  font: inherit;
+}
+.job-feedback-form > div {
+  display: flex;
+  gap: 6px;
+}
+.job-feedback-button { white-space: nowrap; }
 .jobs-empty {
   display: grid;
   min-height: 240px;
