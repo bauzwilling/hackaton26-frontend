@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { COMPANIES, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, THEME_DISSOLVE_MS, useSession, type AccentId } from "../context/session";
 import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace";
+import { BrandMark } from "./BrandMark";
 
 export const LAYOUT_MARK = "f2f-mark";
 export const LAYOUT_WORD = "f2f-wordmark";
@@ -66,17 +67,6 @@ export function Surface<T extends ElementType = "div">({
   const Tag = (as ?? "div") as ElementType;
   const cls = ["sf", `sf-${relief}`, active ? "is-on" : "", className ?? ""].filter(Boolean).join(" ");
   return createElement(Tag, { className: cls, ...rest });
-}
-
-function BrandMark() {
-  return (
-    <svg className="chrome-mark" viewBox="0 0 36 36" aria-hidden>
-      <path
-        fill="currentColor"
-        d="M18 17.2C12.4 8.2 5.6 5.4 3.2 8.6 1 11.4 3.8 17 10 22.2 13.4 25 16.4 26.6 18 26.6c1.6 0 4.6-1.6 8-4.4C32.2 17 35 11.4 32.8 8.6 30.4 5.4 23.6 8.2 18 17.2z"
-      />
-    </svg>
-  );
 }
 
 export function Brand({
