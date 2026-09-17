@@ -5,7 +5,7 @@
 export const SESSION_KEY = "f2f.session"; // WAITING DATABASE: signed-in session cookie/token
 export const OVERRIDE_KEY = "f2f.roleOverrides"; // WAITING DATABASE: role grants — unused in the app until admin console writes them
 
-export type RoleId = "user" | "operator";
+export type RoleId = "user" | "operator" | "manager" | "admin";
 export type CompanyId = "A" | "B" | "C" | "D";
 export type AppId = "boxouts" | "simpleparts" | "plyworks" | "nesting";
 
@@ -20,21 +20,26 @@ export type Session = {
 
 export const DOMAINS: Record<string, CompanyId> = {
   "datab.example": "D",
+  "dashboard.example": "D",
   "frischeis.example": "A",
   "strabag.example": "B",
   "peri.example": "C",
 };
 
 export const DIRECTORY = [
-  { email: "maria@datab.example", name: "Maria Sanchez", role: "operator" as const, by: "DataB" },
-  { email: "lena@frischeis.example", name: "Lena Frischeis", role: "operator" as const, by: "DataB" },
+  { email: "admin@dashboard.example", name: "Alex Morgan", role: "admin" as const, by: "DataB" },
+  { email: "manager@dashboard.example", name: "Morgan Lee", role: "manager" as const, by: "DataB" },
+  { email: "operator@dashboard.example", name: "Taylor Kim", role: "operator" as const, by: "manager@dashboard.example" },
+  { email: "user@dashboard.example", name: "Jordan Patel", role: "user" as const, by: "manager@dashboard.example" },
+  { email: "maria@datab.example", name: "Maria Sanchez", role: "admin" as const, by: "DataB" },
+  { email: "lena@frischeis.example", name: "Lena Frischeis", role: "manager" as const, by: "DataB" },
   { email: "tobias@frischeis.example", name: "Tobias Reiter", role: "operator" as const, by: "lena@frischeis.example" },
   { email: "marie@frischeis.example", name: "Marie Gruber", role: "operator" as const, by: "lena@frischeis.example" },
   { email: "jonas@frischeis.example", name: "Jonas Weber", role: "user" as const, by: "lena@frischeis.example" },
-  { email: "klaus@strabag.example", name: "Klaus Berger", role: "operator" as const, by: "DataB" },
+  { email: "klaus@strabag.example", name: "Klaus Berger", role: "manager" as const, by: "DataB" },
   { email: "sandra@strabag.example", name: "Sandra Hofer", role: "operator" as const, by: "klaus@strabag.example" },
   { email: "peter@strabag.example", name: "Peter Mayr", role: "user" as const, by: "klaus@strabag.example" },
-  { email: "iris@peri.example", name: "Iris de Vries", role: "operator" as const, by: "DataB" },
+  { email: "iris@peri.example", name: "Iris de Vries", role: "manager" as const, by: "DataB" },
   { email: "ruben@peri.example", name: "Ruben Bakker", role: "user" as const, by: "iris@peri.example" },
 ];
 
@@ -46,8 +51,18 @@ export const ROLES: Record<RoleId, { label: string; blurb: string; grants: strin
   },
   operator: {
     label: "Operator",
-    blurb: "Runs the floor and the company: machines, users, apps and billing.",
-    grants: ["overview", "worklists.read", "worklists.write", "orders.create", "validation", "machines.read", "machines.control", "orbit", "users", "apps.manage", "billing"],
+    blurb: "Runs assigned production jobs.",
+    grants: ["overview", "jobs.read", "jobs.update", "worklists.read", "worklists.write", "validation", "machines.read", "machines.control", "orbit"],
+  },
+  manager: {
+    label: "Manager",
+    blurb: "Assigns work and manages fulfillment.",
+    grants: ["overview", "jobs.read", "jobs.assign", "jobs.fulfill", "worklists.read", "machines.read", "orbit"],
+  },
+  admin: {
+    label: "Admin",
+    blurb: "Administration access.",
+    grants: ["overview", "users", "apps.manage", "billing"],
   },
 };
 

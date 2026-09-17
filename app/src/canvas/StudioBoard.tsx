@@ -245,10 +245,12 @@ function StudioBoardInner() {
     maximizedId,
     commitStageSize,
     dismissMaximize,
+    inspectionJob,
+    exitInspection,
   } = useWorkspace();
-  const { showWires, showGrid, accent, theme } = useSession();
+  const { session, showWires, showGrid, accent, theme } = useSession();
   const previewFill = lookTokens(theme, accent).acc;
-  const { fitView, screenToFlowPosition, getNodes, setViewport } = useReactFlow();
+  const { fitView, screenToFlowPosition, getNodes, getViewport, setViewport } = useReactFlow();
   const { zoom } = useViewport();
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -260,17 +262,23 @@ function StudioBoardInner() {
   const [askMenu, setAskMenu] = useState<{ x: number; y: number; world: { x: number; y: number } } | null>(null);
   const [selMenu, setSelMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null);
   const [host, setHost] = useState({ width: 1200, height: 700 });
+  const [inspectionMinZoom, setInspectionMinZoom] = useState(flowInteraction.minZoom);
   const layer = useRef<HTMLDivElement>(null);
 
   const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const docked = interactive || entries.length > 0 || resuming;
   const canvasLocked = !!maximizedId;
+  const inspecting = !!inspectionJob;
 
   useFineWheelZoom(layer, {
-    minZoom: flowInteraction.minZoom,
+    minZoom: inspecting ? inspectionMinZoom : flowInteraction.minZoom,
     maxZoom: flowInteraction.maxZoom,
     enabled: interactive && !canvasLocked,
   });
+
+  useEffect(() => {
+    if (!inspecting) setInspectionMinZoom(flowInteraction.minZoom);
+  }, [inspecting]);
 
   useEffect(() => {
     const has = workspaceNodes.some((n) => n.id === CONCIERGE_ID);
@@ -407,6 +415,8 @@ function StudioBoardInner() {
           maxZoom,
           padding: chatFitPadding(host.width, docked, collapsed),
           duration: 280,
+        }).then(() => {
+          if (inspectionJob) setInspectionMinZoom(getViewport().zoom);
         });
       });
     }, delay);
@@ -416,7 +426,7 @@ function StudioBoardInner() {
       window.clearTimeout(timer);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [fitRequest, fitView, nodes, workspaceNodes, docked, host.width, historyCollapsed]);
+  }, [fitRequest, fitView, getViewport, inspectionJob, nodes, workspaceNodes, docked, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;
@@ -502,7 +512,7 @@ function StudioBoardInner() {
 
   const onPaneContextMenu = useCallback((e: MouseEvent | ReactMouseEvent) => {
     e.preventDefault();
-    if (canvasLocked) return;
+    if (canvasLocked || inspecting || session?.role === "admin") return;
     if (panMoved.current) {
       panMoved.current = false;
       return;
@@ -517,11 +527,12 @@ function StudioBoardInner() {
       y: e.clientY - box.top,
       world: { x: flow.x, y: flow.y },
     });
-  }, [canvasLocked, measureHost, screenToFlowPosition]);
+  }, [canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
 
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
     e.preventDefault();
     e.stopPropagation();
+    if (inspecting) return;
     setAskMenu(null);
     const ids = node.selected
       ? nodes.filter((n) => n.selected).map((n) => n.id)
@@ -533,7 +544,7 @@ function StudioBoardInner() {
     const box = layer.current?.getBoundingClientRect();
     if (!box) return;
     setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top, ids });
-  }, [measureHost, nodes, setNodes]);
+  }, [inspecting, measureHost, nodes, setNodes]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -558,7 +569,7 @@ function StudioBoardInner() {
   return (
     <BoardHostProvider value={host}>
       <div
-        className={`studio-layer${canvasLocked ? " is-maximized" : ""}`}
+        className={`studio-layer${canvasLocked ? " is-maximized" : ""}${inspecting ? " is-inspecting" : ""}`}
         data-help="studio-canvas"
         ref={layer}
         style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
@@ -586,14 +597,14 @@ function StudioBoardInner() {
           onPaneContextMenu={onPaneContextMenu}
           onNodeContextMenu={onNodeContextMenu}
           onPaneClick={() => { setAskMenu(null); setSelMenu(null); }}
-          minZoom={flowInteraction.minZoom}
+          minZoom={inspecting ? inspectionMinZoom : flowInteraction.minZoom}
           maxZoom={flowInteraction.maxZoom}
-          panOnDrag={interactive && !canvasLocked ? flowInteraction.panOnDrag : false}
+          panOnDrag={interactive && !canvasLocked && !inspecting ? flowInteraction.panOnDrag : false}
           panOnScroll={false}
           zoomOnScroll={false}
           zoomOnPinch={interactive && !canvasLocked && flowInteraction.zoomOnPinch}
           zoomOnDoubleClick={false}
-          selectionOnDrag={interactive && !canvasLocked && flowInteraction.selectionOnDrag}
+          selectionOnDrag={interactive && !canvasLocked && !inspecting && flowInteraction.selectionOnDrag}
           selectionMode={flowInteraction.selectionMode}
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
@@ -602,9 +613,9 @@ function StudioBoardInner() {
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-          nodesDraggable={interactive && !canvasLocked}
-          nodesConnectable={interactive && !canvasLocked}
-          elementsSelectable={interactive}
+          nodesDraggable={interactive && !canvasLocked && !inspecting}
+          nodesConnectable={interactive && !canvasLocked && !inspecting}
+          elementsSelectable={interactive && !inspecting}
           selectNodesOnDrag={false}
           connectionRadius={28}
           fitView={false}
@@ -618,8 +629,13 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MinimapDock interactive={interactive} previewFill={previewFill} faded={!!maximizedId} />
+          <MinimapDock interactive={interactive && !inspecting} previewFill={previewFill} faded={!!maximizedId || inspecting} />
         </ReactFlow>
+        {inspectionJob && (
+          <button type="button" className="inspection-exit" onClick={exitInspection}>
+            Exit inspection
+          </button>
+        )}
         {askMenu && (
           <AskMenu
             at={askMenu}

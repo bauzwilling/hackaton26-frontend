@@ -55,7 +55,7 @@ export function StudioPage() {
   const { session } = useSession();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
-  const { nodes, entries, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding } = useWorkspace();
+  const { nodes, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding, maximize, activeSessionId } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
   const [historyPeek, setHistoryPeek] = useState(false);
@@ -63,6 +63,7 @@ export function StudioPage() {
   const onRailWidth = useCallback((w: number) => setRailW(w), []);
   const root = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
+  const staffBoot = useRef("");
   const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
 
   useEffect(() => {
@@ -91,7 +92,8 @@ export function StudioPage() {
   }, []);
 
   const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
-  const [chrome, setChrome] = useState<"hero" | "dock">("hero");
+  const isStaff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
+  const [chrome, setChrome] = useState<"hero" | "dock">(isStaff ? "dock" : "hero");
   const [heroLeaving, setHeroLeaving] = useState(false);
   const [pair, setPair] = useState<RailPair>(null);
   const [heroGen, setHeroGen] = useState(0);
@@ -112,6 +114,16 @@ export function StudioPage() {
     : pair
       ? { type: "tween" as const, duration: PAIR_SHAPE_MS / 1000, ease: CHAT_MOVE.ease }
       : CHAT_MOVE;
+
+  useEffect(() => {
+    if (!session || !activeSessionId || !isStaff || staffBoot.current === session.email) return;
+    staffBoot.current = session.email;
+    setChrome("dock");
+    if (session.role === "manager" || session.role === "operator") {
+      const opened = openApp("jobs", { skipActivity: true });
+      if (opened) window.setTimeout(() => maximize(opened.id), 0);
+    }
+  }, [activeSessionId, isStaff, maximize, openApp, session]);
 
   useEffect(() => {
     if (atLanding && !wasLanding.current) setHeroGen((n) => n + 1);
@@ -347,7 +359,7 @@ export function StudioPage() {
         onRailWidth={onRailWidth}
       />
       <PanHint interactive={hasWindows} />
-      <HelpFab />
+      {session?.role !== "admin" && <HelpFab />}
     </motion.div>
   );
 }

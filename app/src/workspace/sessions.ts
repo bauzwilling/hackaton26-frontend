@@ -44,6 +44,9 @@ export type ChatSession = {
   board: WorkspacePersist;
   /** Apps this session opened — cheap resume hint for a later thread API. */
   openedAppIds: WorkspaceApp[];
+  /** An order freezes this thread; further work starts in a new chat. */
+  orderedJobId?: string;
+  orderedAt?: number;
 };
 
 export type SessionStore = {
@@ -77,10 +80,10 @@ export function chatFitPadding(
     ? Math.min(chatW, Math.max(0, hostWidth - 32)) + 32
     : 16;
   return {
-    top: `${STAGE_FIT_PAD.top}px`,
-    right: `${STAGE_FIT_PAD.right}px`,
-    bottom: `${STAGE_FIT_PAD.bottom}px`,
-    left: `${left}px`,
+    top: `${STAGE_FIT_PAD.top}px` as `${number}px`,
+    right: `${STAGE_FIT_PAD.right}px` as `${number}px`,
+    bottom: `${STAGE_FIT_PAD.bottom}px` as `${number}px`,
+    left: `${left}px` as `${number}px`,
   };
 }
 
@@ -155,8 +158,14 @@ export function suggestTitle(entries: RequestEntry[]): string | null {
 }
 
 export function sessionIsEmpty(session: ChatSession) {
-  const windows = session.board.nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
+  const windows = session.board.nodes.some((n) => (
+    n.id !== CONCIERGE_ID && n.kind !== "log" && n.appId !== "jobs"
+  ));
   return !windows && session.entries.length === 0;
+}
+
+export function sessionIsOrdered(session: ChatSession | null | undefined) {
+  return Boolean(session?.orderedJobId);
 }
 
 export function emptySession(now = Date.now()): ChatSession {

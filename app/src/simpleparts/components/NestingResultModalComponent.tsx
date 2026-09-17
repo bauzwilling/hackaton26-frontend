@@ -14,7 +14,7 @@ import { nestingLog, nestingMark } from './nestingPerfLog'
 import type { BlockInsert, PartBoundary, UnknownRecord } from '../types'
 import '../simpleparts-react.css'
 
-interface NestingResultModalProps {
+export interface NestingResultModalProps {
   open?: boolean
   /** modal = portal overlay (legacy); page = fill the Studio window (maximize/hide/close on the Studio chrome) */
   variant?: 'modal' | 'page'
@@ -62,6 +62,8 @@ interface NestingResultModalProps {
   /** Single-sheet download. Defaults to Flask; preloaded sheets fall back to a client blob. */
   sheetHref?: (sheetIndex: number, filename: string) => string | null
   unassignedHref?: (filename: string) => string
+  onPlaceOrder?: (snapshot: Record<string, unknown>) => boolean | void
+  readOnly?: boolean
 }
 
 type ViewMode = 'overview' | 'detail'
@@ -108,6 +110,8 @@ export default function NestingResultModalComponent({
   nestZipHref,
   sheetHref,
   unassignedHref,
+  onPlaceOrder,
+  readOnly = false,
 }: NestingResultModalProps) {
   const sheetsViewerRef = useRef<NestingSheetsViewerHandle>(null)
   const loadedJobsRef = useRef(new Set<string>())
@@ -340,8 +344,32 @@ export default function NestingResultModalComponent({
   }
 
   const placeOrder = () => {
-    if (orderState !== 'idle' || !jobId) return
+    if (readOnly || orderState !== 'idle' || orderTimerRef.current != null || !jobId) return
     // WAITING BFF: Place Order will submit a manufacturing order via Platform BFF.
+    let accepted: boolean | void
+    try {
+      accepted = onPlaceOrder?.({
+        jobId,
+        partCount,
+        nestedCount,
+        unassignedCount,
+        unassignedIds,
+        unassignedReasons,
+        hasUnassignedDxf,
+        sheetCount,
+        sheetX,
+        sheetY,
+        sheetThickness,
+        defaultMaterial,
+        nestingMetrics,
+        preloadedSheets: assignedSheets,
+        emptyValue,
+      })
+    } catch (error) {
+      console.error('Place Order failed', error)
+      return
+    }
+    if (accepted === false) return
     setOrderState('placing')
     if (orderTimerRef.current != null) window.clearTimeout(orderTimerRef.current)
     orderTimerRef.current = window.setTimeout(() => {
@@ -525,10 +553,10 @@ export default function NestingResultModalComponent({
         >
           Download ZIP
         </button>
-        <button
+        {!readOnly && <button
           type="button"
           className={`nesting-result__rail-btn nesting-result__rail-btn--order${orderState === 'placed' ? ' is-placed' : ''}`}
-          disabled={!jobId || orderState !== 'idle'}
+          disabled={!jobId || assignedLoading || orderState !== 'idle'}
           aria-busy={orderState === 'placing'}
           onClick={placeOrder}
         >
@@ -545,7 +573,7 @@ export default function NestingResultModalComponent({
           ) : (
             'Place Order'
           )}
-        </button>
+        </button>}
       </div>
     </section>
   )

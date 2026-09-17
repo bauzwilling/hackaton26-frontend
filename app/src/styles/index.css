@@ -818,6 +818,149 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .studio-layer.is-maximized .react-flow__node {
   pointer-events: auto;
 }
+.studio-layer.is-inspecting .react-flow__node,
+.studio-layer.is-inspecting .react-flow__edge {
+  pointer-events: none;
+}
+.inspection-exit {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 80;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: var(--face);
+  color: var(--text);
+  box-shadow: var(--elev);
+  cursor: pointer;
+}
+
+.jobs-page {
+  height: 100%;
+  padding: 24px;
+  overflow: auto;
+  background: var(--face);
+}
+.jobs-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.jobs-head h1 {
+  margin: 2px 0 0;
+  font-size: 26px;
+}
+.jobs-kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.jobs-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.jobs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.jobs-table th,
+.jobs-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+.jobs-table th {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.jobs-table tbody tr:last-child td { border-bottom: 0; }
+.jobs-table td strong,
+.jobs-table td small { display: block; }
+.jobs-table td small { margin-top: 3px; color: var(--muted); text-transform: capitalize; }
+.job-status {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.job-status.is-completed,
+.job-status.is-received { color: var(--ok, #2e7d32); }
+.job-assign,
+.job-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.job-actions { justify-content: flex-end; }
+.job-assign select,
+.job-assign button,
+.job-actions button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: var(--face);
+  color: var(--text);
+}
+.jobs-empty {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  color: var(--muted);
+}
+.jobs-error { color: var(--bad, #b42318); }
+
+.archived-chat {
+  height: 100%;
+  overflow: auto;
+  padding: 14px;
+  background: var(--face);
+}
+.archived-chat-turn { display: grid; gap: 7px; margin-bottom: 14px; }
+.archived-chat-user,
+.archived-chat-assistant {
+  max-width: 88%;
+  margin: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+.archived-chat-user { justify-self: end; background: var(--accent-soft, var(--wash)); }
+.archived-chat-assistant { justify-self: start; background: var(--wash); }
+.archived-app-summary {
+  height: 100%;
+  overflow: auto;
+  padding: 20px;
+  background: var(--face);
+}
+.archived-app-summary pre {
+  overflow: auto;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--wash);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+.composer-ordered {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
 .studio-window-node {
   position: relative;
 }

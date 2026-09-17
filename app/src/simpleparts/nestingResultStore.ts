@@ -1,4 +1,4 @@
-import type { BlockInsert, PartBoundary, UnknownRecord } from "../types";
+import type { BlockInsert, PartBoundary, UnknownRecord } from "./types";
 
 /** Snapshot for the Simple Parts nesting Studio window.
  * WAITING BFF: keyed by legacy jobId until the BFF exposes run/artifact ids for the milling-package.

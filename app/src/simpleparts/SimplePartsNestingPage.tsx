@@ -4,6 +4,7 @@ import {
   getSimplePartsNesting,
   subscribeSimplePartsNesting,
 } from "./nestingResultStore";
+import { useWorkspace } from "../context/workspace";
 import "./simpleparts.css";
 import "./simpleparts-react.css";
 
@@ -16,7 +17,8 @@ import "./simpleparts-react.css";
  * Platform BFF — never from Simple Parts Flask. Until then the page only mounts
  * the in-session snapshot and the modal's marked stand-in fetches.
  */
-export function SimplePartsNestingPage({ jobId }: { jobId?: string }) {
+export function SimplePartsNestingPage({ jobId, nodeId }: { jobId?: string; nodeId?: string }) {
+  const { placeOrder } = useWorkspace();
   const snapshot = useSyncExternalStore(
     subscribeSimplePartsNesting,
     () => getSimplePartsNesting(jobId),
@@ -65,6 +67,11 @@ export function SimplePartsNestingPage({ jobId }: { jobId?: string }) {
       nestingMetrics={snapshot.nestingMetrics}
       leftoverNestingMetrics={snapshot.leftoverNestingMetrics}
       onNestUnassigned={snapshot.onNestUnassigned}
+      onPlaceOrder={(data) => Boolean(placeOrder("simpleparts", {
+        kind: "simpleparts-nesting",
+        nodeId: nodeId ?? "simpleparts-nesting",
+        data,
+      }))}
     />
   );
 }

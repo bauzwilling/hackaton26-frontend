@@ -4,8 +4,8 @@ import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
 
-export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin";
+export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note" | "archive";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "jobs";
 
 export type WorkspaceNode = {
   id: string;
@@ -20,6 +20,8 @@ export type WorkspaceNode = {
   routeWhy?: string;
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
+  /** Original node id while rendering an immutable order inspection. */
+  snapshotOriginalId?: string;
   /**
    * One-shot Concierge → app chat handoff. Not persisted.
    * WAITING BFF: SuggestedAction accept replaces this stamp.
@@ -95,6 +97,7 @@ export const EST_H: Record<NodeKind, number> = {
   request: 160,
   menu: 200,
   note: NOTE_H,
+  archive: 560,
 };
 
 export function canDeleteNode(n: Pick<WorkspaceNode, "kind" | "id">) {
@@ -118,6 +121,7 @@ export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId
   { id: "plyworks-nesting", label: "Plyworks nesting", licensed: "plyworks" },
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
+  { id: "jobs", label: "Jobs", perm: "jobs.read" },
   { id: "admin", label: "Admin console", perm: "users", ready: false },
 ];
 
@@ -133,12 +137,14 @@ export function appLabel(app: WorkspaceApp) {
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";
+  if (app === "jobs") return "Jobs";
   return APP_LABELS[app as AppId] ?? app;
 }
 
 export function allowed(session: Session | null, app: WorkspaceApp) {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta) return false;
+  if (session?.role === "admin") return false;
   if (meta.licensed && !hasApp(session, meta.licensed)) return false;
   if (meta.perm && !can(session, meta.perm)) return false;
   return true;
