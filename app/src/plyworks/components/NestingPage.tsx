@@ -1,5 +1,6 @@
 import NestingCurvePreview from "../nesting-preview/NestingCurvePreviewComponent";
 import { nestingZipUrl } from "../lib/produceApi";
+import "../plyworks.css";
 
 const PREVIEW_TOKENS: React.CSSProperties = {
   ["--color-neutral-bg" as string]: "#fafaf9",
@@ -15,8 +16,8 @@ function previewZipUrl(jobId: string): string {
 
 export function NestingPage({ jobId = "" }: { jobId?: string }) {
   return (
-    <div style={{ ...styles.root, ...PREVIEW_TOKENS }}>
-      <div style={styles.canvas}>
+    <div className="pw" style={PREVIEW_TOKENS}>
+      <div className="pw-canvas">
         <NestingCurvePreview
           jobId={jobId}
           open
@@ -28,19 +29,3 @@ export function NestingPage({ jobId = "" }: { jobId?: string }) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  root: {
-    position: "relative",
-    width: "100%",
-    height: "100vh",
-    overflow: "hidden",
-    background: "var(--bg, #f5ead8)",
-    fontFamily: "Figtree, system-ui, sans-serif",
-    color: "var(--ink, #201e1d)",
-  },
-  canvas: {
-    position: "absolute",
-    inset: 0,
-  },
-};

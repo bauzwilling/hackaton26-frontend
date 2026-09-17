@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getProduce, startNest, type ProduceJob } from "../lib/produceApi";
 import { createDocFromGhResponse } from "../lib/createDocFromGhResponse";
 import { createViewerScene } from "../lib/viewerScene";
+import "../plyworks.css";
 
 const POLL_MS = 1200;
 
@@ -149,7 +150,7 @@ export function JointWizPage({ jobId = "", onOpenNesting }: { jobId?: string; on
   const nestBusy = nesting || (job?.status === "running" && job.stage === "nest");
 
   return (
-    <div style={styles.root}>
+    <div className="pw">
       <header style={styles.bar}>
         <strong>Plyworks JointWiz</strong>
         <span style={styles.muted}>{jobId ? `Job ${jobId.slice(0, 8)}` : ""}</span>
@@ -167,21 +168,12 @@ export function JointWizPage({ jobId = "", onOpenNesting }: { jobId?: string; on
         <p style={styles.note}>Validation passed. Building joints…</p>
       )}
       {!blocked && !displayError && ready && viewerNote && <p style={styles.note}>{viewerNote}</p>}
-      <div ref={hostRef} style={styles.canvas} />
+      <div ref={hostRef} className="pw-canvas" />
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  root: {
-    position: "relative",
-    width: "100%",
-    height: "100%",
-    overflow: "hidden",
-    background: "var(--bg, #f5ead8)",
-    fontFamily: "Figtree, system-ui, sans-serif",
-    color: "var(--ink, #201e1d)",
-  },
   bar: {
     position: "absolute",
     top: 12,
@@ -195,11 +187,29 @@ const styles: Record<string, React.CSSProperties> = {
     background: "var(--face2, #fffdf8)",
     borderRadius: 14,
     boxShadow: "0 1px 2px rgba(33,31,29,.1), 0 8px 22px rgba(33,31,29,.14)",
+    fontFamily: "Figtree, system-ui, sans-serif",
+    color: "var(--ink, #201e1d)",
   },
   muted: { opacity: 0.55, fontSize: 12 },
-  note: { position: "absolute", top: 80, left: 24, zIndex: 11, color: "#fff" },
-  err: { position: "absolute", top: 80, left: 24, color: "#9a3412", zIndex: 11 },
-  canvas: { position: "absolute", inset: 0, background: "#333333" },
+  note: {
+    position: "absolute",
+    top: 80,
+    left: 24,
+    zIndex: 11,
+    margin: 0,
+    color: "var(--ink, #201e1d)",
+    opacity: 0.7,
+    fontFamily: "Figtree, system-ui, sans-serif",
+  },
+  err: {
+    position: "absolute",
+    top: 80,
+    left: 24,
+    margin: 0,
+    color: "#9a3412",
+    zIndex: 11,
+    fontFamily: "Figtree, system-ui, sans-serif",
+  },
   nest: {
     border: "1px solid rgba(0,0,0,.08)",
     borderRadius: 8,

@@ -274,7 +274,7 @@ export function Window({
   return (
     <Surface
       ref={ref}
-      className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${locked ? " is-locked" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}${flow ? " win-flow" : ""}`}
+      className={`win${kind ? ` win-${kind}` : ""}${viewport ? " win-viewport" : ""}${selected ? " is-selected" : ""}${locked ? " is-locked" : ""}${maximized ? " is-maximized" : ""}${fit ? " win-autosize" : ""}${enter ? " win-enter" : ""}${flow ? " win-flow" : ""}`}
       data-node-id={nodeId}
       style={{
         left: flow ? undefined : x,
@@ -301,13 +301,13 @@ export function Window({
         <span className="win-code">{code}</span>
         {locked && <span className="win-lock" title="Locked in place">Locked</span>}
         {onMaximize && (
-          <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize} title={maximized ? "Restore" : "Maximize"} aria-label={maximized ? "Restore" : "Maximize"}>{maximized ? "❐" : "□"}</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize} title={maximized ? "Restore" : "Maximize"} aria-label={maximized ? "Restore" : "Maximize"}>{maximized ? "❐" : "□"}</Surface>
         )}
         {onHide && (
-          <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
         )}
         {onClose && (
-          <Surface as="button" type="button" relief="ghost" className="win-btn" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
         )}
       </div>
       <div className={`win-body${flow ? " nowheel nodrag nopan" : ""}`}>{children}</div>

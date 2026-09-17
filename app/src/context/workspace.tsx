@@ -116,7 +116,12 @@ export {
   activityName,
 };
 
-export type FitRequest = { ids: string[]; key: number; maxZoom?: number; collapsedGutter?: boolean };
+export type FitRequest = {
+  ids: string[];
+  key: number;
+  maxZoom?: number;
+  collapsedGutter?: boolean;
+};
 
 type Ctx = {
   nodes: WorkspaceNode[];
@@ -449,14 +454,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       historyCollapsed: true,
     });
     setMaximizedId(id);
-    const box = leftoverCanvas(stageSizeRef.current);
     zTop.current += 1;
     setNodes((list) => list.map((n) => (
       n.id === id
-        ? { ...n, z: zTop.current, hidden: false, w: box.w, h: box.h, autoSize: false }
+        ? { ...n, z: zTop.current, hidden: false }
         : n
     )));
-    setFitRequest({ ids: [id], key: Date.now(), maxZoom: ZOOM_MAX, collapsedGutter: true });
+    // Pan/zoom to fill leftover beside chat (canvas lock does not block fitView).
+    setFitRequest({
+      ids: [id],
+      key: Date.now(),
+      maxZoom: ZOOM_MAX,
+      collapsedGutter: true,
+    });
   }, [flushList, persistStore]);
 
   const bumpZ = useCallback((id: string) => {

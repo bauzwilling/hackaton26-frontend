@@ -38,16 +38,18 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 
 function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
   const help = useHelpOptional();
-  const { openApp } = useWorkspace();
+  const { openApp, focusTargets } = useWorkspace();
   const openDesign = useCallback((design: "shelf" | "table" | "stool" | "bench") => {
     openApp("plyworks", { parentId: node.id, design });
   }, [node.id, openApp]);
   const openJointWiz = useCallback((jobId: string) => {
-    openApp("plyworks-jw", { parentId: node.id, query: jobId });
-  }, [node.id, openApp]);
+    const opened = openApp("plyworks-jw", { parentId: node.id, query: jobId });
+    if (opened) focusTargets([opened.id]);
+  }, [node.id, openApp, focusTargets]);
   const openNesting = useCallback((jobId: string) => {
-    openApp("plyworks-nesting", { parentId: node.id, query: jobId });
-  }, [node.id, openApp]);
+    const opened = openApp("plyworks-nesting", { parentId: node.id, query: jobId });
+    if (opened) focusTargets([opened.id]);
+  }, [node.id, openApp, focusTargets]);
   if (node.kind === "log") return null;
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;

@@ -60,7 +60,10 @@ export function reuseFlowNode(prev: StudioFlowNode | undefined, next: StudioFlow
 
 export function toFlowNode(
   n: WorkspaceNode,
-  extras: Partial<Pick<StudioNodeData, "enter" | "flash" | "flashKey" | "preview">> & { selected?: boolean } = {},
+  extras: Partial<Pick<StudioNodeData, "enter" | "flash" | "flashKey" | "preview">> & {
+    selected?: boolean;
+    maximized?: boolean;
+  } = {},
 ): StudioFlowNode {
   const data: StudioNodeData = {
     kind: n.kind,
@@ -88,7 +91,7 @@ export function toFlowNode(
     type: "studioWindow",
     position: { x: n.x, y: n.y },
     hidden: n.hidden,
-    draggable: !n.locked,
+    draggable: !n.locked && !extras.maximized,
     connectable: !n.locked,
     zIndex: n.z,
     width: n.w,

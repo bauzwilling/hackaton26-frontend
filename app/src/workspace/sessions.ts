@@ -61,8 +61,11 @@ export function dockedChatWidth(historyCollapsed: boolean) {
   return (historyCollapsed ? CHAT_RAIL_W : CHAT_SIDEBAR_W) + CHAT_THREAD_W;
 }
 
-/** Fit-view gutters around a window so it sits in the leftover next to docked chat. */
-export const STAGE_FIT_PAD = { top: 48, right: 16, bottom: 56 } as const;
+/**
+ * Fit-view gutters around a window so it sits in the leftover next to docked chat.
+ * Top matches `.studio-chat-slot.is-docked` padding so a maximized window lines up with the chat card.
+ */
+export const STAGE_FIT_PAD = { top: 16, right: 16, bottom: 56 } as const;
 
 export function chatFitPadding(
   hostWidth: number,
