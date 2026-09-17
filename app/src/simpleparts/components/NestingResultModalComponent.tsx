@@ -48,6 +48,20 @@ interface NestingResultModalProps {
   onClose?: () => void
   /** Kept for snapshot compatibility; not surfaced in this nesting window version. */
   onNestUnassigned?: () => void
+  /**
+   * When set, skip Simple Parts Flask sheet fetches and use these DXFs.
+   * Used by Plyworks (ZIP unpack) and any future BFF sheet provider.
+   */
+  preloadedSheets?: NestingSheetPayload[]
+  sheetsLoading?: boolean
+  sheetsError?: string
+  /** Placeholder for missing numeric/text fields (default em dash). */
+  emptyValue?: string
+  /** Full nesting package download. Defaults to Simple Parts Flask ZIP. */
+  nestZipHref?: (filename: string, opts: { excludeLayers: string[]; layerNames: string }) => string
+  /** Single-sheet download. Defaults to Flask; preloaded sheets fall back to a client blob. */
+  sheetHref?: (sheetIndex: number, filename: string) => string | null
+  unassignedHref?: (filename: string) => string
 }
 
 type ViewMode = 'overview' | 'detail'
@@ -62,7 +76,7 @@ const METRIC_ROWS = [
 ] as const
 const DOWNLOAD_HINT = 'Download builds the nesting ZIP on demand (not while browsing sheets).'
 
-type SheetEntry = { index: number; dxfText: string }
+type SheetEntry = { index: number; dxfText: string; label?: string }
 
 function yieldToBrowser() {
   return new Promise<void>((resolve) => {
@@ -87,6 +101,13 @@ export default function NestingResultModalComponent({
   defaultMaterial = '',
   nestingMetrics = null,
   onClose,
+  preloadedSheets,
+  sheetsLoading = false,
+  sheetsError = '',
+  emptyValue = '—',
+  nestZipHref,
+  sheetHref,
+  unassignedHref,
 }: NestingResultModalProps) {
   const sheetsViewerRef = useRef<NestingSheetsViewerHandle>(null)
   const loadedJobsRef = useRef(new Set<string>())
@@ -105,20 +126,42 @@ export default function NestingResultModalComponent({
   const [pendingHiddenLayers, setPendingHiddenLayers] = useState<string[]>([])
   const [editLayersOpen, setEditLayersOpen] = useState(false)
 
+  const usePreloaded = preloadedSheets != null
   const isPage = variant === 'page'
-  const assignedSheets = jobId ? sheetCache.get(jobId) ?? [] : []
-  const assignedLoading = Boolean(jobId && loadingJobs.has(jobId))
-  const assignedError = jobId ? sheetErrors.get(jobId) ?? '' : ''
+  const assignedSheets = usePreloaded
+    ? (preloadedSheets ?? []).filter((sheet) => sheet.kind !== 'unassigned').map((sheet) => ({
+      index: sheet.index,
+      dxfText: sheet.dxfText,
+      label: sheet.label,
+    }))
+    : (jobId ? sheetCache.get(jobId) ?? [] : [])
+  const assignedLoading = usePreloaded ? sheetsLoading : Boolean(jobId && loadingJobs.has(jobId))
+  const assignedError = usePreloaded ? sheetsError : (jobId ? sheetErrors.get(jobId) ?? '' : '')
   const effectiveNested = nestedCount || Math.max(0, partCount - unassignedCount)
   const showUnassigned = unassignedCount > 0 && hasUnassignedDxf
   const viewingUnassigned = viewMode === 'detail' && sheetIndex === UNASSIGNED_SHEET_INDEX
+  const activeSheet = assignedSheets.find((sheet) => sheet.index === sheetIndex)
+  const materialFromLabel = activeSheet?.label?.match(/^(Kiefer|Film)/i)?.[1]
+  const activeMaterial = materialFromLabel || defaultMaterial || emptyValue
 
   const viewerSheets = useMemo(() => {
+    if (usePreloaded) {
+      const list = [...(preloadedSheets ?? [])]
+      if (showUnassigned && unassignedText && !list.some((sheet) => sheet.kind === 'unassigned')) {
+        list.push({
+          index: UNASSIGNED_SHEET_INDEX,
+          dxfText: unassignedText,
+          kind: 'unassigned',
+        })
+      }
+      return list
+    }
     const assigned = jobId ? sheetCache.get(jobId) ?? [] : []
     const list: NestingSheetPayload[] = assigned.map((sheet) => ({
       index: sheet.index,
       dxfText: sheet.dxfText,
       kind: 'sheet' as const,
+      label: sheet.label,
     }))
     if (showUnassigned && unassignedText) {
       list.push({
@@ -128,7 +171,7 @@ export default function NestingResultModalComponent({
       })
     }
     return list
-  }, [jobId, sheetCache, showUnassigned, unassignedText])
+  }, [jobId, sheetCache, showUnassigned, unassignedText, usePreloaded, preloadedSheets])
 
   useEffect(() => {
     if (!open) {
@@ -149,7 +192,7 @@ export default function NestingResultModalComponent({
   }, [open])
 
   useEffect(() => {
-    if (!open || !jobId) return
+    if (!open || !jobId || usePreloaded) return
     const controller = new AbortController()
     const targets = [{ id: jobId, expected: Math.max(1, sheetCount) }]
 
@@ -208,10 +251,10 @@ export default function NestingResultModalComponent({
     })()
 
     return () => controller.abort()
-  }, [jobId, open, sheetCount])
+  }, [jobId, open, sheetCount, usePreloaded])
 
   useEffect(() => {
-    if (!open || !showUnassigned || !jobId || unassignedText) return
+    if (!open || !showUnassigned || !jobId || unassignedText || usePreloaded) return
     const controller = new AbortController()
     setUnassignedLoading(true)
     setUnassignedError('')
@@ -232,7 +275,7 @@ export default function NestingResultModalComponent({
       })
       .finally(() => setUnassignedLoading(false))
     return () => controller.abort()
-  }, [jobId, open, showUnassigned, unassignedText])
+  }, [jobId, open, showUnassigned, unassignedText, usePreloaded])
 
   useEffect(() => {
     requestAnimationFrame(() => sheetsViewerRef.current?.resize())
@@ -240,15 +283,17 @@ export default function NestingResultModalComponent({
 
   const title = unassignedCount > 0
     ? `Nesting complete — ${effectiveNested} nested, ${unassignedCount} not nested`
-    : `Nesting complete — ${partCount} part${partCount === 1 ? '' : 's'}`
+    : partCount > 0
+      ? `Nesting complete — ${partCount} part${partCount === 1 ? '' : 's'}`
+      : `Nesting complete — ${Math.max(sheetCount, assignedSheets.length)} sheet${Math.max(sheetCount, assignedSheets.length) === 1 ? '' : 's'}`
 
   const metrics = useMemo(() => METRIC_ROWS.map(([key, label, kind, unit]) => {
     const number = Number(nestingMetrics?.[key])
     const display = nestingMetrics?.[key] == null || Number.isNaN(number)
-      ? '—'
+      ? emptyValue
       : `${kind === 'int' ? Math.round(number).toLocaleString('de-DE') : number.toLocaleString('de-DE', { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ''}`
     return { key, label, display }
-  }), [nestingMetrics])
+  }), [nestingMetrics, emptyValue])
 
   const openDetail = (index: number) => {
     nestingLog('enter-detail', { index })
@@ -280,22 +325,43 @@ export default function NestingResultModalComponent({
     nestingLog('download-zip-click', { filename, kind: downloadKind, sheetIndex: downloadSheetIndex })
     const link = document.createElement('a')
     if (downloadKind === 'unassigned') {
-      link.href = partsApi(`/jobs/${jobId}/download/unassigned?filename=${encodeURIComponent(filename)}`)
+      link.href = unassignedHref
+        ? unassignedHref(filename)
+        : partsApi(`/jobs/${jobId}/download/unassigned?filename=${encodeURIComponent(filename)}`)
     } else if (downloadKind === 'sheet') {
-      // WAITING BFF: single-sheet handout from milling-package artifact download, not Flask /jobs/:id/download/sheet/:index
-      link.href = partsApi(`/jobs/${encodeURIComponent(jobId ?? '')}/download/sheet/${downloadSheetIndex}?filename=${encodeURIComponent(filename)}`)
+      const custom = sheetHref?.(downloadSheetIndex, filename)
+      if (custom) {
+        link.href = custom
+      } else if (usePreloaded) {
+        const sheet = assignedSheets.find((entry) => entry.index === downloadSheetIndex)
+        if (!sheet?.dxfText) return
+        const blob = new Blob([sheet.dxfText], { type: 'application/dxf' })
+        link.href = URL.createObjectURL(blob)
+        link.download = filename
+        link.click()
+        setTimeout(() => URL.revokeObjectURL(link.href), 2000)
+        return
+      } else {
+        // WAITING BFF: single-sheet handout from milling-package artifact download, not Flask /jobs/:id/download/sheet/:index
+        link.href = partsApi(`/jobs/${encodeURIComponent(jobId ?? '')}/download/sheet/${downloadSheetIndex}?filename=${encodeURIComponent(filename)}`)
+      }
     } else {
       const hidden = toCanonicalLayerNames(pendingHiddenLayers, exportLayerNames)
-      const params = new URLSearchParams({ filename })
-      if (hidden.length) params.set('excludeLayers', hidden.join(','))
       const names = serializeLayerRenameMap(exportLayerNames)
-      if (names) params.set('layerNames', names)
-      link.href = partsApi(`/jobs/${jobId}/download?${params}`)
+      if (nestZipHref) {
+        link.href = nestZipHref(filename, { excludeLayers: hidden, layerNames: names })
+      } else {
+        const params = new URLSearchParams({ filename })
+        if (hidden.length) params.set('excludeLayers', hidden.join(','))
+        if (names) params.set('layerNames', names)
+        link.href = partsApi(`/jobs/${jobId}/download?${params}`)
+      }
     }
     link.click()
   }
 
   const idsDisplay = formatUnassignedIdsDisplay(unassignedIds)
+  const sheetTitle = activeSheet?.label ?? `Sheet ${sheetIndex + 1}`
 
   const railTop = (
     <section className="nesting-result__rail-section nesting-result__rail-top" aria-label="Context details">
@@ -365,7 +431,7 @@ export default function NestingResultModalComponent({
       ) : (
         <>
           <header className="nesting-result__rail-head">
-            <h2 className="nesting-result__rail-title">Sheet {sheetIndex + 1}</h2>
+            <h2 className="nesting-result__rail-title">{sheetTitle}</h2>
             <p className="nesting-result__rail-sub">
               of {Math.max(sheetCount, assignedSheets.length, 1)}
             </p>
@@ -374,15 +440,15 @@ export default function NestingResultModalComponent({
             <dl className="nesting-result__rail-meta">
               <div>
                 <dt>Size</dt>
-                <dd>{sheetX != null && sheetY != null ? `${Math.round(sheetX)} × ${Math.round(sheetY)} mm` : '—'}</dd>
+                <dd>{sheetX != null && sheetY != null ? `${Math.round(sheetX)} × ${Math.round(sheetY)} mm` : emptyValue}</dd>
               </div>
               <div>
                 <dt>Thickness</dt>
-                <dd>{sheetThickness != null ? `${Math.round(sheetThickness)} mm` : '—'}</dd>
+                <dd>{sheetThickness != null ? `${Math.round(sheetThickness)} mm` : emptyValue}</dd>
               </div>
               <div>
                 <dt>Material</dt>
-                <dd>{defaultMaterial || '—'}</dd>
+                <dd>{activeMaterial}</dd>
               </div>
             </dl>
           </div>

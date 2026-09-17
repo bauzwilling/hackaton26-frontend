@@ -15,6 +15,8 @@ export type NestingSheetPayload = {
   index: number
   dxfText: string
   kind?: 'sheet' | 'unassigned'
+  /** Optional card/detail label (defaults to Sheet N). */
+  label?: string
 }
 
 export interface NestingSheetsViewerHandle {
@@ -420,7 +422,8 @@ const NestingSheetsViewer = forwardRef<NestingSheetsViewerHandle, NestingSheetsV
   const unassignedReady = Boolean(unassignedPayload)
   const detailLabel = activeIndex === UNASSIGNED_SHEET_INDEX
     ? 'Unassigned parts'
-    : `Sheet ${activeIndex + 1}`
+    : (sheets.find((sheet) => sheet.index === activeIndex && !isUnassignedPayload(sheet))?.label
+      ?? `Sheet ${activeIndex + 1}`)
 
   const renderCard = (
     index: number,
@@ -490,11 +493,12 @@ const NestingSheetsViewer = forwardRef<NestingSheetsViewerHandle, NestingSheetsV
             'nesting-viewport-card--unassigned',
           )}
           {assignedSlotIndexes.map((index) => {
-            const ready = assignedReady.some((sheet) => sheet.index === index)
+            const readySheet = assignedReady.find((sheet) => sheet.index === index)
+            const ready = Boolean(readySheet)
             return renderCard(
               index,
               ready,
-              `Sheet ${index + 1}/${assignedSlotCount}`,
+              readySheet?.label ?? `Sheet ${index + 1}/${assignedSlotCount}`,
               loading ? 'Loading…' : 'Waiting…',
             )
           })}
