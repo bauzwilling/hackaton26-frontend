@@ -125,6 +125,8 @@ export default function NestingResultModalComponent({
   const [exportLayerNames, setExportLayerNames] = useState(() => defaultExportLayerNames())
   const [pendingHiddenLayers, setPendingHiddenLayers] = useState<string[]>([])
   const [editLayersOpen, setEditLayersOpen] = useState(false)
+  const [orderState, setOrderState] = useState<'idle' | 'placing' | 'placed'>('idle')
+  const orderTimerRef = useRef<number | null>(null)
 
   const usePreloaded = preloadedSheets != null
   const isPage = variant === 'page'
@@ -186,10 +188,27 @@ export default function NestingResultModalComponent({
       setUnassignedError('')
       setNamingOpen(false)
       setEditLayersOpen(false)
+      setOrderState('idle')
+      if (orderTimerRef.current != null) {
+        window.clearTimeout(orderTimerRef.current)
+        orderTimerRef.current = null
+      }
       return
     }
     setExportLayerNames(defaultExportLayerNames())
   }, [open])
+
+  useEffect(() => {
+    setOrderState('idle')
+    if (orderTimerRef.current != null) {
+      window.clearTimeout(orderTimerRef.current)
+      orderTimerRef.current = null
+    }
+  }, [jobId])
+
+  useEffect(() => () => {
+    if (orderTimerRef.current != null) window.clearTimeout(orderTimerRef.current)
+  }, [])
 
   useEffect(() => {
     if (!open || !jobId || usePreloaded) return
@@ -318,6 +337,17 @@ export default function NestingResultModalComponent({
     setDownloadKind(kind)
     setDownloadSheetIndex(sheetIdx)
     setNamingOpen(true)
+  }
+
+  const placeOrder = () => {
+    if (orderState !== 'idle' || !jobId) return
+    // WAITING BFF: Place Order will submit a manufacturing order via Platform BFF.
+    setOrderState('placing')
+    if (orderTimerRef.current != null) window.clearTimeout(orderTimerRef.current)
+    orderTimerRef.current = window.setTimeout(() => {
+      orderTimerRef.current = null
+      setOrderState('placed')
+    }, 1000)
   }
 
   const triggerDownload = (filename: string) => {
@@ -494,6 +524,27 @@ export default function NestingResultModalComponent({
           onClick={() => openNaming('nesting')}
         >
           Download ZIP
+        </button>
+        <button
+          type="button"
+          className={`nesting-result__rail-btn nesting-result__rail-btn--order${orderState === 'placed' ? ' is-placed' : ''}`}
+          disabled={!jobId || orderState !== 'idle'}
+          aria-busy={orderState === 'placing'}
+          onClick={placeOrder}
+        >
+          {orderState === 'placing' ? (
+            <>
+              <span className="nesting-result__order-spinner" aria-hidden />
+              Placing order…
+            </>
+          ) : orderState === 'placed' ? (
+            <>
+              <span className="nesting-result__order-check" aria-hidden>✓</span>
+              Order Placed
+            </>
+          ) : (
+            'Place Order'
+          )}
         </button>
       </div>
     </section>
