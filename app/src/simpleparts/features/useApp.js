@@ -655,8 +655,8 @@ export function useApp() {
 
     const inputTextDxf = normalizeInputText(data.inputText, data.inputTextPt)
 
-    // Do not fetch combined /download/preview — it hangs the nesting window.
-    // Handouts load per-sheet via /download/sheet/:index after the window opens.
+    // Main hops/solve nest JSON has no dxfText. Combined /download/preview is one
+    // giant DXF; the nesting window unpacks GET /jobs/:id/download (per-sheet ZIP).
     const dxfText = typeof data.dxfText === 'string' ? data.dxfText : ''
 
     state.meshPreview.value = null
@@ -1163,7 +1163,7 @@ export function useApp() {
     const sheetY = data.sheetY
     const sheetThickness = data.sheetThickness
     let dxfText = typeof data.dxfText === 'string' ? data.dxfText : ''
-    // Do not fetch combined /download/preview — leftover handouts use per-sheet endpoints.
+    // Leftover nest JSON also omits dxfText; leftover sheets come from that job's ZIP.
     state.leftoverNestPreview.value = {
       jobId: data.jobId ?? null,
       dxfText,
