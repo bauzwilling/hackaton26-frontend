@@ -737,7 +737,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Keep module sink as a fallback for apps that do not wire React relay yet (boxouts).
+    // Keep module sink as a fallback for apps that do not wire React relay yet.
     setAppChatRelaySink((nodeId, content, _echoTo, prompt?: AppChatPrompt) => {
       relayAppChatReply(nodeId, content, prompt);
     });

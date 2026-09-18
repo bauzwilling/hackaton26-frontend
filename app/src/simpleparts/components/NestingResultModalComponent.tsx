@@ -10,6 +10,7 @@ import NestingSheetsViewer, {
 import { formatUnassignedIdsDisplay } from '../features/shared/unassignedDisplay.js'
 import { defaultExportLayerNames, serializeLayerRenameMap, toCanonicalLayerNames } from '../boundaryDetection.js'
 import { partsApi } from '../api.js'
+import { loadSimplePartsNestingSheets } from '../lib/loadNestingSheets'
 import { nestingLog, nestingMark } from './nestingPerfLog'
 import type { BlockInsert, PartBoundary, UnknownRecord } from '../types'
 import '../simpleparts-react.css'
@@ -217,64 +218,47 @@ export default function NestingResultModalComponent({
   useEffect(() => {
     if (!open || !jobId || usePreloaded) return
     const controller = new AbortController()
-    const targets = [{ id: jobId, expected: Math.max(1, sheetCount) }]
 
     void (async () => {
-      for (const target of targets) {
-        if (loadedJobsRef.current.has(target.id)) continue
-        setLoadingJobs((current) => new Set(current).add(target.id))
-        const done = nestingMark('fetch-sheets')
-        try {
-          // WAITING BFF: list sheet members of manufacturing.milling-package/v1 via
-          // GET /api/artifacts/{artifactId} (or run attachments). partsApi /jobs/:id/download/sheets
-          // is a Simple Parts Flask stand-in only — UI must not keep calling Simple Parts once BFF lands.
-          const listRes = await fetch(partsApi(`/jobs/${encodeURIComponent(target.id)}/download/sheets`), { signal: controller.signal })
-          if (!listRes.ok) throw new Error((await listRes.json().catch(() => ({}))).error || 'Failed to list sheets')
-          const payload = await listRes.json() as { sheets?: number[]; sheetCount?: number }
-          const indices = Array.isArray(payload.sheets) && payload.sheets.length
-            ? payload.sheets
-            : Array.from({ length: Math.max(1, payload.sheetCount ?? target.expected) }, (_, index) => index)
-
-          const collected: SheetEntry[] = []
-          for (const index of indices) {
-            if (controller.signal.aborted) return
-            // WAITING BFF: GET /api/artifacts/{artifactId}/download for each sheet (or one package zip).
-            // /jobs/:id/download/sheet/:index is the Flask stand-in, not the platform contract.
-            const sheetRes = await fetch(
-              partsApi(`/jobs/${encodeURIComponent(target.id)}/download/sheet/${index}`),
-              { signal: controller.signal },
-            )
-            if (!sheetRes.ok) throw new Error((await sheetRes.json().catch(() => ({}))).error || `Failed to load sheet ${index + 1}`)
-            const dxfText = await sheetRes.text()
-            collected.push({ index, dxfText })
-            setSheetCache((current) => {
-              const next = new Map(current)
-              next.set(target.id, [...collected])
-              return next
-            })
-            await yieldToBrowser()
-          }
-          if (controller.signal.aborted) return
-          loadedJobsRef.current.add(target.id)
-          done({ jobId: target.id, sheets: collected.length })
-          nestingLog('fetch-sheets-done', { jobId: target.id, sheets: collected.length })
-        } catch (error) {
-          if ((error as Error).name === 'AbortError') return
-          const message = error instanceof Error ? error.message : 'Failed to load sheets'
-          setSheetErrors((current) => new Map(current).set(target.id, message))
-          nestingLog('fetch-sheets-failed', { jobId: target.id, error: message })
-        } finally {
-          setLoadingJobs((current) => {
-            const next = new Set(current)
-            next.delete(target.id)
-            return next
-          })
-        }
+      if (loadedJobsRef.current.has(jobId)) return
+      setLoadingJobs((current) => new Set(current).add(jobId))
+      const done = nestingMark('fetch-sheets')
+      try {
+        // WAITING BFF: milling-package members via GET /api/artifacts/{artifactId}/download.
+        // Main Simple Parts Flask has no /download/sheets or /download/sheet/:index — sheets
+        // live in GET /api/jobs/:id/download (ZIP of nesting_001.dxf …). Stand-in only.
+        const zipUrl = partsApi(`/jobs/${encodeURIComponent(jobId)}/download?filename=nesting.zip`)
+        const collected = await loadSimplePartsNestingSheets(zipUrl, controller.signal)
+        if (controller.signal.aborted) return
+        setSheetCache((current) => {
+          const next = new Map(current)
+          next.set(jobId, collected.map((sheet) => ({
+            index: sheet.index,
+            dxfText: sheet.dxfText,
+            label: sheet.label,
+          })))
+          return next
+        })
+        await yieldToBrowser()
+        loadedJobsRef.current.add(jobId)
+        done({ jobId, sheets: collected.length })
+        nestingLog('fetch-sheets-done', { jobId, sheets: collected.length })
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return
+        const message = error instanceof Error ? error.message : 'Failed to load sheets'
+        setSheetErrors((current) => new Map(current).set(jobId, message))
+        nestingLog('fetch-sheets-failed', { jobId, error: message })
+      } finally {
+        setLoadingJobs((current) => {
+          const next = new Set(current)
+          next.delete(jobId)
+          return next
+        })
       }
     })()
 
     return () => controller.abort()
-  }, [jobId, open, sheetCount, usePreloaded])
+  }, [jobId, open, usePreloaded])
 
   useEffect(() => {
     if (!open || !showUnassigned || !jobId || unassignedText || usePreloaded) return
@@ -390,7 +374,9 @@ export default function NestingResultModalComponent({
       const custom = sheetHref?.(downloadSheetIndex, filename)
       if (custom) {
         link.href = custom
-      } else if (usePreloaded) {
+      } else {
+        // Main Flask has no per-sheet route; download the already-unpacked DXF.
+        // WAITING BFF: single-sheet handout from milling-package artifact download.
         const sheet = assignedSheets.find((entry) => entry.index === downloadSheetIndex)
         if (!sheet?.dxfText) return
         const blob = new Blob([sheet.dxfText], { type: 'application/dxf' })
@@ -399,9 +385,6 @@ export default function NestingResultModalComponent({
         link.click()
         setTimeout(() => URL.revokeObjectURL(link.href), 2000)
         return
-      } else {
-        // WAITING BFF: single-sheet handout from milling-package artifact download, not Flask /jobs/:id/download/sheet/:index
-        link.href = partsApi(`/jobs/${encodeURIComponent(jobId ?? '')}/download/sheet/${downloadSheetIndex}?filename=${encodeURIComponent(filename)}`)
       }
     } else {
       const hidden = toCanonicalLayerNames(pendingHiddenLayers, exportLayerNames)

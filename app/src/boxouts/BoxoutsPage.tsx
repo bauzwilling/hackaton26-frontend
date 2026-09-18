@@ -1,6 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import ExcelJS from "exceljs";
-import { ChatPanel } from "./components/ChatPanel";
 import { BoxTable } from "./components/BoxTable";
 import { ParallelCoordinates } from "./components/ParallelCoordinates";
 import { Viewer3D } from "./components/Viewer3D";
@@ -24,9 +23,7 @@ import {
   tryParseCleanCsv,
 } from "./lib/csv.js";
 import { createSolveState } from "./lib/solveState.js";
-import {
-  reportAppChatReply,
-} from "../lib/appChat";
+import { type AppChatAction, type AppChatPrompt } from "../lib/appChat";
 import { useWorkspace } from "../context/workspace";
 import {
   dropBoxoutsSession,
@@ -96,7 +93,7 @@ async function imageBody(file: File) {
 }
 
 export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
-  const { registerAppIntake } = useWorkspace();
+  const { registerAppIntake, registerAppChatActions, relayAppChatReply } = useWorkspace();
   const [saved] = useState(() => hydrateBoxouts(nodeId));
   const [inputLists, setInputLists] = useState<InputLists | null>(saved.inputLists);
   const [sourceLists, setSourceLists] = useState<InputLists | null>(saved.sourceLists);
@@ -174,16 +171,26 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   }, [nodeId]);
 
   const push = useCallback((message: Omit<ChatMessage, "id">) => {
-    setMessages((current) => [...current, { id: nextMessageId(), ...message }]);
+    const id = nextMessageId();
+    setMessages((current) => [...current, { id, ...message }]);
     if (
-      nodeId
-      && message.role === "assistant"
-      && message.content?.trim()
-      && message.kind !== "file"
+      !nodeId
+      || message.role !== "assistant"
+      || !message.content?.trim()
+      || message.kind === "file"
     ) {
-      reportAppChatReply(nodeId, message.content);
+      return;
     }
-  }, [nodeId]);
+    const prompt: AppChatPrompt | undefined = message.kind === "confirm" && message.meta?.choices?.length
+      ? {
+          messageId: id,
+          kind: "confirm",
+          content: message.content,
+          choices: message.meta.choices,
+        }
+      : undefined;
+    relayAppChatReply(nodeId, message.content, prompt);
+  }, [nodeId, relayAppChatReply]);
 
   const onSolveState = useCallback((state: SolveState) => {
     setSolve({
@@ -297,13 +304,14 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   }
 
   function finishImport(choice: string) {
-    if (!pendingImport) return;
+    const pending = liveRef.current.pendingImport;
+    if (!pending) return;
     setPendingImport(null);
     if (choice === "cancel") {
       push({ role: "assistant", kind: "result", content: "Import cancelled." });
       return;
     }
-    const result = applyPayload(pendingImport.normalized, pendingImport.parseSource, choice === "append" ? "append" : "overwrite");
+    const result = applyPayload(pending.normalized, pending.parseSource, choice === "append" ? "append" : "overwrite");
     const label = choice === "append" ? "Added" : "Replaced with";
     push({ role: "assistant", kind: result.warnings.length ? "error" : "result", content: withWarnings(`${label} ${result.addedCount} box(es). ${result.sourceLabel}.\n${result.summary}`, result.warnings) });
   }
@@ -395,8 +403,8 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
     }
   }
 
-  const apiRef = useRef({ processText, processFile });
-  apiRef.current = { processText, processFile };
+  const apiRef = useRef({ processText, processFile, finishImport });
+  apiRef.current = { processText, processFile, finishImport };
 
   // WAITING BFF: SuggestedAction accept will own this handoff
   useLayoutEffect(() => {
@@ -404,7 +412,7 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
       console.warn("boxouts: mounted without nodeId — Concierge cannot forward");
       return;
     }
-    return registerAppIntake("boxouts", nodeId, async (intake, file) => {
+    const unregisterIntake = registerAppIntake("boxouts", nodeId, async (intake, file) => {
       if (intake.kind === "text") {
         console.log(`boxouts text: ${intake.text}`);
         await apiRef.current.processText(intake.text);
@@ -417,17 +425,20 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
       console.log(`boxouts ingest: ${file.name}`);
       await apiRef.current.processFile(file);
     });
-  }, [nodeId, registerAppIntake]);
+    // WAITING BFF: SuggestedAction accept replaces import-confirm chips
+    const unregisterActions = registerAppChatActions("boxouts", nodeId, (action: AppChatAction) => {
+      if (action.type === "confirm") {
+        apiRef.current.finishImport(action.choice);
+      }
+    });
+    return () => {
+      unregisterIntake();
+      unregisterActions();
+    };
+  }, [nodeId, registerAppIntake, registerAppChatActions]);
 
   return (
     <div className="boxouts-app">
-      <ChatPanel
-        messages={messages} busy={busy} awaitingConfirm={pendingImport != null} hasBoxes={count > 0}
-        onSendText={(text) => void processText(text)} onAttachFile={(file) => void processFile(file)}
-        onAttachError={(content) => push({ role: "assistant", kind: "error", content })}
-        onConfirmChoice={finishImport}
-        onClearAll={() => { clearTable(); push({ role: "assistant", kind: "result", content: "Cleared all boxes." }); }}
-      />
       <div className="boxouts-main">
         <div className={`boxouts-center ${nestingPreviewOpen ? "boxouts-center--preview" : ""}`}>
           <div className="boxouts-plot-slot"><ParallelCoordinates inputLists={inputLists} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>

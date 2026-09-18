@@ -1,16 +1,16 @@
 # Door Box Out
 
-Native React Door Box Out module mounted directly inside Studio. It keeps the standalone app's chat, CSV/Excel/image intake, table editing, D3 plot, Grasshopper solve polling, rhino3dm/Three.js viewer, nesting counts and nesting preview.
+Native React Door Box Out module mounted directly inside Studio. It keeps the standalone app's CSV/Excel/image intake, table editing, D3 plot, Grasshopper solve polling, rhino3dm/Three.js viewer, nesting counts and nesting preview. Chat lives in Concierge; this window no longer embeds its own chat sidebar.
 
 ## Layout
 
 ```
 boxouts/
-  BoxoutsPage.tsx          React conductor (chat, table, solve, viewer)
+  BoxoutsPage.tsx          React conductor (table, solve, viewer; Concierge owns chat)
   types.ts                 Shared state and input types
   boxouts.css              Original palette and responsive rules
   boxouts-react.css        Native component layout and styles
-  components/              React chat, table, D3 plot, 3D viewer, nesting
+  components/              Table, D3 plot, 3D viewer, nesting
   lib/                     CSV parse, solve client, Three.js scene, env
   README.md
 ```
