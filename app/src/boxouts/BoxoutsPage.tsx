@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { ChatPanel } from "./components/ChatPanel";
 import { BoxTable } from "./components/BoxTable";
@@ -28,6 +28,13 @@ import {
   reportAppChatReply,
 } from "../lib/appChat";
 import { useWorkspace } from "../context/workspace";
+import {
+  dropBoxoutsSession,
+  emptyBoxoutsSession,
+  getBoxoutsSession,
+  publishBoxoutsSession,
+  type BoxoutsSessionSnapshot,
+} from "./sessionStateStore";
 import "./boxouts.css";
 import "./boxouts-react.css";
 
@@ -44,6 +51,10 @@ type PendingImport = {
   normalized: Normalized;
   parseSource: string;
 };
+
+function hydrateBoxouts(nodeId?: string): BoxoutsSessionSnapshot {
+  return getBoxoutsSession(nodeId) ?? emptyBoxoutsSession();
+}
 
 function nextMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -86,23 +97,81 @@ async function imageBody(file: File) {
 
 export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
   const { registerAppIntake } = useWorkspace();
-  const [inputLists, setInputLists] = useState<InputLists | null>(null);
-  const [sourceLists, setSourceLists] = useState<InputLists | null>(null);
-  const [emptyCellKeys, setEmptyCellKeys] = useState(new Set<string>());
-  const [names, setNames] = useState<string[]>([]);
-  const [quantities, setQuantities] = useState<number[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [solveRequestId, setSolveRequestId] = useState(0);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
-  const [solve, setSolve] = useState<SolveState>(() => createSolveState());
-  const [nestingPreviewOpen, setNestingPreviewOpen] = useState(false);
-  const [sendResultsPhase, setSendResultsPhase] = useState<"confirm" | "sent" | null>(null);
+  const [saved] = useState(() => hydrateBoxouts(nodeId));
+  const [inputLists, setInputLists] = useState<InputLists | null>(saved.inputLists);
+  const [sourceLists, setSourceLists] = useState<InputLists | null>(saved.sourceLists);
+  const [emptyCellKeys, setEmptyCellKeys] = useState(() => new Set(saved.emptyCellKeys));
+  const [names, setNames] = useState<string[]>(saved.names);
+  const [quantities, setQuantities] = useState<number[]>(saved.quantities);
+  const [selectedIndex, setSelectedIndex] = useState(saved.selectedIndex);
+  // Remount re-solves from lists; bump so Viewer3D does not treat restore as idle.
+  const [solveRequestId, setSolveRequestId] = useState(() => (
+    saved.inputLists ? Math.max(1, saved.solveRequestId) : saved.solveRequestId
+  ));
+  const [messages, setMessages] = useState<ChatMessage[]>(saved.messages);
+  const [busy, setBusy] = useState(saved.busy);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(saved.pendingImport);
+  const [solve, setSolve] = useState<SolveState>(() => saved.solve);
+  const [nestingPreviewOpen, setNestingPreviewOpen] = useState(saved.nestingPreviewOpen);
+  const [sendResultsPhase, setSendResultsPhase] = useState<"confirm" | "sent" | null>(saved.sendResultsPhase);
 
   const count = names.length;
   const nestingPayload = solve.fullSetNesting?.geometryPayload;
   const nestingReady = !solve.isSolving && nestingPayload != null;
+
+  const liveRef = useRef({
+    inputLists,
+    sourceLists,
+    emptyCellKeys,
+    names,
+    quantities,
+    selectedIndex,
+    solveRequestId,
+    messages,
+    busy,
+    pendingImport,
+    solve,
+    nestingPreviewOpen,
+    sendResultsPhase,
+  });
+  liveRef.current = {
+    inputLists,
+    sourceLists,
+    emptyCellKeys,
+    names,
+    quantities,
+    selectedIndex,
+    solveRequestId,
+    messages,
+    busy,
+    pendingImport,
+    solve,
+    nestingPreviewOpen,
+    sendResultsPhase,
+  };
+
+  // WAITING DATABASE: chat.session.appState.boxouts — keep window contents across chat close
+  useLayoutEffect(() => {
+    if (!nodeId) return;
+    return () => {
+      const live = liveRef.current;
+      publishBoxoutsSession(nodeId, {
+        inputLists: live.inputLists,
+        sourceLists: live.sourceLists,
+        emptyCellKeys: [...live.emptyCellKeys],
+        names: live.names,
+        quantities: live.quantities,
+        selectedIndex: live.selectedIndex,
+        solveRequestId: live.solveRequestId,
+        messages: live.messages,
+        busy: live.busy,
+        pendingImport: live.pendingImport,
+        solve: live.solve,
+        nestingPreviewOpen: live.nestingPreviewOpen,
+        sendResultsPhase: live.sendResultsPhase,
+      });
+    };
+  }, [nodeId]);
 
   const push = useCallback((message: Omit<ChatMessage, "id">) => {
     setMessages((current) => [...current, { id: nextMessageId(), ...message }]);
@@ -140,6 +209,7 @@ export function BoxoutsPage({ nodeId }: { nodeId?: string }) {
     setSolve(createSolveState());
     setNestingPreviewOpen(false);
     setSendResultsPhase(null);
+    if (nodeId) dropBoxoutsSession(nodeId);
   }
 
   function applyPayload(raw: Normalized, parseSource: string, mode: "replace" | "append" | "overwrite") {

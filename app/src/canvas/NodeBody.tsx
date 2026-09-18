@@ -5,6 +5,8 @@ import { OrbitPage } from "../pages/Orbit";
 import { PartsNestingPage, PartsPage } from "../pages/Parts";
 import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyworks";
 import { ProjectsPage } from "../pages/Projects";
+import { JobsPage } from "../pages/Jobs";
+import NestingResultModalComponent, { type NestingResultModalProps } from "../simpleparts/components/NestingResultModalComponent";
 import { ConciergeChat } from "./Concierge";
 import { useHelpOptional } from "../context/help";
 
@@ -36,9 +38,9 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
   );
 }
 
-function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
+function NodeBodyImpl({ node }: { node: WorkspaceNode; viewport: { width: number; height: number } }) {
   const help = useHelpOptional();
-  const { openApp, focusTargets } = useWorkspace();
+  const { openApp, focusTargets, inspectionJob } = useWorkspace();
   const openDesign = useCallback((design: "shelf" | "table" | "stool" | "bench") => {
     openApp("plyworks", { parentId: node.id, design });
   }, [node.id, openApp]);
@@ -51,16 +53,54 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
     if (opened) focusTargets([opened.id]);
   }, [node.id, openApp, focusTargets]);
   if (node.kind === "log") return null;
+  if (node.kind === "archive") {
+    const archivedEntries = inspectionJob?.snapshot.entries.filter((entry) => entry.result !== "activity") ?? [];
+    return (
+      <div className="archived-chat">
+        {archivedEntries.map((entry) => (
+          <div className="archived-chat-turn" key={entry.id}>
+            {entry.query.trim() && <p className="archived-chat-user">{entry.query}</p>}
+            {(entry.reply ?? entry.routeWhy) && <p className="archived-chat-assistant">{entry.reply ?? entry.routeWhy}</p>}
+          </div>
+        ))}
+        {!archivedEntries.length && <p className="muted">No archived messages.</p>}
+      </div>
+    );
+  }
   if (node.kind === "note") return <NotePanel node={node} />;
   if (node.kind === "text") return <ConciergeChat />;
   if (node.kind === "denied") {
     return <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{node.body}</p>;
   }
   if (node.kind === "app") {
+    if (inspectionJob && node.snapshotOriginalId) {
+      const snapshot = inspectionJob.snapshot.apps.find((item) => item.nodeId === node.snapshotOriginalId)
+        ?? inspectionJob.snapshot.apps.find((item) => (
+          (node.appId === "simpleparts" || node.appId === "simpleparts-nesting") && item.kind === "simpleparts-nesting"
+        ))
+        ?? inspectionJob.snapshot.apps.find((item) => (
+          node.appId === "plyworks" && item.kind === "plyworks"
+        ))
+        ?? inspectionJob.snapshot.apps.find((item) => (
+          node.appId === "plyworks-nesting" && item.kind === "plyworks-nesting"
+        ));
+      if (snapshot?.kind.endsWith("-nesting")) {
+        return <NestingResultModalComponent {...(snapshot.data as NestingResultModalProps)} open variant="page" readOnly />;
+      }
+      return (
+        <div className="archived-app-summary">
+          <p className="jobs-kicker">Order-time snapshot</p>
+          <h3>{node.title}</h3>
+          {node.design && <p><strong>Design:</strong> {node.design}</p>}
+          {node.query && <p><strong>Request:</strong> {node.query}</p>}
+          {snapshot?.data != null && <pre>{JSON.stringify(snapshot.data, null, 2)}</pre>}
+        </div>
+      );
+    }
     if (node.appId === "boxouts") return <BoxoutsPage nodeId={node.id} />;
     if (node.appId === "simpleparts") return <PartsPage nodeId={node.id} />;
     if (node.appId === "simpleparts-nesting") {
-      return <PartsNestingPage jobId={node.query} />;
+      return <PartsNestingPage jobId={node.query} nodeId={node.id} />;
     }
     if (node.appId === "plyworks") {
       const bridged = help?.topic === "plyworks" && (help.phase === "iframe" || help.phase === "touring")
@@ -82,9 +122,10 @@ function NodeBodyImpl({ node, viewport }: { node: WorkspaceNode; viewport: { wid
       return <PlyworksJwPage jobId={node.query} onOpenNesting={openNesting} />;
     }
     if (node.appId === "plyworks-nesting") {
-      return <PlyworksNestingPage jobId={node.query} />;
+      return <PlyworksNestingPage jobId={node.query} nodeId={node.id} />;
     }
     if (node.appId === "projects") return <ProjectsPage />;
+    if (node.appId === "jobs") return <JobsPage />;
     if (node.appId === "orbit") return <OrbitPage />;
     if (node.appId === "admin") {
       return <p style={{ margin: 0 }}>The Admin console is not available yet.</p>;
@@ -109,4 +150,5 @@ export const NodeBody = memo(NodeBodyImpl, (prev, next) => (
   && prev.node.routeLabel === next.node.routeLabel
   && prev.node.routeWhy === next.node.routeWhy
   && prev.node.confirmApps === next.node.confirmApps
+  && prev.node.snapshotOriginalId === next.node.snapshotOriginalId
 ));
