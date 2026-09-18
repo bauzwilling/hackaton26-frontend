@@ -23,11 +23,12 @@ import {
 import { matchLocalRoute } from "../lib/routing";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
+import { createJob, type FrozenAppSnapshot, type Job } from "../lib/jobs";
+import { getSimplePartsNesting } from "../simpleparts/nestingResultStore";
 import type { ViewportSnapshot } from "../workspace/persist";
 import {
   capStoredSessions,
   cleanBoardNodes,
-  dockedChatWidth,
   emptySession,
   leftoverCanvas,
   loadSessionStore,
@@ -161,6 +162,11 @@ type Ctx = {
   focusTargets: (ids: string[], viewport?: { width: number; height: number }, opts?: { maxZoom?: number }) => void;
   ensureConcierge: () => string;
   appendConciergeTurn: (query: string, reply: string, extras?: Partial<RequestEntry>) => string;
+  placeOrder: (sourceApp: string, appSnapshot?: FrozenAppSnapshot) => Job | null;
+  chatOrdered: boolean;
+  inspectionJob: Job | null;
+  inspectJob: (job: Job) => void;
+  exitInspection: () => void;
   focus: (id: string) => void;
   commitPositions: (positions: Record<string, { x: number; y: number }>) => void;
   commitViewport: (viewport: ViewportSnapshot) => void;
@@ -238,6 +244,7 @@ function topChatAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const email = session?.email ?? "anon";
+  const startsOnLanding = session?.role === "user" || !session;
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const [userEdges, setUserEdges] = useState<UserEdge[]>([]);
   const [entries, setEntries] = useState<RequestEntry[]>([]);
@@ -252,9 +259,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeSessionId, setActiveSessionId] = useState("");
   const [historyCollapsed, setHistoryCollapsedState] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [atLanding, setAtLanding] = useState(true);
+  const [atLanding, setAtLanding] = useState(startsOnLanding);
   const [enteringNodeIds, setEnteringNodeIds] = useState<string[]>([]);
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
+  const [inspectionJob, setInspectionJob] = useState<Job | null>(null);
   const zTop = useRef(10);
   const flashTimer = useRef<number | null>(null);
   const skipSave = useRef(0);
@@ -267,7 +275,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const sessionsRef = useRef<ChatSession[]>([]);
   const activeIdRef = useRef("");
   const collapsedRef = useRef(false);
-  const atLandingRef = useRef(true);
+  const atLandingRef = useRef(startsOnLanding);
   const resumingRef = useRef(false);
   const maximizedIdRef = useRef<string | null>(null);
   const maximizeIgnoreUntil = useRef(0);
@@ -370,35 +378,41 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return found;
   }, [persistStore]);
 
-  const hydrateSession = useCallback((session: ChatSession) => {
+  const hydrateSession = useCallback((chat: ChatSession) => {
     skipSave.current += 1;
-    setNodes(cleanBoardNodes(session.board.nodes));
-    setUserEdges(session.board.userEdges);
-    setViewport(session.board.viewport ?? { x: 0, y: 0, zoom: 1 });
-    zTop.current = session.board.zTop ?? 10;
-    setEntries(session.entries);
+    const clean = cleanBoardNodes(chat.board.nodes);
+    setNodes(
+      session?.role === "admin"
+        ? clean.filter((node) => node.id === CONCIERGE_ID)
+        : clean,
+    );
+    setUserEdges(chat.board.userEdges);
+    setViewport(chat.board.viewport ?? { x: 0, y: 0, zoom: 1 });
+    zTop.current = chat.board.zTop ?? 10;
+    setEntries(chat.entries);
     setSelectedEntryId(null);
     setOverviewOpen(false);
     setPreviewId(null);
     setFlashIds([]);
-  }, []);
+  }, [session?.role]);
 
   useEffect(() => {
     const store = loadSessionStore(email);
+    const staff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
     let list = store.sessions;
     let draft = list.find(sessionIsEmpty);
     if (!draft) {
       draft = emptySession();
       list = [draft, ...list];
     }
-    setHistoryCollapsedState(store.historyCollapsed);
+    setHistoryCollapsedState(staff ? true : store.historyCollapsed);
     setSessions(list);
     setActiveSessionId(draft.id);
-    atLandingRef.current = true;
-    setAtLanding(true);
+    atLandingRef.current = !staff;
+    setAtLanding(!staff);
     hydrateSession(draft);
-    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: store.historyCollapsed });
-  }, [email, hydrateSession, persistStore]);
+    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: staff ? true : store.historyCollapsed });
+  }, [email, session?.role, hydrateSession, persistStore]);
 
   useEffect(() => {
     if (resumeLock.current) return;
@@ -618,6 +632,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     action: AppChatAction,
     entryId?: string,
   ) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
     if (entryId) {
       setEntries((list) => list.map((e) => {
         if (e.id !== entryId || !e.appPrompt || e.appPrompt.resolved) return e;
@@ -697,6 +712,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     content: string,
     prompt?: AppChatPrompt,
   ) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
     const text = (content || prompt?.content || "").trim();
     if (!text && !prompt) return;
     const node = nodesRef.current.find((n) => n.id === nodeId);
@@ -974,6 +990,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [openApp, openZoomThenForward, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
 
   const ask = useCallback((raw: string) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
     const q = raw.trim();
     if (!q) return;
     if (tryHelpAsk(q)) return;
@@ -1054,12 +1071,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [openZoomThenForward, ensureConcierge, session]);
 
   const ingestFiles = useCallback((files: File[]) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
     const list = Array.from(files).filter(Boolean);
     if (!list.length) return;
     departLanding(() => ingestNow(list));
   }, [departLanding, ingestNow]);
 
   const confirmIntake = useCallback((entryId: string, app: WorkspaceApp) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
     if (app !== "boxouts" && app !== "simpleparts" && app !== "plyworks") return;
     const entry = entriesRef.current.find((e) => e.id === entryId);
     if (!entry) return;
@@ -1119,6 +1138,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [openZoomThenForward, ensureConcierge, session]);
 
   const appendConciergeTurn = useCallback((query: string, reply: string, extras?: Partial<RequestEntry>) => {
+    if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return "";
     const conciergeId = ensureConcierge();
     const entryId = extras?.id ?? uid("e");
     const entry: RequestEntry = {
@@ -1144,6 +1164,56 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return entryId;
   }, [ensureConcierge]);
 
+  const placeOrder = useCallback((sourceApp: string, appSnapshot?: FrozenAppSnapshot) => {
+    if (!session || session.role !== "user") return null;
+    const active = sessionsRef.current.find((item) => item.id === activeIdRef.current);
+    if (!active || active.orderedJobId) return null;
+    const apps: FrozenAppSnapshot[] = [];
+    for (const node of nodesRef.current) {
+      if (node.appId === "simpleparts-nesting" && node.query) {
+        const nesting = getSimplePartsNesting(node.query);
+        if (nesting) {
+          const { onNestUnassigned: _drop, ...data } = nesting;
+          apps.push({ kind: "simpleparts-nesting", nodeId: node.id, data });
+        }
+      }
+    }
+    if (appSnapshot) apps.push(appSnapshot);
+    const plyworks = snapshotPlyworksBoards();
+    const plyworksNode = nodesRef.current.find((node) => node.appId === "plyworks");
+    if (plyworks.length && plyworksNode) {
+      apps.push({ kind: "plyworks", nodeId: plyworksNode.id, data: plyworks });
+    }
+    const frozen = snapshotSession(active, {
+      nodes: nodesRef.current,
+      userEdges: userEdgesRef.current,
+      viewport: viewportRef.current,
+      zTop: zTop.current,
+      entries: entriesRef.current,
+    });
+    const job = createJob(session, {
+      sourceSessionId: active.id,
+      sourceApp,
+      snapshot: {
+        title: frozen.title,
+        entries: frozen.entries,
+        nodes: frozen.board.nodes,
+        userEdges: frozen.board.userEdges,
+        viewport: frozen.board.viewport,
+        zTop: frozen.board.zTop,
+        apps,
+      },
+    });
+    const orderedAt = Date.now();
+    const next = sessionsRef.current.map((item) => (
+      item.id === active.id ? { ...frozen, orderedJobId: job.id, orderedAt } : item
+    ));
+    sessionsRef.current = next;
+    setSessions(next);
+    persistStore({ activeId: active.id, sessions: next, historyCollapsed: collapsedRef.current });
+    return job;
+  }, [persistStore, session]);
+
   const restoreEntry = useCallback((entryId: string, viewport?: { width: number; height: number }) => {
     const entry = entries.find((e) => e.id === entryId);
     if (!entry) return;
@@ -1165,8 +1235,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const commitViewport = useCallback((next: ViewportSnapshot) => {
+    if (inspectionJob) return;
     setViewport(next);
-  }, []);
+  }, [inspectionJob]);
 
   const addUserEdge = useCallback((edge: UserEdge) => {
     setUserEdges((list) => {
@@ -1254,10 +1325,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const tile = useCallback((_viewport?: { width: number; height: number }) => {
+    if (inspectionJob) return;
     setNodes((list) => tileNodes(list, leftoverCanvas(stageSizeRef.current, viewportRef.current)));
-  }, []);
+  }, [inspectionJob]);
 
   const beginResume = useCallback((next: ChatSession, flushed: ChatSession[]) => {
+    setInspectionJob(null);
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = true;
@@ -1273,7 +1346,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSessions(flushed);
     setActiveSessionId(next.id);
     skipSave.current += 1;
-    setNodes(cleanBoardNodes(next.board.nodes).filter((n) => n.id === CONCIERGE_ID));
+    const cleaned = cleanBoardNodes(next.board.nodes);
+    const resumable = session?.role === "admin"
+      ? cleaned.filter((node) => node.id === CONCIERGE_ID)
+      : cleaned;
+    setNodes(resumable.filter((n) => n.id === CONCIERGE_ID));
     setUserEdges([]);
     setViewport(next.board.viewport ?? { x: 0, y: 0, zoom: 1 });
     zTop.current = next.board.zTop ?? 10;
@@ -1285,14 +1362,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setEnteringNodeIds([]);
     persistStore({ activeId: next.id, sessions: flushed, historyCollapsed: collapsedRef.current });
 
-    const windows = cleanBoardNodes(next.board.nodes)
+    const windows = resumable
       .filter((n) => n.id !== CONCIERGE_ID)
       .sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
     const hidden = windows.filter((n) => n.hidden);
     const visible = windows.filter((n) => !n.hidden);
     const afterChat = reduce ? 0 : fromLanding ? HERO_LEAVE_MS + PAIR_FADE_MS + PAIR_SHAPE_MS + PAIR_FADE_MS : SESSION_APP_AFTER_CHAT_MS;
     const gap = reduce ? 0 : SESSION_APP_STAGGER_MS;
-    const hub = cleanBoardNodes(next.board.nodes).filter((n) => n.id === CONCIERGE_ID);
+    const hub = resumable.filter((n) => n.id === CONCIERGE_ID);
 
     const reveal = () => {
       setEntries(next.entries);
@@ -1313,7 +1390,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           later(gap, () => show(count + 1));
         };
         if (!visible.length) {
-          setNodes(cleanBoardNodes(next.board.nodes));
+          setNodes(resumable);
           setUserEdges(next.board.userEdges);
           resumeLock.current = false;
           return;
@@ -1323,7 +1400,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
     if (spin > 0) later(spin, reveal);
     else reveal();
-  }, [clearReveal, dismissMaximize, later, leaveLanding, persistStore]);
+  }, [clearReveal, dismissMaximize, later, leaveLanding, persistStore, session?.role]);
 
   const setHistoryCollapsed = useCallback((collapsed: boolean) => {
     if (!collapsed) dismissMaximize(true);
@@ -1336,6 +1413,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [dismissMaximize, flushList, persistStore]);
 
   const createSession = useCallback(() => {
+    setInspectionJob(null);
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
@@ -1357,6 +1435,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const returnToLanding = useCallback(() => {
+    if (session?.role === "manager" || session?.role === "operator" || session?.role === "admin") {
+      createSession();
+      if (session.role !== "admin") {
+        window.setTimeout(() => {
+          const opened = openApp("jobs", { skipActivity: true });
+          if (opened) window.setTimeout(() => maximize(opened.id), 0);
+        }, 0);
+      }
+      return;
+    }
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
@@ -1384,9 +1472,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveSessionId(draft.id);
     hydrateSession(draft);
     persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
+  }, [clearReveal, createSession, dismissMaximize, flushList, hydrateSession, maximize, openApp, persistStore, session?.role]);
 
   const switchSession = useCallback((id: string) => {
+    setInspectionJob(null);
     if (id === activeIdRef.current) return;
     const flushed = flushList(sessionsRef.current, activeIdRef.current);
     const next = flushed.find((s) => s.id === id);
@@ -1404,6 +1493,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [flushList, persistStore]);
 
   const deleteSession = useCallback((id: string) => {
+    setInspectionJob(null);
     const flushed = flushList(sessionsRef.current, activeIdRef.current);
     const remaining = flushed.filter((s) => s.id !== id);
     if (!remaining.length) {
@@ -1450,6 +1540,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clear = useCallback((opts?: { transcript?: boolean }) => {
+    if (inspectionJob) return;
     dismissMaximize(true);
     if (opts?.transcript) {
       setEntries([]);
@@ -1464,17 +1555,78 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setViewport({ x: 0, y: 0, zoom: 1 });
     setFlashIds([]);
     zTop.current = 10;
-  }, [dismissMaximize]);
+  }, [dismissMaximize, inspectionJob]);
 
   const wireEdges = useMemo(
     () => topology(nodes, entries, selectedEntryId),
     [nodes, entries, selectedEntryId],
   );
 
+  const inspectionNodes = useMemo(() => {
+    if (!inspectionJob) return null;
+    const source = inspectionJob.snapshot.nodes.filter((node) => (
+      !node.hidden && node.id !== CONCIERGE_ID && node.kind !== "log"
+    ));
+    const idMap = new Map(source.map((node) => [node.id, `inspect:${node.id}`]));
+    const minX = source.length ? Math.min(...source.map((node) => node.x)) : 0;
+    const minY = source.length ? Math.min(...source.map((node) => node.y)) : 0;
+    const archived: WorkspaceNode = {
+      id: `inspect:chat:${inspectionJob.id}`,
+      kind: "archive",
+      title: `Archived chat · ${inspectionJob.submittedByName}`,
+      code: "CHAT",
+      query: inspectionJob.id,
+      x: minX - 380,
+      y: minY,
+      z: 1,
+      w: 340,
+      h: 560,
+      hidden: false,
+      locked: true,
+      autoSize: false,
+    };
+    return [
+      archived,
+      ...source.map((node, index): WorkspaceNode => ({
+        ...node,
+        id: idMap.get(node.id)!,
+        parentId: node.parentId ? idMap.get(node.parentId) : undefined,
+        snapshotOriginalId: node.id,
+        z: index + 2,
+        locked: true,
+        hidden: false,
+      })),
+    ];
+  }, [inspectionJob]);
+
+  const inspectJob = useCallback((job: Job) => {
+    dismissMaximize(true);
+    setInspectionJob(job);
+    setHistoryCollapsedState(true);
+    const ids = [
+      `inspect:chat:${job.id}`,
+      ...job.snapshot.nodes
+        .filter((node) => !node.hidden && node.id !== CONCIERGE_ID && node.kind !== "log")
+        .map((node) => `inspect:${node.id}`),
+    ];
+    setFitRequest({ ids, key: Date.now(), maxZoom: FIT_ZOOM_MAX, collapsedGutter: true });
+  }, [dismissMaximize]);
+
+  const exitInspection = useCallback(() => {
+    setInspectionJob(null);
+    const jobs = nodesRef.current.find((node) => node.appId === "jobs");
+    if (jobs) {
+      window.setTimeout(() => maximize(jobs.id), 0);
+      return;
+    }
+    const opened = openApp("jobs", { skipActivity: true });
+    if (opened) window.setTimeout(() => maximize(opened.id), 0);
+  }, [maximize, openApp]);
+
   const value = useMemo<Ctx>(() => ({
-    nodes,
-    edges: wireEdges,
-    userEdges,
+    nodes: inspectionNodes ?? nodes,
+    edges: inspectionJob ? [] : wireEdges,
+    userEdges: inspectionJob ? [] : userEdges,
     entries,
     selectedEntryId,
     setSelectedEntryId,
@@ -1499,6 +1651,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     focusTargets,
     ensureConcierge,
     appendConciergeTurn,
+    placeOrder,
+    chatOrdered: Boolean(sessions.find((s) => s.id === activeSessionId)?.orderedJobId),
+    inspectionJob,
+    inspectJob,
+    exitInspection,
     focus,
     commitPositions,
     commitViewport,
@@ -1535,7 +1692,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

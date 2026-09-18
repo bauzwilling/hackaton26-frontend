@@ -33,7 +33,7 @@ export function Composer({
   placeholder?: string;
   shareLayout?: boolean;
 }) {
-  const { ask, ingestFiles } = useWorkspace();
+  const { ask, ingestFiles, chatOrdered, createSession } = useWorkspace();
   const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -50,6 +50,15 @@ export function Composer({
     const files = Array.from(list ?? []);
     if (files.length) ingestFiles(files);
     if (fileInput.current) fileInput.current.value = "";
+  }
+
+  if (chatOrdered) {
+    return (
+      <Surface className={`composer composer-${variant} composer-ordered`}>
+        <span>This chat was submitted with an order.</span>
+        <button type="button" className="btn btn-primary" onClick={createSession}>Start new chat</button>
+      </Surface>
+    );
   }
 
   return (

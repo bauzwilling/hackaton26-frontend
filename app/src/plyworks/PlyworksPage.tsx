@@ -28,6 +28,6 @@ export function PlyworksJwPage({
   return <JointWizPage jobId={jobId} onOpenNesting={onOpenNesting} />;
 }
 
-export function PlyworksNestingPage({ jobId }: { jobId?: string }) {
-  return <NestingPage jobId={jobId} />;
+export function PlyworksNestingPage({ jobId, nodeId }: { jobId?: string; nodeId?: string }) {
+  return <NestingPage jobId={jobId} nodeId={nodeId} />;
 }

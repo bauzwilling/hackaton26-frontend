@@ -3,6 +3,7 @@ import NestingResultModalComponent from "../../simpleparts/components/NestingRes
 import type { NestingSheetPayload } from "../../simpleparts/components/NestingSheetsViewer";
 import { getProduce, nestingZipUrl, type ProduceJob } from "../lib/produceApi";
 import { loadPlyworksNestingSheets } from "../lib/loadNestingSheets";
+import { useWorkspace } from "../../context/workspace";
 import "../../simpleparts/simpleparts.css";
 import "../../simpleparts/simpleparts-react.css";
 
@@ -12,7 +13,8 @@ const NA = "n/a";
  * Plyworks nesting Studio window — same chrome/logic as Simple Parts nesting.
  * Sheet DXFs come from the produce ZIP; missing nest metadata shows as n/a.
  */
-export function NestingPage({ jobId = "" }: { jobId?: string }) {
+export function NestingPage({ jobId = "", nodeId }: { jobId?: string; nodeId?: string }) {
+  const { placeOrder } = useWorkspace();
   const [sheets, setSheets] = useState<NestingSheetPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -97,6 +99,11 @@ export function NestingPage({ jobId = "" }: { jobId?: string }) {
         const sep = url.includes("?") ? "&" : "?";
         return `${url}${sep}filename=${encodeURIComponent(filename)}`;
       }}
+      onPlaceOrder={(data) => Boolean(placeOrder("plyworks", {
+        kind: "plyworks-nesting",
+        nodeId: nodeId ?? "plyworks-nesting",
+        data,
+      }))}
     />
   );
 }

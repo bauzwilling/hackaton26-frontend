@@ -1,10 +1,11 @@
-import { memo, useEffect, useRef, type NodeProps } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   Handle,
   Position,
   useReactFlow,
   useUpdateNodeInternals,
   type Node,
+  type NodeProps,
 } from "@xyflow/react";
 import { Window } from "../../components/kit";
 import { canDeleteNode, useWorkspace, type NodeKind, type WorkspaceApp, type WorkspaceNode } from "../../context/workspace";
@@ -27,6 +28,7 @@ export type StudioNodeData = {
   confirmApps?: WorkspaceApp[];
   design?: PlyworksDesign;
   chatIntake?: AppChatIntake;
+  snapshotOriginalId?: string;
   locked?: boolean;
   railed?: boolean;
   autoSize?: boolean;
@@ -67,6 +69,7 @@ function toWorkspaceNode(
     confirmApps: data.confirmApps,
     design: data.design,
     chatIntake: data.chatIntake,
+    snapshotOriginalId: data.snapshotOriginalId,
     x: 0,
     y: 0,
     z: 0,

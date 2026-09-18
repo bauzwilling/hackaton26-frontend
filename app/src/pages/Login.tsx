@@ -32,9 +32,9 @@ import {
 } from "@/components/ui/select";
 import { useSession } from "../context/session";
 // WAITING DATABASE: dummy directory for sign-in; look is not applied on this page
-import { COMPANIES, DIRECTORY, ROLES, companyOf, signIn, type CompanyId } from "../lib/auth";
+import { ACTIVE_COMPANY_IDS, COMPANIES, DIRECTORY, ROLES, companyOf, signIn } from "../lib/auth";
 
-const COMPANY_ORDER = Object.keys(COMPANIES) as CompanyId[];
+const COMPANY_ORDER = ACTIVE_COMPANY_IDS;
 const SAMPLE_PASSWORD = "demo";
 const SAMPLE_NONE = "__none__";
 const AUTH_WAIT_MS = 1000;

@@ -9,8 +9,8 @@ import "./simpleparts.css";
 import "./simpleparts-react.css";
 
 export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
-  const { registerAppIntake, registerAppChatActions, relayAppChatReply, focusTargets, openApp } = useWorkspace();
-  const app = useSimplePartsApp();
+  const { registerAppIntake, registerAppChatActions, relayAppChatReply, focusTargets, openApp, placeOrder } = useWorkspace();
+  const app = useSimplePartsApp(nodeId);
   const appRef = useRef(app);
   appRef.current = app;
   const preview = app.summonedPreview.value;
@@ -174,6 +174,11 @@ export function SimplePartsPage({ nodeId }: { nodeId?: string }) {
         leftoverNestingMetrics={leftover?.nestingMetrics ?? null}
         onClose={app.closeNestingModal}
         onNestUnassigned={app.onNestUnassignedParts}
+        onPlaceOrder={(data) => Boolean(placeOrder("simpleparts", {
+          kind: "simpleparts-nesting",
+          nodeId: nodeId ?? "simpleparts",
+          data,
+        }))}
       />
     </div>
   );
