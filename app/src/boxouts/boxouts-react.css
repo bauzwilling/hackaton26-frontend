@@ -2,7 +2,7 @@
   display: flex;
   width: 100%;
   height: 100%;
-  min-width: 720px;
+  min-width: 0;
   min-height: 420px;
   overflow: hidden;
   color: #222;
@@ -10,38 +10,7 @@
   font-family: system-ui, sans-serif;
 }
 
-.boxouts-sidebar {
-  flex: 0 0 16.667%;
-  min-width: 240px;
-  padding: 1rem;
-  border-right: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: .75rem;
-  overflow: hidden;
-}
-
-.boxouts-sidebar h1 { margin: 0; font-size: 1.1rem; }
-.boxouts-chat { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
-.boxouts-chat--dragging { border-color: var(--color-accent); background: var(--color-accent-bg); }
-.boxouts-message-list { flex: 1; min-height: 0; overflow-y: auto; padding: .65rem; display: flex; flex-direction: column; gap: .5rem; }
 .boxouts-empty { margin: auto; padding: 1rem; text-align: center; font-size: .78rem; line-height: 1.4; color: var(--color-text-muted); }
-.boxouts-message { display: flex; max-width: 92%; }
-.boxouts-message--user { align-self: flex-end; }
-.boxouts-message--assistant { align-self: flex-start; }
-.boxouts-bubble { padding: .45rem .6rem; border-radius: 8px; font-size: .8rem; line-height: 1.35; overflow-wrap: anywhere; }
-.boxouts-bubble p { margin: 0; white-space: pre-line; }
-.boxouts-bubble--user { background: var(--color-accent-bg); }
-.boxouts-bubble--assistant { background: var(--color-surface-hover); }
-.boxouts-bubble--result { background: var(--color-result-bg); color: var(--color-result-text); }
-.boxouts-bubble--error { background: var(--color-warning-bg); color: var(--color-warning-emphasis); }
-.boxouts-confirm-actions { display: flex; gap: .35rem; margin-top: .45rem; }
-.boxouts-confirm-actions button { text-transform: capitalize; }
-.boxouts-typing { margin: 0; font-size: .75rem; color: var(--color-text-muted); font-style: italic; }
-.boxouts-drop-overlay { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgba(230,242,255,.92); border: 2px dashed var(--color-accent); color: var(--color-accent); font-weight: 600; pointer-events: none; }
-.boxouts-composer { flex: 0 0 auto; display: flex; flex-direction: column; gap: .4rem; padding: .5rem; border-top: 1px solid var(--color-border); }
-.boxouts-composer textarea { width: 100%; min-height: 2.5rem; max-height: 6rem; resize: vertical; padding: .4rem .5rem; font: inherit; font-size: .8rem; border: 1px solid var(--color-border); border-radius: 4px; }
-.boxouts-composer-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .35rem; }
 .boxouts-app button { padding: .3rem .65rem; font-size: .78rem; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface); cursor: pointer; }
 .boxouts-app button:disabled { opacity: .5; cursor: not-allowed; }
 .boxouts-app button:hover:not(:disabled), .boxouts-app .boxouts-primary { background: var(--color-result-bg); border-color: var(--color-neutral-edited-accent); }
@@ -103,6 +72,5 @@
 
 @media (max-width: 900px) {
   .boxouts-app { min-width: 0; overflow: auto; }
-  .boxouts-sidebar { flex-basis: 240px; }
   .boxouts-main { min-width: 650px; }
 }

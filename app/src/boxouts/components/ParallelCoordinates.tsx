@@ -76,7 +76,7 @@ export function ParallelCoordinates({ inputLists, selectedIndex, onSelect }: Pro
 
   return (
     <div className="boxouts-plot">
-      {!inputLists && <p className="boxouts-empty">Add boxes in the chat to preview them here</p>}
+      {!inputLists && <p className="boxouts-empty">Add boxes in Concierge to preview them here</p>}
       <div ref={ref} className="boxouts-plot-svg" />
     </div>
   );
