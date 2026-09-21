@@ -1,0 +1,77 @@
+name: Deploy dashboard
+
+on:
+  push:
+    branches: [dashboard-v2-demo]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          # Whole concierge.env as one base64 secret. Passed through `envs`
+          # rather than interpolated into the script. See deploy/README.md.
+          ENV_B64: ${{ secrets.CONCIERGE_ENV_B64 }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 30m
+          envs: ENV_B64
+          script: |
+            set -euo pipefail
+            export PATH="/opt/dashboard/venv/bin:/usr/bin:$PATH"
+            cd /opt/dashboard/hackaton26-frontend
+            git fetch origin dashboard-v2-demo
+            git checkout dashboard-v2-demo
+            git reset --hard origin/dashboard-v2-demo
+
+            if [ ! -d /opt/dashboard/venv ]; then
+              python3 -m venv /opt/dashboard/venv
+            fi
+            /opt/dashboard/venv/bin/pip install -r requirements.txt
+
+            cd app
+            npm ci --ignore-scripts
+            npm run build
+            cd ..
+
+            # --- Environment ------------------------------------------------
+            if [ -n "${ENV_B64:-}" ]; then
+              sudo install -d -m 0755 /etc/dashboard
+              printf '%s' "${ENV_B64}" | base64 -d | sudo tee /etc/dashboard/concierge.env.new > /dev/null
+              sudo grep -q '^ANTHROPIC_API_KEY=.' /etc/dashboard/concierge.env.new
+              sudo chmod 0640 /etc/dashboard/concierge.env.new
+              sudo chown root:ubuntu /etc/dashboard/concierge.env.new
+              sudo mv /etc/dashboard/concierge.env.new /etc/dashboard/concierge.env
+              echo "Rendered /etc/dashboard/concierge.env from CONCIERGE_ENV_B64."
+            else
+              echo "WARNING: CONCIERGE_ENV_B64 is unset — leaving the host environment untouched."
+              echo "         The app falls back to the gitignored .env in the checkout."
+            fi
+
+            # --- systemd unit -----------------------------------------------
+            sudo install -d -m 0755 /var/backups/dashboard
+            if [ -f /etc/systemd/system/dashboard-concierge.service ]; then
+              sudo cp -a /etc/systemd/system/dashboard-concierge.service \
+                "/var/backups/dashboard/dashboard-concierge.service.$(date +%Y%m%d-%H%M%S)"
+            fi
+            sudo cp deploy/dashboard-concierge.service /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable dashboard-concierge
+            sudo systemctl restart dashboard-concierge
+            sudo systemctl is-active dashboard-concierge
+
+            for attempt in $(seq 1 20); do
+              if curl -fsS --max-time 5 http://127.0.0.1:8000/healthz > /dev/null; then
+                echo "Healthy after ${attempt} attempt(s)."
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "::error::/healthz never answered after restart"
+            sudo journalctl -u dashboard-concierge -n 50 --no-pager || true
+            exit 1
