@@ -49,7 +49,7 @@ snippets — see below.
 | Service | `dashboard-concierge.service` → uvicorn on `127.0.0.1:8000` |
 | Web root | `/opt/dashboard/hackaton26-frontend/app/dist` |
 | Auth | nginx Basic auth (`/etc/nginx/.htpasswd`); the SPA login is a fixture |
-| Flask stand-ins | BoxOut `http://13.51.80.211`, Simple Parts `http://13.63.222.45`, Plyworks `http://13.51.215.205` (WAITING BFF) |
+| Flask stand-ins | BoxOut `http://16.170.122.200`, Simple Parts `http://13.53.147.114`, Plyworks `http://13.51.215.205` (WAITING BFF) |
 | Instance / EIP | _TBD_ |
 | DNS | `dashboard.datab.at` → EIP (_TBD_) |
 
