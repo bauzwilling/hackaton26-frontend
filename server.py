@@ -7,7 +7,8 @@ WAITING MODEL: our own structuring model replaces Claude behind that BFF.
 Neither exists yet, so this process stands in for both and keeps the Studio usable.
 When they land, delete this bridge (and llm.py) rather than porting it, and point
 app/src/lib/concierge.ts at the real chat endpoints. Nothing else in the UI knows
-this exists: it is reached only through the Vite proxy rule for /api.
+this exists: locally it is reached through the Vite `/api` proxy; on the demo host
+nginx forwards `/api/chat` to this process.
 
 See docs/model-integration.md.
 """
@@ -18,8 +19,6 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-from llm import route_message
 
 log = logging.getLogger("concierge")
 
@@ -55,8 +54,16 @@ class ChatResponse(BaseModel):
     plyworksOps: Optional[List[Dict[str, Any]]] = None
 
 
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    """Liveness for the demo host deploy poll. Does not call Anthropic."""
+    return {"status": "ok"}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
+    from llm import route_message
+
     message = req.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message is empty.")

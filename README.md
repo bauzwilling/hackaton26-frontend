@@ -73,6 +73,8 @@ From the repo root: `uvicorn server:app --reload --port 8000`.
 
 From `app/`: `npm run dev`, `npm run build`, `npm run preview`.
 
+Demo host layout, GitHub Actions, and nginx (Plyworks-shaped, branch `dashboard-v2-demo`) live in [`deploy/README.md`](deploy/README.md).
+
 ## Commit checks
 
 A `pre-commit` hook reviews every commit against [hackaton26-plans](https://github.com/bauzwilling/hackaton26-plans). `npm install` in `app/` points git at `.githooks/`; to enable it by hand, run `git config core.hooksPath .githooks`.

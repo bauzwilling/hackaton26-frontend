@@ -1,0 +1,36 @@
+# File → Factory Studio concierge (demo host) — uvicorn under systemd.
+#
+# Modeled on plyworks-back.service. Differences that are deliberate:
+#   * paths under /opt/dashboard and /etc/dashboard
+#   * bind 127.0.0.1:8000 (Plyworks gunicorn uses 5002)
+#   * venv + uvicorn, not pipenv + gunicorn
+#
+# Install: sudo cp deploy/dashboard-concierge.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl restart dashboard-concierge
+# The deploy workflow re-copies this file and reloads systemd on every run.
+
+[Unit]
+Description=File → Factory Studio concierge (uvicorn)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/dashboard/hackaton26-frontend
+
+# Secrets, rendered by the deploy workflow from CONCIERGE_ENV_B64.
+# See deploy/concierge.env.example.
+#
+# The leading '-' makes a missing file non-fatal so this unit can ship before
+# the secret exists: config.py then load_dotenv() from the gitignored .env in
+# WorkingDirectory. Once the file is present its values win. Drop the '-' once
+# the .env fallback has been removed.
+EnvironmentFile=-/etc/dashboard/concierge.env
+
+Environment=PATH=/opt/dashboard/venv/bin:/usr/bin
+ExecStart=/opt/dashboard/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 300
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
