@@ -31,6 +31,15 @@ npm install
 npm run dev
 ```
 
+To drive Door Box-Out, Simple Parts, and Plyworks against **deployed** Flask hosts instead of `:5000` / `:5001` / `:5002`, copy `app/.env.remote.example` to `app/.env.remote`, paste the three origins, then:
+
+```bash
+cd app
+npm run dev:remote
+```
+
+Concierge on `:8000` stays local. The browser still calls `/api/app`, `/api/parts`, and `/api/plyworks`; Vite proxies those to the remotes (WAITING BFF stand-in). If a host uses Basic auth, put `USER:PASS` on `BOXOUT_BASIC_AUTH` / `SIMPLEPARTS_BASIC_AUTH` / `PLYWORKS_BASIC_AUTH` in `.env.remote` — those keys must not use a `VITE_` prefix.
+
 Sign in with any password. Example: `lena@frischeis.example`.
 
 BoxOut, Simple Parts, and Plyworks now mount as native React modules in Studio rather than separate frontend iframes. Only Plyworks is allowed to compute in the browser (boundary-plan §3); BoxOut and Simple Parts still drive their standalone Flask apps as a temporary stand-in until the Platform BFF exists, and those call sites are marked `WAITING BFF`.

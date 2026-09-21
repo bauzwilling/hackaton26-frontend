@@ -22,6 +22,6 @@ plyworks/
 
 ## Transport is a stand-in, not the architecture
 
-The existing produce pipeline is preserved behind `/api/plyworks`. During local development Vite strips that prefix and proxies to `VITE_PLYWORKS_BACKEND_URL` (default `http://127.0.0.1:5002`), avoiding Studio Concierge on `/api` → `:8000`.
+The existing produce pipeline is preserved behind `/api/plyworks`. During local development Vite strips that prefix and proxies to `VITE_PLYWORKS_BACKEND_URL` (default `http://127.0.0.1:5002`). `npm run dev:remote` rewrites to `/api/produce` because deployed nginx only proxies `/api/*` — a raw `POST /produce` hits the static site and returns 405.
 
 Per boundary-plan §3 and §16 this is temporary: workflow calls and polling eventually move to Platform BFF runs, actions, and artifacts. Call sites are marked `WAITING BFF`; `/api/plyworks` is not a target platform contract.

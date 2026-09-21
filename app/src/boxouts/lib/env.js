@@ -1,5 +1,5 @@
 /**
- * Frontend settings from VITE_* variables (see app/.env.example).
+ * Frontend settings from VITE_* variables (see app/.env.example / .env.remote.example).
  */
 
 /** API base path or URL for Flask routes (e.g. /api/app) */

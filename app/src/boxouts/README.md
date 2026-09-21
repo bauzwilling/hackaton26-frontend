@@ -19,6 +19,6 @@ boxouts/
 
 ## Backend
 
-During local development, Vite proxies `/api/app` to `VITE_BOXOUT_BACKEND_URL` (default `http://127.0.0.1:5000`) and strips `/api/app`. The Flask backend remains a separate service.
+During local development, Vite proxies `/api/app` to `VITE_BOXOUT_BACKEND_URL` (default `http://127.0.0.1:5000`) and strips `/api/app`. `npm run dev:remote` reads the deployed origin from `app/.env.remote`. The Flask backend remains a separate service.
 
 The direct Flask/AI contracts are temporary and marked `WAITING BFF` / `WAITING MODEL`.
