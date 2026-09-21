@@ -73,7 +73,7 @@ From the repo root: `uvicorn server:app --reload --port 8000`.
 
 From `app/`: `npm run dev`, `npm run build`, `npm run preview`.
 
-Demo host layout, GitHub Actions, and nginx (Plyworks-shaped, branch `dashboard-v2-demo`) live in [`deploy/README.md`](deploy/README.md).
+Demo host layout and nginx (Plyworks-shaped, branch `dashboard-v2-demo`) live in [`deploy/README.md`](deploy/README.md).
 
 ## Commit checks
 

@@ -2,17 +2,42 @@
 
 Dedicated File → Factory Studio demo on its own EC2, intended as
 **https://dashboard.datab.at**. Modeled on `plyworks-backend/deploy`: Ubuntu
-host, nginx + certbot by hand, systemd for concierge, GitHub Actions SSH that
-`git reset --hard` and builds **on the box**.
+host, nginx + certbot by hand, systemd for concierge. Releases are **SSH on
+the box**: `git reset --hard origin/dashboard-v2-demo` and build there. There
+is no GitHub Actions workflow in this repo.
 
-Every push to **`dashboard-v2-demo`** deploys (plus `workflow_dispatch`). `dev`
-does not. After review, the workflow file must live at
-[`.github/workflows/deploy.yaml`](../.github/workflows/deploy.yaml). If an
-OAuth-app push rejects a new workflow, keep a copy as `deploy.yaml.disabled`
-and copy it into `.github/workflows/` from a PAT, as Plyworks did.
+`dev` is the working branch. Check out **`dashboard-v2-demo`** on the host when
+you want that tree live.
 
 This is a **new host** — not the Plyworks or Simple Parts box. Fill the instance
 id, Elastic IP, and DNS row below once the instance exists.
+
+## AWS bootstrap
+
+Create the box by hand (GitHub Actions never calls `ec2 run-instances`). Match
+Plyworks, not S3/CloudFront/ALB.
+
+| | value |
+|---|---|
+| Region | `eu-north-1` (same as the Flask EIPs) |
+| AMI | Ubuntu LTS, user `ubuntu` |
+| Size | `t3.small` ([`provision.sh`](provision.sh) adds 2G swap) |
+| Network | public subnet, **Elastic IP** |
+| Security group | 22 from ops/CI IPs, **80/443** from the internet (or a tighter demo CIDR) |
+| IAM | optional `AmazonSSMManagedInstanceCore`; deploy uses SSH like Plyworks |
+
+On the instance, generate a **read-only deploy key** and add it to
+`bauzwilling/hackaton26-frontend`:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ''
+cat ~/.ssh/id_ed25519.pub
+```
+
+Copy this repo’s [`provision.sh`](provision.sh) onto the box (or clone over
+HTTPS once, then switch origin to SSH) and run it as `ubuntu`. After it
+finishes: htpasswd, nginx site, certbot, concierge.env, outbound Flask auth
+snippets — see below.
 
 ## Configuration
 
@@ -33,36 +58,27 @@ but it is **not** copied by the deploy — see [nginx](#nginx) below.
 
 ## Secrets
 
-Repository-level secrets (no `environment:` on the workflow):
-
-| Secret | Value |
-|---|---|
-| `EC2_HOST` | Elastic IP of the dashboard box |
-| `EC2_USER` | `ubuntu` |
-| `EC2_SSH_KEY` | private key PEM for the host |
-| `CONCIERGE_ENV_B64` | `base64 -w0 concierge.env` — see [`concierge.env.example`](concierge.env.example) |
+Render [`concierge.env.example`](concierge.env.example) to
+`/etc/dashboard/concierge.env` (`root:ubuntu`, `0640`). Do not put Flask Basic
+auth or the Anthropic key in a `VITE_` variable.
 
 Flask Basic-auth passwords for the **outbound** nginx proxies live in
 `/etc/nginx/snippets/dashboard-proxy-*.conf` on the host, not in
-`CONCIERGE_ENV_B64` and never in a `VITE_` variable.
+`concierge.env`.
 
 ### Rotating concierge.env
-
-The environment file is the deploy's source of truth, so **never edit the host
-in place** — the next deploy overwrites it.
 
 ```bash
 scp -i <key.pem> ubuntu@<EC2_HOST>:/etc/dashboard/concierge.env ./concierge.env
 $EDITOR concierge.env
-base64 -w0 concierge.env          # macOS: base64 -b0 concierge.env
-gh secret set CONCIERGE_ENV_B64 --repo bauzwilling/hackaton26-frontend
-gh workflow run "Deploy dashboard" --ref dashboard-v2-demo
+scp -i <key.pem> ./concierge.env ubuntu@<EC2_HOST>:/tmp/concierge.env
+ssh -i <key.pem> ubuntu@<EC2_HOST> 'sudo install -m 0640 -o root -g ubuntu /tmp/concierge.env /etc/dashboard/concierge.env && sudo systemctl restart dashboard-concierge'
 shred -u concierge.env            # macOS: rm -P concierge.env
 ```
 
-Until `CONCIERGE_ENV_B64` is set, the workflow leaves `/etc/dashboard` alone and
-the unit's `EnvironmentFile=-` falls back to a gitignored `.env` in the
-checkout (`config.py` `load_dotenv`). systemd values win once the file exists.
+Until that file exists, the unit's `EnvironmentFile=-` falls back to a
+gitignored `.env` in the checkout (`config.py` `load_dotenv`). systemd values
+win once the file exists.
 
 ## nginx
 
@@ -76,7 +92,7 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d dashboard.datab.at
 ```
 
-**The deploy workflow does not install it.** nginx is the only thing serving the
+**A host-side deploy does not install nginx.** nginx is the only thing serving the
 site, certbot rewrites this file in place on renewal, and a syntax error in a
 reloaded config takes everything down.
 
@@ -109,12 +125,11 @@ sudo nginx -t && sudo systemctl reload nginx
 |---|---|
 | `GET /healthz` | uvicorn is up (no Anthropic call) |
 
-`/healthz` is exposed unauthenticated so the deploy poll and monitoring can
-probe it. Without an exact-match `location =` block it falls through to the SPA
-fallback and answers `200` with `index.html`.
+`/healthz` is exposed unauthenticated so you can probe it. Without an exact-match
+`location =` block it falls through to the SPA fallback and answers `200` with
+`index.html`.
 
-The deploy polls loopback `/healthz` after restarting and fails the run if it
-never answers, but it does **not** roll back. On a bad release, recover by hand:
+On a bad release, recover by hand:
 
 ```bash
 cd /opt/dashboard/hackaton26-frontend
@@ -132,18 +147,17 @@ Logs: `sudo journalctl -u dashboard-concierge -f`.
 ## First boot
 
 [`provision.sh`](provision.sh) installs packages, swap, Node 22, a venv, clones
-`dashboard-v2-demo`, and leaves nginx/certbot/secrets for a follow-up. It is
-**not** run by GitHub Actions.
+`dashboard-v2-demo`, and leaves nginx/certbot/secrets for a follow-up.
 
 On the host, register a read-only deploy key (`~/.ssh/id_ed25519`) on
 `bauzwilling/hackaton26-frontend` before cloning.
 
-## What the workflow does
+## Host-side update
 
-`appleboy/ssh-action` (same as Plyworks):
+SSH in and:
 
-1. `git fetch` + `reset --hard origin/dashboard-v2-demo`
-2. `venv/bin/pip install -r requirements.txt`
+1. `git fetch origin dashboard-v2-demo && git checkout dashboard-v2-demo && git reset --hard origin/dashboard-v2-demo`
+2. `/opt/dashboard/venv/bin/pip install -r requirements.txt`
 3. `cd app && npm ci --ignore-scripts && npm run build`
-4. Render `/etc/dashboard/concierge.env` from `CONCIERGE_ENV_B64` if set
-5. Install `dashboard-concierge.service`, restart, poll `http://127.0.0.1:8000/healthz`
+4. Keep `/etc/dashboard/concierge.env` in place (or scp a new copy)
+5. `sudo cp deploy/dashboard-concierge.service /etc/systemd/system/` (backup the old unit under `/var/backups/dashboard/` first), `daemon-reload`, restart, curl `http://127.0.0.1:8000/healthz`
