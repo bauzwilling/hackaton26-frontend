@@ -70,7 +70,7 @@ export function Surface<T extends ElementType = "div">({
 }
 
 export function Brand({
-  kicker = "Anything",
+  kicker = "File → Factory",
   afterTitle,
 }: {
   kicker?: string;
@@ -83,17 +83,17 @@ export function Brand({
       <motion.span layout layoutId={LAYOUT_MARK} className="chrome-mark-wrap" transition={{ layout }}>
         <BrandMark />
       </motion.span>
-      <span>
+      <span className="chrome-brand-copy">
         <div className="chrome-title">
           <motion.span layout layoutId={LAYOUT_WORD} className="chrome-title-word" transition={{ layout }}>
-            Manufacture
+            Manufacture{"\u00a0\u00a0\u00a0"}Everything
           </motion.span>
         </div>
         <motion.div layout layoutId={LAYOUT_KICKER} className="chrome-kicker" transition={{ layout }}>
-          {kicker}
+          <span className="chrome-kicker-text">{kicker}</span>
+          {afterTitle}
         </motion.div>
       </span>
-      {afterTitle}
     </span>
   );
 }
@@ -762,7 +762,7 @@ export function Chrome({
     <div className="chrome-stack">
       <motion.div layout layoutId={LAYOUT_CHROME} className="chrome-plate" transition={{ layout }} />
       <header className="chrome">
-        <Link to={session ? "/" : "/login"} aria-label="Manufacture Anything home"><Brand /></Link>
+        <Link to={session ? "/" : "/login"} aria-label="Manufacture Everything home"><Brand /></Link>
         <div className="chrome-actions">
           <div className="chrome-tools">
             <motion.div

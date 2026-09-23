@@ -136,11 +136,15 @@ button.sf:disabled:active { transform: none; }
   color: var(--ink);
   display: block;
 }
+.chrome-brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .chrome-title-word { display: inline-block; }
 .chrome-title {
   display: flex;
   align-items: center;
-  gap: 10px;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -154,11 +158,17 @@ button.sf:disabled:active { transform: none; }
   flex: none;
 }
 .chrome-kicker {
+  display: flex;
+  align-items: center;
+  gap: 1.5em;
   margin-top: 6px;
   font-size: 12px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
+}
+.chrome-kicker-text {
+  min-width: 0;
 }
 .chrome-actions {
   margin-left: auto;
@@ -1905,14 +1915,9 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .login-brand .chrome-brand {
   width: 100%;
   align-items: flex-start;
-  /* Half logo height — matches .chrome-mark size (36px) */
-  padding-right: calc(36px / 2);
 }
 .login-network-dot {
   cursor: default;
-  margin-left: auto;
-  /* Center on the logo: mark 36px, status dot 12px → (36 − 12) / 2 */
-  margin-top: calc((36px - 12px) / 2);
 }
 .sf.login-card {
   padding: 28px 28px 24px;
