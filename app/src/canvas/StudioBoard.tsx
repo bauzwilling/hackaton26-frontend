@@ -21,7 +21,6 @@ import { CHAT_MOVE, LAYOUT_MINIMAP } from "../components/kit";
 import { lookTokens, useSession } from "../context/session";
 import {
   canDeleteNode,
-  canDuplicateNode,
   chatFitPadding,
   CONCIERGE_ID,
   PAIR_FADE_MS,
@@ -232,6 +231,8 @@ function StudioBoardInner() {
     previewId,
     fitRequest,
     close,
+    hide,
+    maximize,
     duplicateNodes,
     setLocked,
     commitPositions,
@@ -375,6 +376,12 @@ function StudioBoardInner() {
   }, [viewport, viewportKey, setViewport]);
 
   const far = Math.max(0, Math.min(1, (0.55 - zoom) / (0.55 - 0.18)));
+  /** Name overlay is on — window chrome menu is allowed; closer zoom keeps content interactive. */
+  const farChromeMenu = far > 0 && maximizedIds.length === 0;
+
+  useEffect(() => {
+    if (!farChromeMenu) setSelMenu(null);
+  }, [farChromeMenu]);
 
   useEffect(() => {
     if (!fitRequest) return;
@@ -530,9 +537,11 @@ function StudioBoardInner() {
   }, [canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
 
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
+    if (inspecting) return;
+    // Far name-overlay zoom only — closer in, leave right-click for window content.
+    if (maximizedIds.length || far <= 0) return;
     e.preventDefault();
     e.stopPropagation();
-    if (inspecting) return;
     setAskMenu(null);
     const ids = node.selected
       ? nodes.filter((n) => n.selected).map((n) => n.id)
@@ -544,7 +553,7 @@ function StudioBoardInner() {
     const box = layer.current?.getBoundingClientRect();
     if (!box) return;
     setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top, ids });
-  }, [inspecting, measureHost, nodes, setNodes]);
+  }, [far, inspecting, maximizedIds.length, measureHost, nodes, setNodes]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -563,7 +572,7 @@ function StudioBoardInner() {
   }, [nodes, duplicateNodes]);
 
   const menuCanDelete = selectedWorkspace.some(canDeleteNode);
-  const menuCanDuplicate = selectedWorkspace.some(canDuplicateNode);
+  const menuCanMaximize = selectedWorkspace.some((n) => n.kind === "app");
   const menuLocked = selectedWorkspace.length > 0 && selectedWorkspace.every((n) => n.locked);
 
   return (
@@ -609,7 +618,7 @@ function StudioBoardInner() {
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
           connectionMode={flowInteraction.connectionMode}
-          snapToGrid={showGrid}
+          snapToGrid={false}
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
@@ -644,19 +653,25 @@ function StudioBoardInner() {
             onClose={() => setAskMenu(null)}
           />
         )}
-        {selMenu && (
+        {selMenu && farChromeMenu && (
           <SelectionMenu
             at={selMenu}
             host={host}
             canDelete={menuCanDelete}
-            canDuplicate={menuCanDuplicate}
+            canMaximize={menuCanMaximize}
             locked={menuLocked}
             onDelete={() => {
               for (const n of selectedWorkspace) {
                 if (canDeleteNode(n)) close(n.id);
               }
             }}
-            onDuplicate={() => { duplicateNodes(selectedWorkspace.map((n) => n.id)); }}
+            onHide={() => {
+              for (const n of selectedWorkspace) hide(n.id);
+            }}
+            onMaximize={() => {
+              const app = selectedWorkspace.find((n) => n.kind === "app");
+              if (app) maximize(app.id);
+            }}
             onToggleLock={() => setLocked(selectedWorkspace.map((n) => n.id), !menuLocked)}
             onClose={() => setSelMenu(null)}
           />

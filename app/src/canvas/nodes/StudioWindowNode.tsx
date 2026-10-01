@@ -14,6 +14,7 @@ import type { PlyworksDesign } from "../../lib/concierge";
 import { useBoardHost } from "../boardHost";
 import { NodeBody } from "../NodeBody";
 import { sameStudioData } from "../flow/map";
+import { flyHideWindow } from "../windowFly";
 
 export type StudioNodeData = {
   kind: NodeKind;
@@ -89,7 +90,7 @@ function StudioWindowNodeImpl({
   width,
   height,
 }: NodeProps<StudioFlowNode>) {
-  const { close, hide, focus, fit, maximize, maximizedIds } = useWorkspace();
+  const { close, hide, focus, fit, maximize, maximizedIds, setLocked } = useWorkspace();
   const { updateNode } = useReactFlow<StudioFlowNode>();
   const updateInternals = useUpdateNodeInternals();
   const host = useBoardHost();
@@ -137,7 +138,8 @@ function StudioWindowNodeImpl({
         onMaximize={data.kind === "app" ? () => maximize(id) : undefined}
         maximized={maximizedIds.includes(id)}
         onClose={canClose ? () => close(id) : undefined}
-        onHide={() => hide(id)}
+        onHide={() => { void flyHideWindow(id, data.title, () => hide(id)); }}
+        onLock={() => setLocked([id], !data.locked)}
         onDrag={() => { /* React Flow dragHandle owns this */ }}
         onFit={(w, h) => {
           if (data.autoSize === false) return;

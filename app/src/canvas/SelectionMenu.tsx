@@ -5,26 +5,28 @@ export function SelectionMenu({
   at,
   host,
   canDelete,
-  canDuplicate,
+  canMaximize,
   locked,
   onDelete,
-  onDuplicate,
+  onHide,
+  onMaximize,
   onToggleLock,
   onClose,
 }: {
   at: { x: number; y: number };
   host: { width: number; height: number };
   canDelete: boolean;
-  canDuplicate: boolean;
+  canMaximize: boolean;
   locked: boolean;
   onDelete: () => void;
-  onDuplicate: () => void;
+  onHide: () => void;
+  onMaximize: () => void;
   onToggleLock: () => void;
   onClose: () => void;
 }) {
   const W = 220;
   const left = Math.max(12, Math.min(at.x, host.width - W - 12));
-  const top = Math.max(12, Math.min(at.y, host.height - 160));
+  const top = Math.max(12, Math.min(at.y, host.height - 220));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -45,18 +47,21 @@ export function SelectionMenu({
         onPointerDown={(e) => e.stopPropagation()}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
       >
-        <p className="ctx-title">Selected</p>
+        <p className="ctx-title">Window</p>
         <button type="button" onClick={() => { onToggleLock(); onClose(); }}>
           {locked ? "Unlock" : "Lock in place"}
         </button>
-        {canDuplicate && (
-          <button type="button" onClick={() => { onDuplicate(); onClose(); }}>
-            Duplicate
+        {canMaximize && (
+          <button type="button" onClick={() => { onMaximize(); onClose(); }}>
+            Maximize
           </button>
         )}
+        <button type="button" onClick={() => { onHide(); onClose(); }}>
+          Hide
+        </button>
         {canDelete && (
           <button type="button" className="sel-menu-danger" onClick={() => { onDelete(); onClose(); }}>
-            Delete
+            Close
           </button>
         )}
       </Surface>

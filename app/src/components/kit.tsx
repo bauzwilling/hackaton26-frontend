@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { getCompany, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, THEME_DISSOLVE_MS, useSession, type AccentId } from "../context/session";
 import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace";
+import { flyHideWindow, flyShowWindow } from "../canvas/windowFly";
 import { BrandMark } from "./BrandMark";
 
 export const LAYOUT_MARK = "f2f-mark";
@@ -229,7 +230,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onLock, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
@@ -240,6 +241,7 @@ export function Window({
   maximized?: boolean;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
   onMaximize?: () => void;
+  onLock?: () => void;
   onDrag?: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
@@ -290,12 +292,18 @@ export function Window({
         <span className="win-dot" />
         <span className="win-title">{title}</span>
         <span className="win-code">{code}</span>
-        {locked && <span className="win-lock" title="Locked in place">Locked</span>}
+        {onLock && (
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onLock} title={locked ? "Unlock" : "Lock in place"} aria-label={locked ? "Unlock" : "Lock in place"} aria-pressed={!!locked}>
+            <IconLock locked={!!locked} />
+          </Surface>
+        )}
         {onMaximize && (
           <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize} title={maximized ? "Restore" : "Maximize"} aria-label={maximized ? "Restore" : "Maximize"}>{maximized ? "❐" : "□"}</Surface>
         )}
         {onHide && (
-          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide" aria-label="Hide">
+            <IconEye />
+          </Surface>
         )}
         {onClose && (
           <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
@@ -569,6 +577,19 @@ function IconBin() {
     </svg>
   );
 }
+function IconLock({ locked }: { locked?: boolean }) {
+  return locked ? (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 7.5-1.8" />
+    </svg>
+  );
+}
 function IconEye({ off }: { off?: boolean }) {
   return off ? (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -617,8 +638,20 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
   }
 
   function zoomTo(id: string) {
+    const node = nodes.find((n) => n.id === id);
+    if (node?.hidden) {
+      void flyShowWindow(id, node.title, () => show(id)).then(() => {
+        focusTargets([id], viewport);
+      });
+      return;
+    }
     show(id);
     focusTargets([id], viewport);
+  }
+
+  function toggleHidden(n: { id: string; title: string; hidden: boolean }) {
+    if (n.hidden) void flyShowWindow(n.id, n.title, () => show(n.id));
+    else void flyHideWindow(n.id, n.title, () => hide(n.id));
   }
 
   return (
@@ -635,6 +668,7 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
           relief="ghost"
           className="chrome-windows chrome-icon"
           data-help="chrome-windows"
+          data-fly-sink="windows"
           active={overviewOpen}
           aria-label={countLabel}
           aria-expanded={overviewOpen}
@@ -717,7 +751,7 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
                   <button
                     type="button"
                     className="overview-icon-btn"
-                    onClick={() => (n.hidden ? show(n.id) : hide(n.id))}
+                    onClick={() => toggleHidden(n)}
                     title={n.hidden ? "Show" : "Hide"}
                     aria-label={n.hidden ? `Show ${n.title}` : `Hide ${n.title}`}
                   >

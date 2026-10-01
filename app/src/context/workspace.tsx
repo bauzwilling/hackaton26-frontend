@@ -297,7 +297,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const maximizedIdsRef = useRef<string[]>([]);
   const adminPairIdsRef = useRef<string[]>([]);
   const maximizeIgnoreUntil = useRef(0);
-  const savedViewport = useRef<ViewportSnapshot | null>(null);
   const stageSizeRef = useRef({ width: 1200, height: 700 });
   /** Same React tree as Concierge — handlers cannot get lost across Vite chunks. */
   const appChatRef = useRef<{
@@ -489,7 +488,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!maximizedIdsRef.current.length) return;
     maximizedIdsRef.current = [];
     setMaximizedIds([]);
-    savedViewport.current = null;
   }, []);
 
   const maximize = useCallback((id: string) => {
@@ -497,17 +495,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!node) return;
     const current = maximizedIdsRef.current;
     if (current.length === 1 && current[0] === id) {
-      const prev = savedViewport.current;
-      savedViewport.current = null;
+      // Ease out from the filled frame — don't jump back to the pre-maximize camera.
       maximizedIdsRef.current = [];
       setMaximizedIds([]);
-      if (prev) {
-        maximizeIgnoreUntil.current = Date.now() + 400;
-        setViewport(prev);
-      }
+      maximizeIgnoreUntil.current = Date.now() + 400;
+      setFitRequest({
+        ids: [id],
+        key: Date.now(),
+        maxZoom: Math.max(ZOOM_MIN, viewportRef.current.zoom * 0.85),
+      });
       return;
     }
-    savedViewport.current = viewportRef.current;
     maximizeIgnoreUntil.current = Date.now() + 500;
     maximizedIdsRef.current = [id];
     setHistoryCollapsedState(true);
