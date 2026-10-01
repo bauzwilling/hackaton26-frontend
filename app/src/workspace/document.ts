@@ -1,11 +1,11 @@
-import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import { APP_LABELS, can, getCompany, hasApp, type AppId, type Session } from "../lib/auth";
 import type { AppChatIntake, AppChatPrompt } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note" | "archive";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "jobs";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "profiles" | "machines-admin" | "jobs";
 
 export type WorkspaceNode = {
   id: string;
@@ -124,6 +124,8 @@ export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
   { id: "jobs", label: "Jobs", perm: "jobs.read" },
+  { id: "profiles", label: "Profile Manager", perm: "users" },
+  { id: "machines-admin", label: "Machine Inventory", perm: "users" },
   { id: "admin", label: "Admin console", perm: "users", ready: false },
 ];
 
@@ -139,6 +141,8 @@ export function appLabel(app: WorkspaceApp) {
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";
+  if (app === "profiles") return "Profile Manager";
+  if (app === "machines-admin") return "Machine Inventory";
   if (app === "jobs") return "Jobs";
   return APP_LABELS[app as AppId] ?? app;
 }
@@ -146,7 +150,9 @@ export function appLabel(app: WorkspaceApp) {
 export function allowed(session: Session | null, app: WorkspaceApp) {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta) return false;
-  if (session?.role === "admin") return false;
+  if (session?.role === "admin") {
+    return app === "profiles" || app === "machines-admin";
+  }
   if (meta.licensed && !hasApp(session, meta.licensed)) return false;
   if (meta.perm && !can(session, meta.perm)) return false;
   return true;
@@ -182,15 +188,15 @@ export function denyCopy(session: Session | null, app: WorkspaceApp) {
     return {
       title: `${label} — not licensed`,
       body: session
-        ? `${label} is not on ${COMPANIES[session.company].name}'s plan.`
+        ? `${label} is not on ${getCompany(session.company)?.name ?? "your company"}'s plan.`
         : `${label} is not available.`,
     };
   }
   const body =
     app === "orbit"
-      ? "CNC Orbit is only available to operators."
-      : app === "admin"
-        ? "The Admin console is only available to operators."
+      ? "CNC Orbit is only available to operators and managers."
+      : app === "admin" || app === "profiles" || app === "machines-admin"
+        ? "Profile Manager and Machine Inventory are only available to admins."
         : `You do not have permission to open ${label}.`;
   return { title: `${label} — no access`, body };
 }

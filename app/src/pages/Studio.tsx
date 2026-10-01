@@ -58,7 +58,7 @@ export function StudioPage() {
   const { phase, tourBooting, startUserTour } = useHelp();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
-  const { nodes, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding, maximize, activeSessionId } = useWorkspace();
+  const { nodes, ask, openApp, openAdminPair, announceOpen, ingestFiles, resuming, atLanding, departLanding, maximize, activeSessionId } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
   const [historyPeek, setHistoryPeek] = useState(false);
@@ -125,8 +125,11 @@ export function StudioPage() {
     if (session.role === "manager" || session.role === "operator") {
       const opened = openApp("jobs", { skipActivity: true });
       if (opened) window.setTimeout(() => maximize(opened.id), 0);
+    } else if (session.role === "admin") {
+      // Wait for board measure so split leftover uses real host size.
+      window.setTimeout(() => openAdminPair(), 50);
     }
-  }, [activeSessionId, isStaff, maximize, openApp, session]);
+  }, [activeSessionId, isStaff, maximize, openAdminPair, openApp, session]);
 
   useEffect(() => {
     if (atLanding && !wasLanding.current) setHeroGen((n) => n + 1);

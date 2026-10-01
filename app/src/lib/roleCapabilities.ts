@@ -1,7 +1,7 @@
 import {
   APP_LABELS,
-  COMPANIES,
   ROLES,
+  getCompany,
   hasApp,
   type AppId,
   type Session,
@@ -11,17 +11,26 @@ import {
  * Plain-English dashboard powers for Concierge help.
  * WAITING MODEL: the structuring model will own role-scoped help answers;
  * this list is the stand-in context injected into the bridge prompt today.
- * WAITING DATABASE: admin company/machine management UI is not built yet —
- * bullets below describe intended admin powers.
+ * WAITING DATABASE: company onboarding UI is not built yet — profiles and
+ * machines are session-scoped admin overlays until the real APIs own them.
  */
 export function capabilitiesFor(session: Session | null): string[] {
   if (!session) return [];
 
   if (session.role === "admin") {
+    if (session.company === "D") {
+      return [
+        "Open Profile Manager to add, modify, remove, or suspend profiles across companies",
+        "Add or suspend companies, and assign roles under them",
+        "Open Machine Inventory to manage fleet machines across companies",
+        "Session changes appear on the login screen and in Orbit/Jobs until this browser tab ends",
+      ];
+    }
+    const company = getCompany(session.company)?.name ?? "your company";
     return [
-      "Add, modify, remove, or suspend companies",
-      "Add, modify, remove, or suspend profiles under companies",
-      "Add, modify, remove, enable, or disable machines",
+      `Open Profile Manager to add, modify, remove, or suspend profiles at ${company}`,
+      `Open Machine Inventory to add, remove, enable, or disable machines for ${company}`,
+      "Session changes appear on the login screen and in Orbit/Jobs until this browser tab ends",
     ];
   }
 
@@ -58,7 +67,7 @@ export function capabilitiesFor(session: Session | null): string[] {
     bullets.push("Run production validation checks");
   }
 
-  const apps = (COMPANIES[session.company]?.apps ?? []) as AppId[];
+  const apps = (getCompany(session.company)?.apps ?? []) as AppId[];
   for (const app of apps) {
     if (!hasApp(session, app)) continue;
     if (app === "nesting") continue;

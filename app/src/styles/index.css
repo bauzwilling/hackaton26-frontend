@@ -843,7 +843,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 999px;
   padding: 9px 14px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
   box-shadow: var(--elev);
   cursor: pointer;
 }
@@ -853,6 +853,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   padding: 24px;
   overflow: auto;
   background: var(--face);
+  color: var(--ink);
 }
 .jobs-head {
   display: flex;
@@ -864,6 +865,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .jobs-head h1 {
   margin: 2px 0 0;
   font-size: 26px;
+  color: var(--ink);
 }
 .operator-machine-picker {
   display: grid;
@@ -883,7 +885,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 8px;
   padding: 6px 10px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
 }
 .jobs-kicker {
   margin: 0;
@@ -946,7 +948,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 7px;
   padding: 5px 8px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
 }
 .job-machine,
 .job-feedback-summary {
@@ -981,7 +983,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 7px;
   padding: 7px 8px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
   font: inherit;
 }
 .job-feedback-form > div {
@@ -996,6 +998,256 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   color: var(--muted);
 }
 .jobs-error { color: var(--bad, #b42318); }
+
+.admin-page .admin-primary {
+  min-height: 36px;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 14px;
+  background: var(--ink);
+  color: var(--face);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.admin-page .admin-primary:hover {
+  opacity: 0.9;
+}
+.admin-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--face2);
+  color: var(--ink);
+}
+.admin-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink);
+}
+.admin-form label > span,
+.admin-check span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.admin-form input,
+.admin-form select,
+.jobs-table select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--face);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.admin-form input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.admin-form option {
+  background: var(--face);
+  color: var(--ink);
+}
+.admin-email-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-email-row input { flex: 1; min-width: 0; }
+.admin-email-domain {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--ink);
+}
+.admin-hint {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-company-list {
+  display: grid;
+  gap: 16px;
+}
+.admin-company {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--face);
+}
+.admin-company.is-suspended {
+  opacity: 0.92;
+}
+.admin-company-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--face2);
+}
+.admin-company-head h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+.admin-company-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-company-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.admin-company-actions button,
+.admin-company .job-actions button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: var(--face);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-company-actions button:disabled,
+.admin-company .job-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Suspended/offline rows fade content, but keep action buttons readable. */
+.jobs-table tr.is-suspended td {
+  opacity: 0.65;
+}
+.jobs-table tr.is-suspended td:last-child {
+  opacity: 1;
+}
+.admin-action-activate {
+  color: var(--ink) !important;
+  background: var(--face) !important;
+  border-color: var(--line) !important;
+  font-weight: 600;
+  opacity: 1 !important;
+}
+.admin-action-remove:not(:disabled) {
+  opacity: 1;
+  color: var(--ink) !important;
+  background: var(--face) !important;
+  border-color: var(--line) !important;
+  cursor: pointer;
+}
+.admin-action-remove:disabled {
+  opacity: 0.45;
+  color: var(--muted) !important;
+  background: color-mix(in oklab, var(--muted) 8%, var(--face)) !important;
+  border-color: var(--line) !important;
+  cursor: not-allowed;
+}
+.admin-company .jobs-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.admin-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.admin-table th,
+.admin-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.admin-table td strong,
+.admin-table td small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0;
+  text-transform: none;
+}
+.admin-table--profiles .admin-col-name { width: 18%; }
+.admin-table--profiles .admin-col-email { width: 28%; }
+.admin-table--profiles .admin-col-role { width: 14%; }
+.admin-table--profiles .admin-col-status { width: 12%; }
+.admin-table--profiles .admin-col-actions { width: 28%; }
+
+.admin-table--machines .admin-col-name { width: 12%; }
+.admin-table--machines .admin-col-slug { width: 16%; }
+.admin-table--machines .admin-col-location { width: 28%; }
+.admin-table--machines .admin-col-status { width: 12%; }
+.admin-table--machines .admin-col-actions { width: 32%; }
+
+.admin-table .job-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: visible;
+}
+.admin-table td:last-child {
+  overflow: visible;
+  white-space: nowrap;
+}
+.admin-table select {
+  width: 100%;
+  max-width: 100%;
+}
+.admin-empty-row {
+  color: var(--muted);
+  text-align: center;
+  white-space: normal;
+}
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.admin-status.is-active {
+  color: #0f7a3a;
+  background: color-mix(in oklab, #0f7a3a 14%, var(--face));
+  border: 1px solid color-mix(in oklab, #0f7a3a 35%, transparent);
+}
+.admin-status.is-suspended {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--muted) 12%, var(--face));
+  border: 1px solid var(--line);
+}
 
 .archived-chat {
   height: 100%;

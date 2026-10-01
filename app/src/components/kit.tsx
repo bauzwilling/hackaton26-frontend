@@ -10,7 +10,7 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { COMPANIES, ROLES, type Session } from "../lib/auth";
+import { getCompany, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, THEME_DISSOLVE_MS, useSession, type AccentId } from "../context/session";
 import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace";
 import { BrandMark } from "./BrandMark";
@@ -520,7 +520,7 @@ function ProfileMenu({
         </div>
         <div className="chrome-menu-fact">
           <span className="chrome-menu-label">Company</span>
-          <strong>{COMPANIES[session.company].name}</strong>
+          <strong>{getCompany(session.company)?.name ?? session.company}</strong>
         </div>
       </div>
       <Surface as="button" type="button" className="user-chip-out" onClick={onSignOut}>

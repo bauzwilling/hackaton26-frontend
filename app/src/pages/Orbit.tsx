@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Fact, Segment, Surface } from "../components/kit";
 import { useSession } from "../context/session";
-import { APP_LABELS, COMPANIES, can, machinesFor } from "../lib/auth";
-import { MACHINES } from "../lib/catalog";
+import { APP_LABELS, can, getCompany, machinesFor } from "../lib/auth";
+import { getMachinesSnapshot, subscribeMachines } from "../lib/machineStore";
 
 const TABS = [
   { id: "overview", label: "Overview", perm: "overview" },
@@ -15,9 +15,12 @@ export function OrbitPage() {
   const { session } = useSession();
   const allowed = TABS.filter((t) => can(session, t.perm));
   const [tab, setTab] = useState(allowed[0]?.id ?? "overview");
-  const machines = useMemo(() => machinesFor(session, MACHINES), [session]);
-  const online = machines.filter((m) => m.online).length;
-  const company = session ? COMPANIES[session.company] : null;
+  const allMachines = useSyncExternalStore(subscribeMachines, getMachinesSnapshot, getMachinesSnapshot);
+  const machines = useMemo(
+    () => machinesFor(session, allMachines.filter((m) => m.enabled !== false)),
+    [session, allMachines],
+  );  const online = machines.filter((m) => m.online).length;
+  const company = session ? getCompany(session.company) : null;
 
   return (
     <div className="page">

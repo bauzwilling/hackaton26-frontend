@@ -242,7 +242,7 @@ function StudioBoardInner() {
     enteringNodeIds,
     resuming,
     historyCollapsed,
-    maximizedId,
+    maximizedIds,
     commitStageSize,
     dismissMaximize,
     inspectionJob,
@@ -267,7 +267,7 @@ function StudioBoardInner() {
 
   const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const docked = interactive || entries.length > 0 || resuming;
-  const canvasLocked = !!maximizedId;
+  const canvasLocked = maximizedIds.length > 0;
   const inspecting = !!inspectionJob;
 
   useFineWheelZoom(layer, {
@@ -307,7 +307,7 @@ function StudioBoardInner() {
           flash: flashIds.includes(n.id),
           flashKey,
           preview: previewId === n.id,
-          maximized: maximizedId === n.id,
+          maximized: maximizedIds.includes(n.id),
         });
         if (old && draggingNow) {
           mapped.position = old.position;
@@ -334,7 +334,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, maximizedId, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, maximizedIds, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -501,9 +501,9 @@ function StudioBoardInner() {
   const onMove = useCallback(() => {
     panMoved.current = true;
     // While maximized the canvas is locked; fitView must not soft-dismiss.
-    if (maximizedId) return;
+    if (maximizedIds.length) return;
     dismissMaximize();
-  }, [dismissMaximize, maximizedId]);
+  }, [dismissMaximize, maximizedIds]);
 
   const onMoveEnd = useCallback((_: unknown, next: { x: number; y: number; zoom: number }) => {
     appliedViewport.current = `${next.x},${next.y},${next.zoom}`;
@@ -629,7 +629,7 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MinimapDock interactive={interactive && !inspecting} previewFill={previewFill} faded={!!maximizedId || inspecting} />
+          <MinimapDock interactive={interactive && !inspecting} previewFill={previewFill} faded={maximizedIds.length > 0 || inspecting} />
         </ReactFlow>
         {inspectionJob && (
           <button type="button" className="inspection-exit" onClick={exitInspection}>
