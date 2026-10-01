@@ -248,6 +248,7 @@ function StudioBoardInner() {
     dismissMaximize,
     inspectionJob,
     exitInspection,
+    atLanding,
   } = useWorkspace();
   const { session, showWires, showGrid, accent, theme } = useSession();
   const previewFill = lookTokens(theme, accent).acc;
@@ -382,6 +383,10 @@ function StudioBoardInner() {
   useEffect(() => {
     if (!farChromeMenu) setSelMenu(null);
   }, [farChromeMenu]);
+
+  useEffect(() => {
+    if (atLanding) setAskMenu(null);
+  }, [atLanding]);
 
   useEffect(() => {
     if (!fitRequest) return;
@@ -519,7 +524,8 @@ function StudioBoardInner() {
 
   const onPaneContextMenu = useCallback((e: MouseEvent | ReactMouseEvent) => {
     e.preventDefault();
-    if (canvasLocked || inspecting || session?.role === "admin") return;
+    // Landing already has the docked Concierge — skip the old floating ask menu.
+    if (atLanding || canvasLocked || inspecting || session?.role === "admin") return;
     if (panMoved.current) {
       panMoved.current = false;
       return;
@@ -534,7 +540,7 @@ function StudioBoardInner() {
       y: e.clientY - box.top,
       world: { x: flow.x, y: flow.y },
     });
-  }, [canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
+  }, [atLanding, canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
 
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
     if (inspecting) return;
