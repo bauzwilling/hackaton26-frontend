@@ -21,6 +21,7 @@ import {
   type AppIntakeHandler,
 } from "../lib/appChat";
 import { matchLocalRoute } from "../lib/routing";
+import { capabilitiesFor, capabilitiesReply, isCapabilitiesAsk } from "../lib/roleCapabilities";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
 import { createJob, type FrozenAppSnapshot, type Job } from "../lib/jobs";
@@ -954,10 +955,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
 
       try {
-        settle(await askConcierge(q, history, apps, restricted, snapshotPlyworksBoards()));
+        settle(await askConcierge(q, history, apps, restricted, snapshotPlyworksBoards(), {
+          role: session?.role ?? null,
+          capabilities: capabilitiesFor(session),
+        }));
       } catch {
         // No assistant reachable: fall back to a local name/design match so the board stays usable.
         // WAITING MODEL: alias table stands in for the structuring model when the API is down.
+        if (isCapabilitiesAsk(q)) {
+          settle({
+            kind: "info",
+            reply: capabilitiesReply(session),
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
         const local = matchLocalRoute(q);
         const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
@@ -1154,6 +1169,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       design: extras?.design,
       choices: extras?.choices,
       helpTopics: extras?.helpTopics,
+      helpOffer: extras?.helpOffer,
       kind: extras?.kind,
       confirmApps: extras?.confirmApps,
       badgeApp: extras?.badgeApp,

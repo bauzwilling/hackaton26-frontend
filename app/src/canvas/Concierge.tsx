@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { plyworksDesignLabel } from "../lib/concierge";
-import { HELP_TOPIC_LABEL, type HelpTopicId } from "../lib/help";
+import { HELP_OFFER_LABEL, HELP_TOPIC_LABEL, type HelpOfferId, type HelpTopicId } from "../lib/help";
 import {
   activityClock,
   activityFocusIds,
@@ -100,7 +100,7 @@ export function ConciergeThread() {
     entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake,
     nodes, focusTargets, activeSession, returnToLanding,
   } = useWorkspace();
-  const { pickTopic } = useHelp();
+  const { pickTopic, pickOffer } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
   const [logOnly, setLogOnly] = useState(false);
   // Opened lines from chat handoffs live on the turn (windowOpened); Closed is a dedicated activity entry.
@@ -213,7 +213,8 @@ export function ConciergeThread() {
             && e.appId
             && !(e.confirmApps && e.confirmApps.length)
             && !(e.choices && e.choices.length)
-            && !(e.helpTopics && e.helpTopics.length)) {
+            && !(e.helpTopics && e.helpTopics.length)
+            && !(e.helpOffer && e.helpOffer.length)) {
             return (
             <div
               key={e.id}
@@ -300,6 +301,24 @@ export function ConciergeThread() {
                         }}
                       >
                         {plyworksDesignLabel(id)}
+                      </Surface>
+                    ))}
+                  </div>
+                )}
+                {e.helpOffer && e.helpOffer.length > 0 && (
+                  <div className="concierge-confirm">
+                    {e.helpOffer.map((id: HelpOfferId) => (
+                      <Surface
+                        key={id}
+                        as="button"
+                        type="button"
+                        className="chip"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          pickOffer(id);
+                        }}
+                      >
+                        {HELP_OFFER_LABEL[id]}
                       </Surface>
                     ))}
                   </div>

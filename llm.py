@@ -161,6 +161,8 @@ def route_message(
     available_apps: List[str] | None = None,
     restricted_apps: List[str] | None = None,
     plyworks_boards: List[Dict[str, Any]] | None = None,
+    role: str | None = None,
+    capabilities: List[str] | None = None,
 ) -> Dict[str, Any]:
     from anthropic import Anthropic
 
@@ -169,18 +171,21 @@ def route_message(
     apps = [a for a in (available_apps or []) if a in KNOWN_APPS]
     restricted = [a for a in (restricted_apps or []) if a in KNOWN_APPS]
     boards = compact_plyworks_boards(plyworks_boards)
+    caps = [str(c).strip() for c in (capabilities or []) if str(c).strip()]
     turns = []
     for turn in history or []:
-        role = str(turn.get("role") or "")
+        role_turn = str(turn.get("role") or "")
         content = str(turn.get("content") or "").strip()
-        if role in ("user", "assistant") and content:
-            turns.append({"role": role, "content": content})
+        if role_turn in ("user", "assistant") and content:
+            turns.append({"role": role_turn, "content": content})
     prompt = (
         template.replace("{user_message}", user_message)
         .replace("{history}", json.dumps(turns[-16:]))
         .replace("{available_apps}", json.dumps(apps))
         .replace("{restricted_apps}", json.dumps(restricted))
         .replace("{plyworks_boards}", json.dumps(boards))
+        .replace("{role}", json.dumps(role or ""))
+        .replace("{capabilities}", json.dumps(caps))
     )
     data = call_claude_json(client, prompt)
     reply = str(data.get("reply") or "").strip()

@@ -30,20 +30,19 @@ function placeCard(hole: { top: number; left: number; width: number; height: num
 }
 
 export function HelpFab() {
-  const { phase, startHelp, stop } = useHelp();
-  const busy = phase !== "idle";
+  const { startHelp } = useHelp();
   return (
     <Surface
       as="button"
       type="button"
-      relief={busy ? "accent" : "raised"}
-      className={`studio-tool help-fab chrome-icon${busy ? " is-on" : ""}`}
+      relief="raised"
+      className="studio-tool help-fab chrome-icon"
       data-help="help-fab"
-      onClick={busy ? stop : startHelp}
-      aria-label={busy ? "Exit help" : "Help"}
-      title={busy ? "Exit help" : "Help"}
+      onClick={startHelp}
+      aria-label="Help"
+      title="Help"
     >
-      <span className="studio-tool-tip" aria-hidden>{busy ? "Exit help" : "Help"}</span>
+      <span className="studio-tool-tip" aria-hidden>Help</span>
       <span className="studio-help-mark">?</span>
     </Surface>
   );

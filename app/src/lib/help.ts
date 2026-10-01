@@ -41,7 +41,19 @@ export const HELP_TOPIC_LABEL: Record<HelpTopicId, string> = {
   plyworks: "Plyworks",
 };
 
-const OFFER_EXACT = /^(help|tour|help me|i need help)[!?.]?$/i;
+/** Fixed Help offer chips (tour held; capabilities go through Concierge/LLM). */
+export type HelpOfferId = "capabilities" | "tour";
+
+export const HELP_PLEASE = "Help please!";
+export const HELP_OFFER_REPLY = "How can I help?";
+export const HELP_OFFER_CHIPS: HelpOfferId[] = ["capabilities", "tour"];
+export const HELP_OFFER_LABEL: Record<HelpOfferId, string> = {
+  capabilities: "What can I do here?",
+  tour: "Give me a tour",
+};
+export const TOUR_STUB_REPLY = "Tour is under development at the moment";
+
+const OFFER_EXACT = /^(help|tour|help me|i need help|help please)[!?.]?$/i;
 const OFFER_PHRASE = /give me a tour|show me (a |the )?tour|how do i use (this|the studio)|walk me through/;
 
 function matchAppName(lower: string): HelpTopicId | null {
@@ -52,32 +64,33 @@ function matchAppName(lower: string): HelpTopicId | null {
   return null;
 }
 
-function isHelpish(lower: string) {
-  return /\b(help|tour|explain|walk me through|show me around)\b/.test(lower)
-    || /how do i use/.test(lower);
-}
-
-/** Idle Concierge intercept: offer chips, or jump into a named-app tour. */
-export function matchHelpIntent(query: string): { kind: "offer" } | { kind: "topic"; topic: HelpTopicId } | null {
+/** Idle Concierge intercept: open the Help offer (tour not started yet). */
+export function matchHelpIntent(query: string): { kind: "offer" } | null {
   const lower = query.trim().toLowerCase();
   if (!lower) return null;
-  const app = matchAppName(lower);
-  if (app && isHelpish(lower)) return { kind: "topic", topic: app };
   if (OFFER_EXACT.test(lower) || OFFER_PHRASE.test(lower)) return { kind: "offer" };
   return null;
 }
 
-/** Follow-up while the help-offer chips are showing. */
+/** Follow-up while the Help offer chips are showing. */
+export function matchHelpOfferChoice(query: string): HelpOfferId | null {
+  const lower = query.trim().toLowerCase();
+  if (!lower) return null;
+  if (/^(what can i do( here)?|capabilities|what am i able to do)[!?.]?$/i.test(lower)) {
+    return "capabilities";
+  }
+  if (/^(give me a tour|tour|show me (a |the )?tour)[!?.]?$/i.test(lower) || OFFER_PHRASE.test(lower)) {
+    return "tour";
+  }
+  return null;
+}
+
+/** Legacy topic match kept for stored transcript chips / later tour wiring. */
 export function matchHelpTopic(query: string): HelpTopicId | null {
   const lower = query.trim().toLowerCase();
   if (!lower) return null;
   if (/^(general|studio|general use|dashboard)$/i.test(lower)) return "studio";
-  const app = matchAppName(lower);
-  if (app) return app;
-  const intent = matchHelpIntent(query);
-  if (intent?.kind === "topic") return intent.topic;
-  if (intent?.kind === "offer") return "studio";
-  return null;
+  return matchAppName(lower);
 }
 
 export const STUDIO_TOUR: HelpStep[] = [

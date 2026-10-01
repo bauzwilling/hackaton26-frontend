@@ -62,6 +62,8 @@ export type RequestEntry = {
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
   helpTopics?: HelpTopicId[];
+  /** Fixed Help offer chips — capabilities vs tour (tour currently stubbed). */
+  helpOffer?: Array<"capabilities" | "tour">;
   /** True when this turn created the app window (false on reuse / focus-only). */
   windowOpened?: boolean;
   pending?: boolean;

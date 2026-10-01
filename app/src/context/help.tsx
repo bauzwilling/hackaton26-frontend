@@ -8,24 +8,26 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useSession } from "./session";
 import {
   CONCIERGE_ID,
-  WORKSPACE_APPS,
   useWorkspace,
   type WorkspaceApp,
 } from "./workspace";
-import { hasApp } from "../lib/auth";
 import {
-  HELP_APP_TOPICS,
+  HELP_OFFER_CHIPS,
+  HELP_OFFER_LABEL,
+  HELP_OFFER_REPLY,
+  HELP_PLEASE,
   HELP_TOPIC_LABEL,
   HELP_ZOOM_MAX,
   matchHelpIntent,
-  matchHelpTopic,
+  matchHelpOfferChoice,
   queryHelpAnchor,
   setHelpAskHandler,
   tourFor,
+  TOUR_STUB_REPLY,
   type HelpAnchor,
+  type HelpOfferId,
   type HelpPhase,
   type HelpPrepare,
   type HelpStep,
@@ -42,6 +44,7 @@ export type HelpCtx = {
   iframeReady: boolean;
   startHelp: () => void;
   offerHelp: (query?: string) => void;
+  pickOffer: (id: HelpOfferId) => void;
   pickTopic: (topic: HelpTopicId) => void;
   next: () => void;
   back: () => void;
@@ -59,18 +62,12 @@ function studioViewport() {
   return { width: box.width, height: box.height };
 }
 
-function licensedHelpTopics(session: ReturnType<typeof useSession>["session"]): HelpTopicId[] {
-  const topics: HelpTopicId[] = ["studio"];
-  for (const id of HELP_APP_TOPICS) {
-    const meta = WORKSPACE_APPS.find((a) => a.id === id);
-    if (meta?.licensed && !hasApp(session, meta.licensed)) continue;
-    topics.push(id);
-  }
-  return topics;
+function closeLookPanel() {
+  const toggle = document.querySelector(".viz-toggle") as HTMLButtonElement | null;
+  if (toggle && document.querySelector(".viz-panel")) toggle.click();
 }
 
 export function HelpProvider({ children }: { children: ReactNode }) {
-  const { session } = useSession();
   const {
     nodes,
     ensureConcierge,
@@ -78,7 +75,13 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     appendConciergeTurn,
     openApp,
     show,
+    hide,
     setOverviewOpen,
+    dismissMaximize,
+    createSession,
+    departLanding,
+    atLanding,
+    ask,
   } = useWorkspace();
 
   const [phase, setPhase] = useState<HelpPhase>("idle");
@@ -93,12 +96,15 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   topicRef.current = topic;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+  const atLandingRef = useRef(atLanding);
+  atLandingRef.current = atLanding;
 
   const steps = topic ? tourFor(topic) : [];
   const step = phase === "touring" || (phase === "iframe" && !iframeReady)
     ? (steps[stepIndex] ?? null)
     : null;
 
+  // Kept for a later tour pass (prepare steps). Do not call from the Help offer.
   const zoomConcierge = useCallback(() => {
     ensureConcierge();
     window.setTimeout(() => {
@@ -162,21 +168,54 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setAppNodeId(null);
     setIframeReady(false);
     setOverviewOpen(false);
-    const toggle = document.querySelector(".viz-toggle") as HTMLButtonElement | null;
-    if (toggle && document.querySelector(".viz-panel")) toggle.click();
+    closeLookPanel();
   }, [setOverviewOpen]);
 
-  const offerHelp = useCallback((query = "Help") => {
-    const topics = licensedHelpTopics(session);
-    zoomConcierge();
-    appendConciergeTurn(query, "What do you need help with?", { helpTopics: topics });
+  const minimizeOnScreen = useCallback(() => {
+    dismissMaximize(true);
+    setOverviewOpen(false);
+    closeLookPanel();
+    for (const n of nodesRef.current) {
+      if (n.id === CONCIERGE_ID || n.kind === "log") continue;
+      if (!n.hidden) hide(n.id);
+    }
+  }, [dismissMaximize, hide, setOverviewOpen]);
+
+  const paintOffer = useCallback((query = HELP_PLEASE) => {
+    // Never focus/unhide the canvas Concierge — docked thread owns help.
+    appendConciergeTurn(query, HELP_OFFER_REPLY, { helpOffer: [...HELP_OFFER_CHIPS] });
     setPhase("offering");
     setTopic(null);
     setStepIndex(0);
     setAppNodeId(null);
-  }, [appendConciergeTurn, session, zoomConcierge]);
+  }, [appendConciergeTurn]);
+
+  const offerHelp = useCallback((query = HELP_PLEASE) => {
+    minimizeOnScreen();
+    createSession();
+    if (atLandingRef.current) {
+      departLanding(() => paintOffer(query));
+      return;
+    }
+    paintOffer(query);
+  }, [createSession, departLanding, minimizeOnScreen, paintOffer]);
+
+  const pickOffer = useCallback((id: HelpOfferId) => {
+    if (id === "tour") {
+      phaseRef.current = "idle";
+      setPhase("idle");
+      setTopic(null);
+      appendConciergeTurn(HELP_OFFER_LABEL.tour, TOUR_STUB_REPLY);
+      return;
+    }
+    phaseRef.current = "idle";
+    setPhase("idle");
+    setTopic(null);
+    ask(HELP_OFFER_LABEL.capabilities);
+  }, [appendConciergeTurn, ask]);
 
   const pickTopic = useCallback((nextTopic: HelpTopicId) => {
+    // Tour overlay path retained for a later pass — not started from the Help offer.
     const catalog = tourFor(nextTopic);
     if (!catalog.length) return;
     appendConciergeTurn(HELP_TOPIC_LABEL[nextTopic], `Let's walk through ${HELP_TOPIC_LABEL[nextTopic]}.`);
@@ -187,8 +226,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   }, [appendConciergeTurn, runPrepare]);
 
   const startHelp = useCallback(() => {
-    if (phaseRef.current === "idle") offerHelp();
-    else stop();
+    // One-shot: always open a fresh Help offer. No exit-help toggle on the FAB.
+    if (phaseRef.current !== "idle") stop();
+    offerHelp();
   }, [offerHelp, stop]);
 
   const next = useCallback(() => {
@@ -210,7 +250,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
 
   const back = useCallback(() => {
     if (stepIndex <= 0) {
-      zoomConcierge();
       setPhase("offering");
       setTopic(null);
       setAppNodeId(null);
@@ -220,7 +259,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     const catalog = topicRef.current ? tourFor(topicRef.current) : [];
     setStepIndex(upcoming);
     runPrepare(catalog[upcoming]?.prepare);
-  }, [runPrepare, stepIndex, zoomConcierge]);
+  }, [runPrepare, stepIndex]);
 
   const onPlyworksDone = useCallback(() => {
     stop();
@@ -234,32 +273,30 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setHelpAskHandler((query) => {
       const current = phaseRef.current;
       if (current === "offering") {
-        const matched = matchHelpTopic(query);
-        if (matched) {
-          pickTopic(matched);
+        const choice = matchHelpOfferChoice(query);
+        if (choice) {
+          pickOffer(choice);
           return true;
         }
+        // Let normal Concierge handle unrelated follow-ups.
+        phaseRef.current = "idle";
+        setPhase("idle");
         return false;
       }
       if (current === "touring" || current === "iframe") {
         const intent = matchHelpIntent(query);
         if (!intent) return false;
         stop();
-        if (intent.kind === "topic") {
-          window.setTimeout(() => pickTopic(intent.topic), 0);
-        } else {
-          window.setTimeout(() => offerHelp(query), 0);
-        }
+        window.setTimeout(() => offerHelp(query), 0);
         return true;
       }
       const intent = matchHelpIntent(query);
       if (!intent) return false;
-      if (intent.kind === "topic") pickTopic(intent.topic);
-      else offerHelp(query);
+      offerHelp(query);
       return true;
     });
     return () => setHelpAskHandler(null);
-  }, [offerHelp, pickTopic, stop]);
+  }, [offerHelp, pickOffer, stop]);
 
   useEffect(() => {
     if (phase !== "offering" && phase !== "touring" && phase !== "iframe") return;
@@ -284,13 +321,14 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     iframeReady,
     startHelp,
     offerHelp,
+    pickOffer,
     pickTopic,
     next,
     back,
     stop,
     onPlyworksDone,
     onPlyworksReady,
-  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, startHelp, offerHelp, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
+  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, startHelp, offerHelp, pickOffer, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
 
   return <HelpContext.Provider value={value}>{children}</HelpContext.Provider>;
 }

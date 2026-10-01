@@ -359,7 +359,7 @@ export function StudioPage() {
         onRailWidth={onRailWidth}
       />
       <PanHint interactive={hasWindows} />
-      {session?.role !== "admin" && <HelpFab />}
+      <HelpFab />
     </motion.div>
   );
 }
