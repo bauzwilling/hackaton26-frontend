@@ -8,6 +8,7 @@ import { SessionRail, type RailPair } from "../canvas/SessionSidebar";
 import { Composer } from "../components/Composer";
 import { CHAT_MOVE, LAND_FADE, Surface } from "../components/kit";
 import { useSession } from "../context/session";
+import { useHelp } from "../context/help";
 import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
 import { can } from "../lib/auth";
@@ -25,16 +26,16 @@ const HERO_EASE = [0.22, 1, 0.36, 1] as const;
 const HERO_STAGGER = 0.1;
 
 function HeroPiece({
-  delay, leaveDelay = 0, leaving, className, children,
+  delay, leaveDelay = 0, leaving, className, children, ...rest
 }: {
   delay: number;
   leaveDelay?: number;
   leaving?: boolean;
   className?: string;
   children: ReactNode;
-}) {
+} & Record<string, unknown>) {
   const reduce = useReducedMotion();
-  if (reduce) return <div className={className}>{children}</div>;
+  if (reduce) return <div className={className} {...rest}>{children}</div>;
   return (
     <motion.div
       className={className}
@@ -45,6 +46,7 @@ function HeroPiece({
         show: { opacity: 1, y: 0, transition: { duration: 0.42, delay, ease: HERO_EASE } },
         leave: { opacity: 0, y: 56, transition: { duration: 0.32, delay: leaveDelay, ease: HERO_EASE } },
       }}
+      {...rest}
     >
       {children}
     </motion.div>
@@ -53,6 +55,7 @@ function HeroPiece({
 
 export function StudioPage() {
   const { session } = useSession();
+  const { phase, tourBooting, startUserTour } = useHelp();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const { nodes, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding, maximize, activeSessionId } = useWorkspace();
@@ -131,6 +134,10 @@ export function StudioPage() {
   }, [atLanding]);
 
   useEffect(() => {
+    if (phase === "touring" || phase === "iframe" || tourBooting) setHistoryPeek(false);
+  }, [phase, tourBooting]);
+
+  useEffect(() => {
     if (!pair || reduce) return;
     const ms = pair.step === "shape" ? PAIR_SHAPE_MS : PAIR_FADE_MS;
     const t = window.setTimeout(() => {
@@ -142,7 +149,8 @@ export function StudioPage() {
         if (pair.dir === "close") {
           setPair(null);
           setChrome("hero");
-          setHistoryPeek(true);
+          // Tour / tour boot starts from hero with a collapsed rail — don't peek history open.
+          setHistoryPeek(phase !== "touring" && phase !== "iframe" && !tourBooting);
           return;
         }
         setPair({ dir: "open", step: "in" });
@@ -151,7 +159,7 @@ export function StudioPage() {
       setPair(null);
     }, ms);
     return () => window.clearTimeout(t);
-  }, [pair, reduce]);
+  }, [pair, reduce, phase, tourBooting]);
 
   useEffect(() => {
     if (!(atLanding && !resuming)) {
@@ -168,14 +176,14 @@ export function StudioPage() {
       pairLock.current = false;
       setPair(null);
       setChrome("hero");
-      setHistoryPeek(true);
+      setHistoryPeek(phase !== "touring" && phase !== "iframe" && !tourBooting);
       return;
     }
     if (!pair && !pairLock.current) {
       pairLock.current = true;
       setPair({ dir: "close", step: "fade" });
     }
-  }, [atLanding, resuming, chrome, reduce, pair]);
+  }, [atLanding, resuming, chrome, reduce, pair, phase, tourBooting]);
 
   useEffect(() => {
     if (atLanding || chrome !== "hero") return;
@@ -275,6 +283,7 @@ export function StudioPage() {
               </HeroPiece>
               <HeroPiece
                 className="chips"
+                data-help="hero-chips"
                 delay={HERO_STAGGER * 4}
                 leaveDelay={0}
                 leaving={heroExit}
@@ -285,7 +294,10 @@ export function StudioPage() {
                     as="button"
                     type="button"
                     className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
-                    onClick={() => ask(c)}
+                    onClick={() => {
+                      if (c === TOUR_CHIP && session?.role === "user") startUserTour();
+                      else ask(c);
+                    }}
                   >
                     {c}
                   </Surface>
@@ -359,7 +371,7 @@ export function StudioPage() {
         onRailWidth={onRailWidth}
       />
       <PanHint interactive={hasWindows} />
-      <HelpFab />
+      {phase === "idle" && !tourBooting && <HelpFab />}
     </motion.div>
   );
 }

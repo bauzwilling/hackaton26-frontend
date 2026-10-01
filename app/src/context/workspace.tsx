@@ -204,6 +204,17 @@ type Ctx = {
   enteringNodeIds: string[];
   flashIds: string[];
   flashKey: number;
+  captureTourSnapshot: () => TourWorkspaceSnapshot;
+  restoreTourSnapshot: (snap: TourWorkspaceSnapshot) => void;
+};
+
+export type TourWorkspaceSnapshot = {
+  sessions: ChatSession[];
+  activeSessionId: string;
+  atLanding: boolean;
+  historyCollapsed: boolean;
+  overviewOpen: boolean;
+  viewport: ViewportSnapshot;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -1550,6 +1561,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     persistStore({ activeId: current.id, sessions: next, historyCollapsed: collapsedRef.current });
   }, [flushList, persistStore]);
 
+  const captureTourSnapshot = useCallback((): TourWorkspaceSnapshot => {
+    const flushed = flushList(sessionsRef.current, activeIdRef.current);
+    return {
+      sessions: structuredClone(flushed),
+      activeSessionId: activeIdRef.current,
+      atLanding: atLandingRef.current,
+      historyCollapsed: collapsedRef.current,
+      overviewOpen,
+      viewport: { ...viewportRef.current },
+    };
+  }, [flushList, overviewOpen]);
+
+  const restoreTourSnapshot = useCallback((snap: TourWorkspaceSnapshot) => {
+    setInspectionJob(null);
+    dismissMaximize(true);
+    clearReveal();
+    resumeLock.current = false;
+    setResuming(false);
+    setEnteringNodeIds([]);
+    setOverviewOpen(false);
+    setPreviewId(null);
+    const list = snap.sessions.map((s) => structuredClone(s));
+    const active = list.find((s) => s.id === snap.activeSessionId) ?? list[0] ?? emptySession();
+    if (!list.some((s) => s.id === active.id)) list.unshift(active);
+  const collapsed = snap.atLanding ? true : snap.historyCollapsed;
+  setSessions(list);
+  setActiveSessionId(active.id);
+  hydrateSession(active);
+  atLandingRef.current = snap.atLanding;
+  setAtLanding(snap.atLanding);
+  collapsedRef.current = collapsed;
+  setHistoryCollapsedState(collapsed);
+  setViewport(snap.viewport);
+  persistStore({
+    activeId: active.id,
+    sessions: list,
+    historyCollapsed: collapsed,
+  });
+}, [clearReveal, dismissMaximize, hydrateSession, persistStore]);
+
   const clearTranscript = useCallback(() => {
     setEntries([]);
     setSelectedEntryId(null);
@@ -1708,7 +1759,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+    captureTourSnapshot,
+    restoreTourSnapshot,
+  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey, captureTourSnapshot, restoreTourSnapshot]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

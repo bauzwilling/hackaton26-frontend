@@ -227,13 +227,15 @@ button.sf:disabled:active { transform: none; }
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .chrome-status:hover .chrome-status-copy,
-.chrome-status:focus-visible .chrome-status-copy {
+.chrome-status:focus-visible .chrome-status-copy,
+.chrome-status.is-tour-open .chrome-status-copy {
   grid-template-columns: 1fr;
   opacity: 1;
   margin-right: 8px;
 }
 .chrome-status:hover .chrome-status-copy-inner,
-.chrome-status:focus-visible .chrome-status-copy-inner {
+.chrome-status:focus-visible .chrome-status-copy-inner,
+.chrome-status.is-tour-open .chrome-status-copy-inner {
   transform: translateX(0);
 }
 .chrome-status-dot {
@@ -2558,6 +2560,11 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+}
+.help-card-btn:disabled,
+.help-card-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 @media (pointer: coarse) {

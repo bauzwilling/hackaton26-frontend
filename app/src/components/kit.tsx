@@ -388,7 +388,7 @@ function ChromeMenu({
   }, [open]);
 
   return (
-    <div className="chrome-menu" ref={box}>
+    <div className="chrome-menu" ref={box} data-help={dataHelp}>
       {trigger}
       <AnimatePresence>
         {open && (
@@ -399,7 +399,12 @@ function ChromeMenu({
             exit={reduce ? undefined : { opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           >
-            <Surface className={`chrome-menu-card${cardClass ? ` ${cardClass}` : ""}`} role="dialog" aria-label={label} data-help={dataHelp}>
+            <Surface
+              className={`chrome-menu-card${cardClass ? ` ${cardClass}` : ""}`}
+              role="dialog"
+              aria-label={label}
+              data-help={dataHelp ? `${dataHelp}-panel` : undefined}
+            >
               {children}
             </Surface>
           </motion.div>
@@ -421,6 +426,7 @@ function LookOverflow({ open, onOpenChange }: { open: boolean; onOpenChange: (ne
       onClose={() => onOpenChange(false)}
       label="Settings"
       cardClass="viz-panel"
+      dataHelp="chrome-settings"
       trigger={(
         <Surface
           as="button"
@@ -481,6 +487,7 @@ function ProfileMenu({
       open={open}
       onClose={() => onOpenChange(false)}
       label="Account"
+      dataHelp="chrome-account"
       trigger={(
         <Surface
           as="button"
@@ -767,6 +774,7 @@ export function Chrome({
           <div className="chrome-tools">
             <motion.div
               className="chrome-status"
+              data-help="chrome-network"
               tabIndex={0}
               title="Decentralized network online"
               aria-label="Decentralized network online"
@@ -784,7 +792,6 @@ export function Chrome({
             <span className="chrome-tools-gap" aria-hidden />
             <motion.div
               className="chrome-tool-btns"
-              data-help="chrome-look"
               initial={reduce ? false : { opacity: 0 }}
               animate={extras}
               transition={extrasMove}

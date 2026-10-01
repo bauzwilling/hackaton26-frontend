@@ -7,28 +7,6 @@ const CARD_W = 360;
 const CARD_H = 188;
 const MARGIN = 16;
 
-function placeCard(hole: { top: number; left: number; width: number; height: number }) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const right = hole.left + hole.width;
-  const bottom = hole.top + hole.height;
-  const spots = [
-    { x: right + 12, y: hole.top },
-    { x: hole.left, y: bottom + 12 },
-    { x: hole.left - CARD_W - 12, y: hole.top },
-    { x: hole.left, y: hole.top - CARD_H - 12 },
-  ];
-  for (const s of spots) {
-    if (s.x >= MARGIN && s.y >= MARGIN && s.x + CARD_W <= vw - MARGIN && s.y + CARD_H <= vh - MARGIN) {
-      return s;
-    }
-  }
-  return {
-    x: Math.min(vw - CARD_W - MARGIN, Math.max(MARGIN, vw - CARD_W - MARGIN)),
-    y: Math.min(vh - CARD_H - MARGIN, Math.max(MARGIN, vh - CARD_H - MARGIN)),
-  };
-}
-
 export function HelpFab() {
   const { startHelp } = useHelp();
   return (
@@ -66,7 +44,7 @@ function markPanHintSeen() {
 
 /** First-visit canvas tip. Not the Help tour overlay. */
 export function PanHint({ interactive }: { interactive: boolean }) {
-  const { phase, startHelp } = useHelp();
+  const { phase, startUserTour } = useHelp();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(() => !panHintSeen());
 
@@ -104,7 +82,7 @@ export function PanHint({ interactive }: { interactive: boolean }) {
           className="help-card-btn"
           onClick={() => {
             dismiss();
-            startHelp();
+            startUserTour();
           }}
         >
           Give me a tour
@@ -115,7 +93,7 @@ export function PanHint({ interactive }: { interactive: boolean }) {
 }
 
 export function HelpOverlay() {
-  const { phase, step, steps, stepIndex, appNodeId, iframeReady, next, back, stop } = useHelp();
+  const { phase, step, steps, stepIndex, appNodeId, iframeReady, pending, next, back, stop } = useHelp();
   const [hole, setHole] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   const active = Boolean(step) && (phase === "touring" || (phase === "iframe" && !iframeReady));
@@ -142,38 +120,59 @@ export function HelpOverlay() {
     const measure = () => setHole(step ? measureAnchor(step.anchor, appNodeId, step.pad ?? 8) : null);
     const id = window.setInterval(measure, 400);
     return () => window.clearInterval(id);
-  }, [active, step, appNodeId]);
+  }, [active, step, appNodeId, stepIndex]);
 
   if (!active || !step) return null;
 
-  const card = hole ? placeCard(hole) : { x: MARGIN, y: window.innerHeight - CARD_H - MARGIN };
+  // Always dock the explainer bottom-right so it never covers the spotlight.
+  const card = {
+    x: Math.max(MARGIN, window.innerWidth - CARD_W - MARGIN),
+    y: Math.max(MARGIN, window.innerHeight - CARD_H - MARGIN),
+  };
   const last = stepIndex >= steps.length - 1;
-  const nextLabel = step.handoff === "plyworks-native" ? "Continue" : last ? "Done" : "Next";
+  const nextLabel = pending ? "Working…" : step.handoff === "plyworks-native" ? "Continue" : last ? "Done" : "Next";
+  const backDisabled = pending || stepIndex <= 0;
 
   return createPortal(
     <div className="help-overlay" role="dialog" aria-label="Studio tour">
-        <div
-          className={`help-dim${hole ? " is-cutout" : ""}`}
-          onPointerDown={(e) => e.preventDefault()}
-        />
+      <div
+        className={`help-dim${hole ? " is-cutout" : ""}`}
+        onPointerDown={(e) => e.preventDefault()}
+      />
       {hole && (
         <div
           className="help-hole"
           style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
         />
       )}
-      <Surface className="help-card" style={{ left: card.x, top: card.y }}>
+      <Surface className="help-card is-docked" style={{ left: card.x, top: card.y }}>
         <p className="help-card-kicker">{stepIndex + 1} / {steps.length}</p>
         <h2 className="help-card-title">{step.title}</h2>
         <p className="help-card-body">{step.body}</p>
         <div className="help-card-actions">
-          <Surface as="button" type="button" relief="ghost" className="help-card-btn" onClick={back}>
-            Back
+          <Surface
+            as="button"
+            type="button"
+            relief="ghost"
+            className="help-card-btn"
+            onClick={back}
+            disabled={backDisabled}
+            aria-disabled={backDisabled}
+          >
+            Previous
           </Surface>
           <Surface as="button" type="button" relief="ghost" className="help-card-btn" onClick={stop}>
-            Skip
+            Exit tour
           </Surface>
-          <Surface as="button" type="button" relief="accent" className="help-card-btn" onClick={next}>
+          <Surface
+            as="button"
+            type="button"
+            relief="accent"
+            className="help-card-btn"
+            onClick={next}
+            disabled={pending}
+            aria-disabled={pending}
+          >
             {nextLabel}
           </Surface>
         </div>

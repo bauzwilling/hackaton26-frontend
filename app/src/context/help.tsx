@@ -8,9 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSession } from "./session";
 import {
   CONCIERGE_ID,
+  HERO_LEAVE_MS,
+  PAIR_FADE_MS,
+  PAIR_SHAPE_MS,
   useWorkspace,
+  type TourWorkspaceSnapshot,
   type WorkspaceApp,
 } from "./workspace";
 import {
@@ -25,7 +30,9 @@ import {
   queryHelpAnchor,
   setHelpAskHandler,
   tourFor,
+  TOUR_DESIGN_ASK,
   TOUR_STUB_REPLY,
+  TOUR_TABLE_ASK,
   type HelpAnchor,
   type HelpOfferId,
   type HelpPhase,
@@ -42,7 +49,10 @@ export type HelpCtx = {
   step: HelpStep | null;
   appNodeId: string | null;
   iframeReady: boolean;
+  pending: boolean;
+  tourBooting: boolean;
   startHelp: () => void;
+  startUserTour: () => void;
   offerHelp: (query?: string) => void;
   pickOffer: (id: HelpOfferId) => void;
   pickTopic: (topic: HelpTopicId) => void;
@@ -67,9 +77,63 @@ function closeLookPanel() {
   if (toggle && document.querySelector(".viz-panel")) toggle.click();
 }
 
+function closeAccountMenu() {
+  const toggle = document.querySelector(".user-menu-toggle") as HTMLButtonElement | null;
+  if (toggle?.getAttribute("aria-expanded") === "true") toggle.click();
+}
+
+function closeChromeMenus() {
+  closeLookPanel();
+  closeAccountMenu();
+  clearNetworkTourOpen();
+}
+
+function clearNetworkTourOpen() {
+  document.querySelector(".chrome-status.is-tour-open")?.classList.remove("is-tour-open");
+}
+
+function openNetworkTourLabel() {
+  const el = document.querySelector(".chrome-status") as HTMLElement | null;
+  if (!el) return;
+  el.classList.add("is-tour-open");
+  el.focus({ preventScroll: true });
+}
+
+function openAccountMenu() {
+  const toggle = document.querySelector(".user-menu-toggle") as HTMLButtonElement | null;
+  if (toggle && toggle.getAttribute("aria-expanded") !== "true") toggle.click();
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function waitUntil(predicate: () => boolean, timeoutMs = 45000, intervalMs = 200) {
+  return new Promise<boolean>((resolve) => {
+    if (predicate()) {
+      resolve(true);
+      return;
+    }
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      if (predicate()) {
+        window.clearInterval(id);
+        resolve(true);
+      } else if (Date.now() - start > timeoutMs) {
+        window.clearInterval(id);
+        resolve(false);
+      }
+    }, intervalMs);
+  });
+}
+
 export function HelpProvider({ children }: { children: ReactNode }) {
+  const { session } = useSession();
   const {
     nodes,
+    entries,
     ensureConcierge,
     focusTargets,
     appendConciergeTurn,
@@ -82,6 +146,12 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     departLanding,
     atLanding,
     ask,
+    returnToLanding,
+    setHistoryCollapsed,
+    captureTourSnapshot,
+    restoreTourSnapshot,
+    tile,
+    viewport,
   } = useWorkspace();
 
   const [phase, setPhase] = useState<HelpPhase>("idle");
@@ -89,6 +159,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [appNodeId, setAppNodeId] = useState<string | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
+  const [pending, setPending] = useState(false);
+  /** True while returning to hero before the tour overlay starts (e.g. from Help chat). */
+  const [tourBooting, setTourBooting] = useState(false);
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -96,15 +169,26 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   topicRef.current = topic;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
   const atLandingRef = useRef(atLanding);
   atLandingRef.current = atLanding;
+  const stepIndexRef = useRef(stepIndex);
+  stepIndexRef.current = stepIndex;
+  const tourSnapRef = useRef<TourWorkspaceSnapshot | null>(null);
+  const userTourRef = useRef(false);
+  const prepGenRef = useRef(0);
+  /** When true, tryHelpAsk lets the tour-driven ask() reach Concierge. */
+  const tourDriveAskRef = useRef(false);
+  /** Design-something ask is sent once per tour run. */
+  const designAskSentRef = useRef(false);
+  const tableAskSentRef = useRef(false);
 
   const steps = topic ? tourFor(topic) : [];
   const step = phase === "touring" || (phase === "iframe" && !iframeReady)
     ? (steps[stepIndex] ?? null)
     : null;
 
-  // Kept for a later tour pass (prepare steps). Do not call from the Help offer.
   const zoomConcierge = useCallback(() => {
     ensureConcierge();
     window.setTimeout(() => {
@@ -132,13 +216,52 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     return opened?.id ?? null;
   }, [focusTargets, openApp, show]);
 
-  const runPrepare = useCallback((prepare?: HelpPrepare) => {
-    if (!prepare) return;
-    if (prepare === "focus-concierge") {
-      zoomConcierge();
+  const endUserTour = useCallback(() => {
+    prepGenRef.current += 1;
+    setPending(false);
+    setTourBooting(false);
+    userTourRef.current = false;
+    designAskSentRef.current = false;
+    tableAskSentRef.current = false;
+    clearNetworkTourOpen();
+    setPhase("idle");
+    setTopic(null);
+    setStepIndex(0);
+    setAppNodeId(null);
+    setIframeReady(false);
+    setOverviewOpen(false);
+    closeChromeMenus();
+    const snap = tourSnapRef.current;
+    tourSnapRef.current = null;
+    if (snap) {
+      // Landing always keeps the chat rail collapsed.
+      restoreTourSnapshot({
+        ...snap,
+        historyCollapsed: snap.atLanding ? true : snap.historyCollapsed,
+      });
+      if (snap.atLanding) setHistoryCollapsed(true);
+    }
+  }, [restoreTourSnapshot, setHistoryCollapsed, setOverviewOpen]);
+
+  const stop = useCallback(() => {
+    if (userTourRef.current) {
+      endUserTour();
       return;
     }
-    if (prepare === "focus-log") {
+    prepGenRef.current += 1;
+    setPending(false);
+    setPhase("idle");
+    setTopic(null);
+    setStepIndex(0);
+    setAppNodeId(null);
+    setIframeReady(false);
+    setOverviewOpen(false);
+    closeChromeMenus();
+  }, [endUserTour, setOverviewOpen]);
+
+  const runPrepare = useCallback(async (prepare?: HelpPrepare) => {
+    if (!prepare) return;
+    if (prepare === "focus-concierge" || prepare === "focus-log") {
       zoomConcierge();
       return;
     }
@@ -151,30 +274,197 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (prepare === "look-open") {
+      closeAccountMenu();
+      clearNetworkTourOpen();
       const toggle = document.querySelector(".viz-toggle") as HTMLButtonElement | null;
       const open = document.querySelector(".viz-panel");
       if (toggle && !open) toggle.click();
+      await delay(200);
+      return;
+    }
+    if (prepare === "account-open") {
+      closeLookPanel();
+      clearNetworkTourOpen();
+      openAccountMenu();
+      await delay(200);
+      return;
+    }
+    if (prepare === "chrome-close") {
+      closeChromeMenus();
+      return;
+    }
+    if (prepare === "network-open") {
+      closeLookPanel();
+      closeAccountMenu();
+      setOverviewOpen(false);
+      openNetworkTourLabel();
+      await delay(350);
+      return;
+    }
+    if (prepare === "ensure-hero") {
+      closeChromeMenus();
+      setOverviewOpen(false);
+      setHistoryCollapsed(true);
+      if (!atLandingRef.current) returnToLanding();
+      await delay(50);
+      return;
+    }
+    if (prepare === "ask-design-something") {
+      closeChromeMenus();
+      setOverviewOpen(false);
+      const already = designAskSentRef.current
+        || entriesRef.current.some((e) => e.query === TOUR_DESIGN_ASK && e.choices && e.choices.length > 0);
+      if (already) {
+        designAskSentRef.current = true;
+        if (atLandingRef.current) {
+          await new Promise<void>((resolve) => {
+            departLanding(() => resolve());
+          });
+        }
+        await waitUntil(() => {
+          const last = [...entriesRef.current].reverse().find((e) => (
+            e.query === TOUR_DESIGN_ASK && !e.pending && e.choices && e.choices.length > 0
+          ));
+          return Boolean(last);
+        }, 5000);
+        return;
+      }
+      const before = entriesRef.current.length;
+      await new Promise<void>((resolve) => {
+        departLanding(() => {
+          tourDriveAskRef.current = true;
+          try {
+            ask(TOUR_DESIGN_ASK);
+            designAskSentRef.current = true;
+          } finally {
+            tourDriveAskRef.current = false;
+          }
+          resolve();
+        });
+      });
+      await waitUntil(() => {
+        const list = entriesRef.current;
+        if (list.length <= before) return false;
+        const last = [...list].reverse().find((e) => !e.pending && e.choices && e.choices.length > 0);
+        return Boolean(last);
+      }, 60000);
+      return;
+    }
+    if (prepare === "expand-history") {
+      setHistoryCollapsed(false);
+      return;
+    }
+    if (prepare === "select-table") {
+      if (tableAskSentRef.current
+        || nodesRef.current.some((n) => n.kind === "app" && n.appId === "plyworks" && !n.hidden)) {
+        tableAskSentRef.current = true;
+        const ply = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks" && !n.hidden);
+        if (ply) {
+          setAppNodeId(ply.id);
+          focusTargets([ply.id], studioViewport());
+        }
+        return;
+      }
+      tourDriveAskRef.current = true;
+      try {
+        ask(TOUR_TABLE_ASK);
+        tableAskSentRef.current = true;
+      } finally {
+        tourDriveAskRef.current = false;
+      }
+      await waitUntil(() => {
+        const ply = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks" && !n.hidden);
+        if (!ply) return false;
+        setAppNodeId(ply.id);
+        return true;
+      }, 60000);
+      const ply = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks" && !n.hidden);
+      if (ply) {
+        focusTargets([ply.id], studioViewport());
+      }
+      await delay(400);
+      return;
+    }
+    if (prepare === "focus-plyworks-produce") {
+      const ply = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks" && !n.hidden);
+      if (ply) {
+        setAppNodeId(ply.id);
+        show(ply.id);
+        focusTargets([ply.id], studioViewport());
+      }
+      await waitUntil(() => Boolean(document.querySelector(".pw-corner-chip.is-produce")), 20000);
+      const btn = document.querySelector(".pw-corner-chip.is-produce") as HTMLButtonElement | null;
+      if (btn && !btn.disabled) btn.click();
+      // Live Produce may open JoinWiz; wait briefly, then continue even if produce backend is slow.
+      await waitUntil(() => {
+        const jw = nodesRef.current.find((n) => n.kind === "app" && n.appId === "plyworks-jw" && !n.hidden);
+        if (jw) {
+          setAppNodeId(jw.id);
+          focusTargets([jw.id], studioViewport());
+          return true;
+        }
+        return false;
+      }, 25000);
+      return;
+    }
+    if (prepare === "windows-demo") {
+      setOverviewOpen(true);
+      await delay(400);
+      const apps = nodesRef.current.filter((n) => (
+        n.kind === "app"
+        && !n.hidden
+        && n.id !== CONCIERGE_ID
+      ));
+      for (const app of apps.slice(0, 2)) {
+        hide(app.id);
+        await delay(450);
+        show(app.id);
+        await delay(300);
+      }
+      tile(viewport);
+      await delay(400);
+      // Keep the Windows menu open so the spotlight covers trigger + full panel.
+      setOverviewOpen(true);
+      await delay(200);
       return;
     }
     if (prepare === "open-boxouts") findOrOpenApp("boxouts");
     if (prepare === "open-simpleparts") findOrOpenApp("simpleparts");
     if (prepare === "open-plyworks") findOrOpenApp("plyworks");
-  }, [findOrOpenApp, setOverviewOpen, zoomConcierge]);
+  }, [
+    ask,
+    departLanding,
+    findOrOpenApp,
+    focusTargets,
+    hide,
+    returnToLanding,
+    setHistoryCollapsed,
+    setOverviewOpen,
+    show,
+    tile,
+    viewport,
+    zoomConcierge,
+  ]);
 
-  const stop = useCallback(() => {
-    setPhase("idle");
-    setTopic(null);
-    setStepIndex(0);
-    setAppNodeId(null);
-    setIframeReady(false);
-    setOverviewOpen(false);
-    closeLookPanel();
-  }, [setOverviewOpen]);
+  const runStepPrepare = useCallback(async (catalog: HelpStep[], index: number) => {
+    const target = catalog[index];
+    if (!target?.prepare) {
+      setPending(false);
+      return;
+    }
+    const gen = ++prepGenRef.current;
+    if (target.awaitPrepare) setPending(true);
+    try {
+      await runPrepare(target.prepare);
+    } finally {
+      if (gen === prepGenRef.current) setPending(false);
+    }
+  }, [runPrepare]);
 
   const minimizeOnScreen = useCallback(() => {
     dismissMaximize(true);
     setOverviewOpen(false);
-    closeLookPanel();
+    closeChromeMenus();
     for (const n of nodesRef.current) {
       if (n.id === CONCIERGE_ID || n.kind === "log") continue;
       if (!n.hidden) hide(n.id);
@@ -182,7 +472,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   }, [dismissMaximize, hide, setOverviewOpen]);
 
   const paintOffer = useCallback((query = HELP_PLEASE) => {
-    // Never focus/unhide the canvas Concierge — docked thread owns help.
     appendConciergeTurn(query, HELP_OFFER_REPLY, { helpOffer: [...HELP_OFFER_CHIPS] });
     setPhase("offering");
     setTopic(null);
@@ -200,8 +489,76 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     paintOffer(query);
   }, [createSession, departLanding, minimizeOnScreen, paintOffer]);
 
+  const startUserTour = useCallback(() => {
+    if (session?.role !== "user") {
+      appendConciergeTurn(HELP_OFFER_LABEL.tour, TOUR_STUB_REPLY);
+      setPhase("idle");
+      return;
+    }
+    prepGenRef.current += 1;
+    setPending(false);
+    setTourBooting(true);
+    phaseRef.current = "idle";
+    setPhase("idle");
+    tourSnapRef.current = captureTourSnapshot();
+    userTourRef.current = true;
+    designAskSentRef.current = false;
+    tableAskSentRef.current = false;
+    clearNetworkTourOpen();
+    closeChromeMenus();
+    setOverviewOpen(false);
+    dismissMaximize(true);
+    setHistoryCollapsed(true);
+
+    const beginTour = () => {
+      if (!userTourRef.current) return;
+      setTourBooting(false);
+      setHistoryCollapsed(true);
+      setTopic("user");
+      setStepIndex(0);
+      setAppNodeId(null);
+      setIframeReady(false);
+      setPhase("touring");
+      void runStepPrepare(tourFor("user"), 0);
+    };
+
+    // From Help chat (docked): close the thread, collapse the rail, return to hero, then start.
+    if (!atLandingRef.current) {
+      returnToLanding();
+      setHistoryCollapsed(true);
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const wait = reduce ? 50 : PAIR_FADE_MS + PAIR_SHAPE_MS + HERO_LEAVE_MS;
+      window.setTimeout(() => {
+        void (async () => {
+          await waitUntil(
+            () => Boolean(document.querySelector('.studio-hero [data-help="concierge"]')),
+            4000,
+          );
+          setHistoryCollapsed(true);
+          beginTour();
+        })();
+      }, wait);
+      return;
+    }
+
+    beginTour();
+  }, [
+    appendConciergeTurn,
+    captureTourSnapshot,
+    dismissMaximize,
+    returnToLanding,
+    runStepPrepare,
+    session?.role,
+    setHistoryCollapsed,
+    setOverviewOpen,
+  ]);
+
   const pickOffer = useCallback((id: HelpOfferId) => {
     if (id === "tour") {
+      if (session?.role === "user") {
+        startUserTour();
+        return;
+      }
       phaseRef.current = "idle";
       setPhase("idle");
       setTopic(null);
@@ -212,54 +569,63 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setPhase("idle");
     setTopic(null);
     ask(HELP_OFFER_LABEL.capabilities);
-  }, [appendConciergeTurn, ask]);
+  }, [appendConciergeTurn, ask, session?.role, startUserTour]);
 
   const pickTopic = useCallback((nextTopic: HelpTopicId) => {
-    // Tour overlay path retained for a later pass — not started from the Help offer.
     const catalog = tourFor(nextTopic);
     if (!catalog.length) return;
     appendConciergeTurn(HELP_TOPIC_LABEL[nextTopic], `Let's walk through ${HELP_TOPIC_LABEL[nextTopic]}.`);
+    userTourRef.current = false;
     setTopic(nextTopic);
     setStepIndex(0);
     setPhase("touring");
-    runPrepare(catalog[0]?.prepare);
-  }, [appendConciergeTurn, runPrepare]);
+    void runStepPrepare(catalog, 0);
+  }, [appendConciergeTurn, runStepPrepare]);
 
   const startHelp = useCallback(() => {
-    // One-shot: always open a fresh Help offer. No exit-help toggle on the FAB.
     if (phaseRef.current !== "idle") stop();
     offerHelp();
   }, [offerHelp, stop]);
 
   const next = useCallback(() => {
+    if (pending) return;
     const catalog = topicRef.current ? tourFor(topicRef.current) : [];
-    const current = catalog[stepIndex];
+    const current = catalog[stepIndexRef.current];
     if (current?.handoff === "plyworks-native") {
       setIframeReady(false);
       setPhase("iframe");
       return;
     }
-    const upcoming = stepIndex + 1;
+    const upcoming = stepIndexRef.current + 1;
     if (upcoming >= catalog.length) {
       stop();
       return;
     }
     setStepIndex(upcoming);
-    runPrepare(catalog[upcoming]?.prepare);
-  }, [runPrepare, stepIndex, stop]);
+    void runStepPrepare(catalog, upcoming);
+  }, [pending, runStepPrepare, stop]);
 
   const back = useCallback(() => {
-    if (stepIndex <= 0) {
+    if (pending) return;
+    if (stepIndexRef.current <= 0) {
+      if (userTourRef.current) return;
       setPhase("offering");
       setTopic(null);
       setAppNodeId(null);
       return;
     }
-    const upcoming = stepIndex - 1;
+    const upcoming = stepIndexRef.current - 1;
     const catalog = topicRef.current ? tourFor(topicRef.current) : [];
     setStepIndex(upcoming);
-    runPrepare(catalog[upcoming]?.prepare);
-  }, [runPrepare, stepIndex]);
+    // Chrome prepares only — do not rewind live Concierge side effects.
+    const prep = catalog[upcoming]?.prepare;
+    if (prep === "account-open" || prep === "look-open" || prep === "chrome-close" || prep === "network-open" || prep === "ensure-hero" || prep === "expand-history" || prep === "overview-open" || prep === "ask-design-something") {
+      void runStepPrepare(catalog, upcoming);
+    } else {
+      closeChromeMenus();
+      setPending(false);
+    }
+  }, [pending, runStepPrepare]);
 
   const onPlyworksDone = useCallback(() => {
     stop();
@@ -278,16 +644,13 @@ export function HelpProvider({ children }: { children: ReactNode }) {
           pickOffer(choice);
           return true;
         }
-        // Let normal Concierge handle unrelated follow-ups.
         phaseRef.current = "idle";
         setPhase("idle");
         return false;
       }
       if (current === "touring" || current === "iframe") {
-        const intent = matchHelpIntent(query);
-        if (!intent) return false;
-        stop();
-        window.setTimeout(() => offerHelp(query), 0);
+        // Block user Concierge input during the guided tour; allow tour-driven asks.
+        if (tourDriveAskRef.current) return false;
         return true;
       }
       const intent = matchHelpIntent(query);
@@ -296,7 +659,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       return true;
     });
     return () => setHelpAskHandler(null);
-  }, [offerHelp, pickOffer, stop]);
+  }, [offerHelp, pickOffer]);
 
   useEffect(() => {
     if (phase !== "offering" && phase !== "touring" && phase !== "iframe") return;
@@ -319,7 +682,10 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     step,
     appNodeId,
     iframeReady,
+    pending,
+    tourBooting,
     startHelp,
+    startUserTour,
     offerHelp,
     pickOffer,
     pickTopic,
@@ -328,7 +694,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     stop,
     onPlyworksDone,
     onPlyworksReady,
-  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, startHelp, offerHelp, pickOffer, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
+  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, pending, tourBooting, startHelp, startUserTour, offerHelp, pickOffer, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
 
   return <HelpContext.Provider value={value}>{children}</HelpContext.Provider>;
 }
@@ -344,13 +710,45 @@ export function useHelpOptional() {
 }
 
 export function measureAnchor(anchor: HelpAnchor, appNodeId?: string | null, pad = 8) {
-  const el = queryHelpAnchor(anchor, appNodeId);
-  if (!el) return null;
-  const box = el.getBoundingClientRect();
+  const els: HTMLElement[] = [];
+  const primary = queryHelpAnchor(anchor, appNodeId);
+  if (primary) els.push(primary);
+  // Account / Settings / Windows: include the open menu panel in the spotlight.
+  if (anchor.type === "help" && anchor.id === "chrome-account") {
+    const panel = document.querySelector('[data-help="chrome-account-panel"]') as HTMLElement | null;
+    if (panel) els.push(panel);
+  }
+  if (anchor.type === "help" && anchor.id === "chrome-settings") {
+    const panel = document.querySelector('[data-help="chrome-settings-panel"]') as HTMLElement | null;
+    if (panel) els.push(panel);
+  }
+  if (anchor.type === "help" && (anchor.id === "overview" || anchor.id === "chrome-windows")) {
+    const trigger = document.querySelector('[data-help="chrome-windows"], .chrome-windows') as HTMLElement | null;
+    if (trigger && !els.includes(trigger)) els.push(trigger);
+    const panel = document.querySelector('[data-help="overview-panel"]') as HTMLElement | null;
+    if (panel) els.push(panel);
+  }
+  // Network: include expanded "online" label when tour-forced open.
+  if (anchor.type === "help" && anchor.id === "chrome-network") {
+    const copy = document.querySelector(".chrome-status.is-tour-open .chrome-status-copy") as HTMLElement | null;
+    if (copy) els.push(copy);
+  }
+  if (!els.length) return null;
+  let top = Infinity;
+  let left = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const el of els) {
+    const box = el.getBoundingClientRect();
+    top = Math.min(top, box.top);
+    left = Math.min(left, box.left);
+    right = Math.max(right, box.right);
+    bottom = Math.max(bottom, box.bottom);
+  }
   return {
-    top: box.top - pad,
-    left: box.left - pad,
-    width: Math.max(24, box.width + pad * 2),
-    height: Math.max(24, box.height + pad * 2),
+    top: top - pad,
+    left: left - pad,
+    width: Math.max(24, right - left + pad * 2),
+    height: Math.max(24, bottom - top + pad * 2),
   };
 }
