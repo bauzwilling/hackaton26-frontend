@@ -68,6 +68,7 @@ export function StudioPage() {
   const dragDepth = useRef(0);
   const staffBoot = useRef("");
   const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
+  const canAttach = session?.role === "user";
 
   useEffect(() => {
     const app = params.get("app");
@@ -83,6 +84,7 @@ export function StudioPage() {
   }, [params, openApp, announceOpen, ask, setParams, departLanding]);
 
   useEffect(() => {
+    if (!canAttach) return;
     const block = (e: globalThis.DragEvent) => {
       if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) e.preventDefault();
     };
@@ -92,7 +94,7 @@ export function StudioPage() {
       window.removeEventListener("dragover", block);
       window.removeEventListener("drop", block);
     };
-  }, []);
+  }, [canAttach]);
 
   const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const isStaff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
@@ -217,7 +219,7 @@ export function StudioPage() {
   }, [leaving, emptyHero, reduce, onLeaveDone]);
 
   function onDragEnter(e: DragEvent<HTMLDivElement>) {
-    if (!isFileDrag(e)) return;
+    if (!canAttach || !isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepth.current += 1;
@@ -225,14 +227,14 @@ export function StudioPage() {
   }
 
   function onDragOver(e: DragEvent<HTMLDivElement>) {
-    if (!isFileDrag(e)) return;
+    if (!canAttach || !isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
   }
 
   function onDragLeave(e: DragEvent<HTMLDivElement>) {
-    if (!isFileDrag(e)) return;
+    if (!canAttach || !isFileDrag(e)) return;
     e.preventDefault();
     dragDepth.current = Math.max(0, dragDepth.current - 1);
     if (dragDepth.current === 0) setDropping(false);
@@ -243,6 +245,7 @@ export function StudioPage() {
     e.stopPropagation();
     dragDepth.current = 0;
     setDropping(false);
+    if (!canAttach) return;
     const files = Array.from(e.dataTransfer.files ?? []);
     if (files.length) ingestFiles(files);
   }
@@ -333,7 +336,7 @@ export function StudioPage() {
                   <ConciergeThread />
                   <Composer
                     variant="panel"
-                    placeholder="Ask, or drop a file…"
+                    placeholder={canAttach ? "Ask, or drop a file…" : "Ask something…"}
                     shareLayout={false}
                   />
                 </div>

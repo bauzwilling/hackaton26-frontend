@@ -866,6 +866,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void (async () => {
       /** Applies a reply plus its routing decision, whoever made that decision. */
       const settle = (result: ConciergeResult) => {
+        // WAITING MODEL: non-user Concierge cannot forward into app chat or apply plyworks ops yet
+        const chatLocked = session?.role !== "user";
         const confirm = (result.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         let appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
@@ -876,7 +878,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let confirmApps: WorkspaceApp[] | undefined;
         const kind = result.kind ?? inferConciergeKind(result);
         console.log(`kind: ${kind}`);
-        const ops = result.plyworksOps ?? null;
+        const ops = chatLocked ? null : (result.plyworksOps ?? null);
         // get = focus-only. set to a chat app still forwards so follow-up edits reach the window.
         const inspectGet = kind === "get";
         const inspectSet = kind === "set";
@@ -886,7 +888,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         // Continue into the already-open chat app when the model drops `app` on a work turn.
         if (
-          !appId
+          !chatLocked
+          && !appId
           && !confirm.length
           && !ops?.length
           && kind !== "info"
@@ -898,6 +901,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           if (top?.appId && chatCapable(top.appId) && openable(session, top.appId)) {
             appId = top.appId;
           }
+        }
+
+        // Drop model-suggested apps the role cannot open; keep the reply.
+        if (appId && !openable(session, appId)) {
+          appId = undefined;
         }
 
         let windowOpened = false;
@@ -951,7 +959,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // WAITING BFF: SuggestedAction accept will own this handoff
         // WAITING MODEL: the app chat still answers; our structuring model takes over later
         // Sequence: Concierge reply paints → open app → zoom → forward intake.
-        const forwardChat = live && appId && chatCapable(appId) && !inspectGet && !ops?.length;
+        const forwardChat = live && !chatLocked && appId && chatCapable(appId) && !inspectGet && !ops?.length;
 
         if (status === "app" && appId && live && !skipOpen && !forwardChat) {
           const opened = openApp(appId, { parentId: conciergeId, query: q, design, skipActivity: true });
@@ -981,8 +989,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           reply: result.reply,
           kind,
           targetIds,
-          design: result.design ?? undefined,
-          choices: result.choices ?? undefined,
+          design: chatLocked ? undefined : (result.design ?? undefined),
+          choices: chatLocked ? undefined : (result.choices ?? undefined),
           confirmApps,
           windowOpened: status === "app" ? windowOpened : undefined,
           pending: false,
@@ -1069,7 +1077,29 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const appId = named && openable(session, named) ? named : null;
         const confirmApps = (local.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
-        const choices = appId || confirmApps.length ? null : local.choices;
+        // WAITING MODEL: soft-reject design / furniture fallbacks for non-user when the API is down
+        const staffOffline = session?.role !== "user";
+        const designFallback = Boolean(
+          staffOffline
+          && (
+            local.choices?.length
+            || (!appId && !confirmApps.length && (named || local.design || local.confirmApps?.length))
+          ),
+        );
+        if (designFallback) {
+          settle({
+            kind: "info",
+            reply: named
+              ? denyCopy(session, named).body
+              : "Design features are available when signed in as a User. Concierge cannot open them for this role yet — please use the interface for your role's windows.",
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
+        const choices = staffOffline || appId || confirmApps.length ? null : local.choices;
         const routed = {
           app: confirmApps.length ? null : appId,
           design: (!confirmApps.length && appId === "plyworks" ? (local.design ?? "shelf") : null) as PlyworksDesign | null,
@@ -1085,11 +1115,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               ? appId === "plyworks"
                 ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
                 : `Opening ${appLabel(appId)} for you.`
-              : named
+                  : named
                 ? denyCopy(session, named).body
                 : choices
                   ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
-                  : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+                  : session?.role === "user"
+                    ? `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`
+                    : `I can open ${apps.map(appLabel).join(", ")}. Name one to open it.`,
         });
       }
     })();

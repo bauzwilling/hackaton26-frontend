@@ -15,6 +15,7 @@ import {
   type WorkspaceApp,
 } from "../context/workspace";
 import { useHelp } from "../context/help";
+import { useSession } from "../context/session";
 import { AppPromptControls } from "./AppPromptControls";
 
 function replyOf(entry: RequestEntry) {
@@ -100,18 +101,25 @@ export function ConciergeThread() {
     entries, selectedEntryId, setSelectedEntryId, ask, confirmIntake,
     nodes, focusTargets, activeSession, returnToLanding,
   } = useWorkspace();
+  const { session } = useSession();
   const { pickTopic, pickOffer } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
+  const canLogFilter = session?.role === "user";
   const [logOnly, setLogOnly] = useState(false);
   // Opened lines from chat handoffs live on the turn (windowOpened); Closed is a dedicated activity entry.
-  const visible = logOnly
+  const showLogOnly = canLogFilter && logOnly;
+  const visible = showLogOnly
     ? entries.filter((e) => isActivityEntry(e) || Boolean(e.windowOpened))
     : entries;
 
   useEffect(() => {
+    if (!canLogFilter) setLogOnly(false);
+  }, [canLogFilter]);
+
+  useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [visible.length, logOnly]);
+  }, [visible.length, showLogOnly]);
 
   function onActivity(entry: RequestEntry) {
     setSelectedEntryId(entry.id);
@@ -131,17 +139,19 @@ export function ConciergeThread() {
     <div className="concierge-thread">
       <div className="concierge-head">
         <h2 className="concierge-title">{activeSession?.title ?? "New chat"}</h2>
-        <button
-          type="button"
-          className={`session-icon-btn is-lg${logOnly ? " is-on" : ""}`}
-          data-help="concierge-log"
-          title={logOnly ? "Show full chat" : "Logs"}
-          aria-label="Logs"
-          aria-pressed={logOnly}
-          onClick={() => setLogOnly((on) => !on)}
-        >
-          <LogIcon />
-        </button>
+        {canLogFilter && (
+          <button
+            type="button"
+            className={`session-icon-btn is-lg${showLogOnly ? " is-on" : ""}`}
+            data-help="concierge-log"
+            title={showLogOnly ? "Show full chat" : "Logs"}
+            aria-label="Logs"
+            aria-pressed={showLogOnly}
+            onClick={() => setLogOnly((on) => !on)}
+          >
+            <LogIcon />
+          </button>
+        )}
         <button
           type="button"
           className="session-icon-btn is-lg concierge-close"
@@ -157,7 +167,11 @@ export function ConciergeThread() {
       <div className="concierge-scroll" ref={listRef} onWheel={(e) => e.stopPropagation()}>
         {visible.length === 0 && (
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            {logOnly ? "No window activity yet." : "Ask anything or drop a file — replies land here."}
+            {showLogOnly
+              ? "No window activity yet."
+              : canLogFilter
+                ? "Ask anything or drop a file — replies land here."
+                : "Ask something — replies land here."}
           </p>
         )}
         {visible.map((e) => {
@@ -352,12 +366,18 @@ export function ConciergeThread() {
 
 export function ConciergeChat() {
   const { entries } = useWorkspace();
+  const { session } = useSession();
   const handedOff = useRef(entries.some((e) => e.pending)).current;
+  const canAttach = session?.role === "user";
 
   return (
     <div className="concierge">
       <ConciergeThread />
-      <Composer variant="panel" autoFocus={handedOff} placeholder="Ask, or drop a file…" />
+      <Composer
+        variant="panel"
+        autoFocus={handedOff}
+        placeholder={canAttach ? "Ask, or drop a file…" : "Ask something…"}
+      />
     </div>
   );
 }

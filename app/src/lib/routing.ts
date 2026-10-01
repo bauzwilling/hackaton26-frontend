@@ -14,6 +14,7 @@ const APP_ALIASES: { app: string; patterns: RegExp[] }[] = [
   { app: "simpleparts", patterns: [/\bsimple\s*-?\s*parts?\b/i] },
   { app: "plyworks", patterns: [/\bply\s*-?\s*works?\b/i] },
   { app: "orbit", patterns: [/\b(cnc\s*)?orbit\b/i] },
+  { app: "jobs", patterns: [/\bjobs?\b/i, /\bproduction\s+jobs?\b/i] },
   { app: "profiles", patterns: [/\bprofile\s*manager\b/i, /\b(admin(\s*console)?|users?\s*manager)\b/i] },
   { app: "machines-admin", patterns: [/\bmachine\s*(inventory|manager)\b/i] },
   { app: "projects", patterns: [/\bprojects?\b/i] },
