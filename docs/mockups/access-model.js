@@ -18,7 +18,6 @@ export const DOMAINS = {
 };
 
 export const DIRECTORY = [
-  { email: 'maria@datab.example',  name: 'Maria Sanchez',  role: 'operator', by: 'DataB' },
   { email: 'lena@frischeis.example',   name: 'Lena Frischeis', role: 'operator', by: 'DataB' },
   { email: 'tobias@frischeis.example', name: 'Tobias Reiter',  role: 'operator', by: 'lena@frischeis.example' },
   { email: 'marie@frischeis.example',  name: 'Marie Gruber',   role: 'operator', by: 'lena@frischeis.example' },

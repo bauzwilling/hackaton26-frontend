@@ -1,11 +1,31 @@
-import { APP_LABELS, can, COMPANIES, hasApp, type AppId, type Session } from "../lib/auth";
+import { APP_LABELS, can, getCompany, hasApp, type AppId, type RoleId, type Session } from "../lib/auth";
 import type { AppChatIntake, AppChatPrompt } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
 import type { HelpTopicId } from "../lib/help";
 import { requestsKey } from "./persist";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note" | "archive";
-export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "jobs";
+export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "profiles" | "machines-admin" | "jobs";
+
+/** Windows each role may open. Concierge available/restricted follow this via openable(). */
+const ROLE_APPS: Record<RoleId, ReadonlySet<WorkspaceApp>> = {
+  user: new Set([
+    "boxouts",
+    "simpleparts",
+    "simpleparts-nesting",
+    "plyworks",
+    "plyworks-jw",
+    "plyworks-nesting",
+    "projects",
+  ]),
+  operator: new Set(["jobs", "orbit"]),
+  manager: new Set(["jobs", "orbit"]),
+  admin: new Set(["profiles", "machines-admin"]),
+};
+
+export function roleAllowsApp(session: Session | null, app: WorkspaceApp) {
+  return Boolean(session && ROLE_APPS[session.role].has(app));
+}
 
 export type WorkspaceNode = {
   id: string;
@@ -62,6 +82,8 @@ export type RequestEntry = {
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
   helpTopics?: HelpTopicId[];
+  /** Fixed Help offer chips — capabilities vs tour (tour currently stubbed). */
+  helpOffer?: Array<"capabilities" | "tour">;
   /** True when this turn created the app window (false on reuse / focus-only). */
   windowOpened?: boolean;
   pending?: boolean;
@@ -122,6 +144,8 @@ export const WORKSPACE_APPS: { id: WorkspaceApp; label: string; licensed?: AppId
   { id: "projects", label: "Projects" },
   { id: "orbit", label: "Orbit", perm: "orbit" },
   { id: "jobs", label: "Jobs", perm: "jobs.read" },
+  { id: "profiles", label: "Profile Manager", perm: "users" },
+  { id: "machines-admin", label: "Machine Inventory", perm: "users" },
   { id: "admin", label: "Admin console", perm: "users", ready: false },
 ];
 
@@ -137,6 +161,8 @@ export function appLabel(app: WorkspaceApp) {
   if (app === "projects") return "Projects";
   if (app === "orbit") return "Orbit";
   if (app === "admin") return "Admin console";
+  if (app === "profiles") return "Profile Manager";
+  if (app === "machines-admin") return "Machine Inventory";
   if (app === "jobs") return "Jobs";
   return APP_LABELS[app as AppId] ?? app;
 }
@@ -144,7 +170,7 @@ export function appLabel(app: WorkspaceApp) {
 export function allowed(session: Session | null, app: WorkspaceApp) {
   const meta = WORKSPACE_APPS.find((a) => a.id === app);
   if (!meta) return false;
-  if (session?.role === "admin") return false;
+  if (!roleAllowsApp(session, app)) return false;
   if (meta.licensed && !hasApp(session, meta.licensed)) return false;
   if (meta.perm && !can(session, meta.perm)) return false;
   return true;
@@ -176,21 +202,30 @@ export function denyCopy(session: Session | null, app: WorkspaceApp) {
   if (meta?.ready === false) {
     return { title: `${label} — not available`, body: `${label} is not available yet.` };
   }
+  if (!roleAllowsApp(session, app)) {
+    const designOrProjects = JOB_APPS.includes(app)
+      || app === "projects"
+      || app === "simpleparts-nesting"
+      || app === "plyworks-jw"
+      || app === "plyworks-nesting";
+    const body = designOrProjects
+      ? `${label} is a design feature available when signed in as a User.`
+      : app === "jobs" || app === "orbit"
+        ? `${label} is only available to operators and managers.`
+        : app === "admin" || app === "profiles" || app === "machines-admin"
+          ? "Profile Manager and Machine Inventory are only available to admins."
+          : `You do not have permission to open ${label}.`;
+    return { title: `${label} — no access`, body };
+  }
   if (meta?.licensed && !hasApp(session, meta.licensed)) {
     return {
       title: `${label} — not licensed`,
       body: session
-        ? `${label} is not on ${COMPANIES[session.company].name}'s plan.`
+        ? `${label} is not on ${getCompany(session.company)?.name ?? "your company"}'s plan.`
         : `${label} is not available.`,
     };
   }
-  const body =
-    app === "orbit"
-      ? "CNC Orbit is only available to operators."
-      : app === "admin"
-        ? "The Admin console is only available to operators."
-        : `You do not have permission to open ${label}.`;
-  return { title: `${label} — no access`, body };
+  return { title: `${label} — no access`, body: `You do not have permission to open ${label}.` };
 }
 
 export function logNode(): WorkspaceNode {

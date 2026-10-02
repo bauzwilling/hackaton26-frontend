@@ -2,6 +2,7 @@ import type { Session } from "./auth";
 import type { RequestEntry, WorkspaceNode } from "../workspace/document";
 import type { UserEdge } from "../workspace/topology";
 import type { ViewportSnapshot } from "../workspace/persist";
+import { bindJobsMachineSync, type JobsMachineMirror } from "./machineStore";
 
 export type JobStatus =
   | "unassigned"
@@ -12,12 +13,7 @@ export type JobStatus =
   | "shipped"
   | "received";
 
-export type MachineId =
-  | "machine-1a"
-  | "machine-2b"
-  | "machine-3c"
-  | "machine-4d"
-  | "machine-5d";
+export type MachineId = string;
 
 export type Machine = {
   id: MachineId;
@@ -27,7 +23,7 @@ export type Machine = {
 
 // WAITING BFF: machine availability and operator-machine claims come from authenticated BFF session claims.
 // WAITING DATABASE: machine occupancy and shift assignments live in the platform production store.
-export const MACHINES: Machine[] = [
+const FIXTURE_MACHINES: Machine[] = [
   { id: "machine-1a", name: "Machine 1A", available: true },
   { id: "machine-2b", name: "Machine 2B", available: false },
   { id: "machine-3c", name: "Machine 3C", available: false },
@@ -35,6 +31,44 @@ export const MACHINES: Machine[] = [
   { id: "machine-5d", name: "Machine 5D", available: true },
 ];
 
+let catalogExtras: Machine[] = [];
+let cachedJobMachines: Machine[] | null = null;
+const machineListeners = new Set<() => void>();
+
+function notifyMachines() {
+  cachedJobMachines = null;
+  for (const listener of machineListeners) listener();
+}
+
+export function listJobMachines(): Machine[] {
+  return getJobMachinesSnapshot();
+}
+
+/** @deprecated Prefer listJobMachines() — kept as a live snapshot alias for existing imports. */
+export function getMachinesSnapshotList(): Machine[] {
+  return listJobMachines();
+}
+
+export const MACHINES: Machine[] = FIXTURE_MACHINES;
+
+bindJobsMachineSync((extras: JobsMachineMirror[]) => {
+  catalogExtras = extras.map((m) => ({ id: m.id, name: m.name, available: m.available }));
+  notifyMachines();
+});
+
+export function subscribeJobMachines(listener: () => void) {
+  machineListeners.add(listener);
+  return () => { machineListeners.delete(listener); };
+}
+
+export function getJobMachinesSnapshot(): Machine[] {
+  if (cachedJobMachines) return cachedJobMachines;
+  const map = new Map<string, Machine>();
+  for (const machine of FIXTURE_MACHINES) map.set(machine.id, machine);
+  for (const machine of catalogExtras) map.set(machine.id, machine);
+  cachedJobMachines = [...map.values()];
+  return cachedJobMachines;
+}
 export type FrozenAppSnapshot = {
   kind: "simpleparts-nesting" | "plyworks-nesting" | "plyworks";
   nodeId: string;
@@ -101,7 +135,7 @@ function readAll(): Job[] {
 }
 
 function isMachineId(value: unknown): value is MachineId {
-  return MACHINES.some((machine) => machine.id === value);
+  return typeof value === "string" && listJobMachines().some((machine) => machine.id === value);
 }
 
 function normalizeJob(value: unknown): Job | null {
@@ -334,7 +368,7 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 };
 
 export function machineFor(id: MachineId | null | undefined) {
-  return MACHINES.find((machine) => machine.id === id) ?? null;
+  return listJobMachines().find((machine) => machine.id === id) ?? null;
 }
 
 export function machineIsAvailable(id: MachineId | null | undefined): id is MachineId {

@@ -117,11 +117,21 @@ export async function askConcierge(
   apps: string[],
   restricted: string[] = [],
   plyworksBoards: PlyworksBoardSnapshot[] = [],
+  account?: { role?: string | null; capabilities?: string[] },
 ): Promise<ConciergeResult> {
+  // WAITING MODEL: role + capabilities stand in until the structuring model owns help.
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, apps, restricted, plyworksBoards }),
+    body: JSON.stringify({
+      message,
+      history,
+      apps,
+      restricted,
+      plyworksBoards,
+      role: account?.role ?? null,
+      capabilities: account?.capabilities ?? [],
+    }),
   });
   if (!res.ok) {
     throw new Error(`Concierge request failed (${res.status})`);

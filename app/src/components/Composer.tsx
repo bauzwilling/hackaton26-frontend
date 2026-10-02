@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CHAT_MOVE, LAYOUT_ATTACH, LAYOUT_COMPOSER, LAYOUT_FIELD, LAYOUT_SEND, Surface } from "./kit";
+import { useSession } from "../context/session";
 import { useWorkspace } from "../context/workspace";
 import { FILE_ACCEPT } from "../lib/intake";
 
@@ -25,7 +26,7 @@ function SendIcon() {
 export function Composer({
   variant = "hero",
   autoFocus,
-  placeholder = "Ask anything — or describe something to build...",
+  placeholder,
   shareLayout = true,
 }: {
   variant?: "hero" | "panel";
@@ -33,11 +34,18 @@ export function Composer({
   placeholder?: string;
   shareLayout?: boolean;
 }) {
+  const { session } = useSession();
   const { ask, ingestFiles, chatOrdered, createSession } = useWorkspace();
+  const canAttach = session?.role === "user";
   const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const layout = reduce ? { duration: 0 } : CHAT_MOVE;
+  const hint = placeholder ?? (
+    canAttach
+      ? "Ask anything — or describe something to build..."
+      : "Ask something…"
+  );
 
   function submit() {
     const q = query.trim();
@@ -47,6 +55,7 @@ export function Composer({
   }
 
   function onPicked(list: FileList | null) {
+    if (!canAttach) return;
     const files = Array.from(list ?? []);
     if (files.length) ingestFiles(files);
     if (fileInput.current) fileInput.current.value = "";
@@ -69,29 +78,33 @@ export function Composer({
       className={`composer composer-${variant}`}
       transition={{ layout }}
     >
-      <input
-        ref={fileInput}
-        className="composer-file"
-        type="file"
-        accept={FILE_ACCEPT}
-        multiple
-        tabIndex={-1}
-        onChange={(e) => onPicked(e.target.files)}
-      />
+      {canAttach && (
+        <input
+          ref={fileInput}
+          className="composer-file"
+          type="file"
+          accept={FILE_ACCEPT}
+          multiple
+          tabIndex={-1}
+          onChange={(e) => onPicked(e.target.files)}
+        />
+      )}
       <div className="composer-row">
-        <Surface
-          as={motion.button}
-          layout={shareLayout}
-          layoutId={shareLayout ? LAYOUT_ATTACH : undefined}
-          type="button"
-          relief="ghost"
-          className="composer-attach"
-          aria-label="Attach a file"
-          transition={{ layout }}
-          onClick={() => fileInput.current?.click()}
-        >
-          <ClipIcon />
-        </Surface>
+        {canAttach && (
+          <Surface
+            as={motion.button}
+            layout={shareLayout}
+            layoutId={shareLayout ? LAYOUT_ATTACH : undefined}
+            type="button"
+            relief="ghost"
+            className="composer-attach"
+            aria-label="Attach a file"
+            transition={{ layout }}
+            onClick={() => fileInput.current?.click()}
+          >
+            <ClipIcon />
+          </Surface>
+        )}
         <motion.div layout={shareLayout} layoutId={shareLayout ? LAYOUT_FIELD : undefined} className="composer-field" transition={{ layout }}>
           <input
             type="text"
@@ -101,7 +114,7 @@ export function Composer({
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}
-            placeholder={placeholder}
+            placeholder={hint}
             aria-label="Describe what you want to build"
           />
         </motion.div>

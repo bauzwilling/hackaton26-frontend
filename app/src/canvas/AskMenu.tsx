@@ -19,6 +19,7 @@ export function AskMenu({
 }) {
   const { session } = useSession();
   const { ask, addNote, ingestFiles, entries } = useWorkspace();
+  const canAttach = session?.role === "user";
   const [value, setValue] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -64,7 +65,7 @@ export function AskMenu({
             ref={input}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Ask anything — or describe something to build…"
+            placeholder={canAttach ? "Ask anything — or describe something to build…" : "Ask something…"}
             aria-label="Describe what you want to build"
           />
           <Surface as="button" type="submit" relief="accent" className="ctx-send" aria-label="Send">
@@ -84,28 +85,32 @@ export function AskMenu({
           </div>
         )}
         <div className="ctx-actions">
-          <input
-            ref={fileInput}
-            type="file"
-            accept={FILE_ACCEPT}
-            multiple
-            hidden
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              e.target.value = "";
-              if (!files.length) return;
-              ingestFiles(files);
-              onClose();
-            }}
-          />
-          <Surface
-            as="button"
-            type="button"
-            className="chip"
-            onClick={() => fileInput.current?.click()}
-          >
-            Attach file
-          </Surface>
+          {canAttach && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={FILE_ACCEPT}
+                multiple
+                hidden
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  e.target.value = "";
+                  if (!files.length) return;
+                  ingestFiles(files);
+                  onClose();
+                }}
+              />
+              <Surface
+                as="button"
+                type="button"
+                className="chip"
+                onClick={() => fileInput.current?.click()}
+              >
+                Attach file
+              </Surface>
+            </>
+          )}
           <Surface
             as="button"
             type="button"

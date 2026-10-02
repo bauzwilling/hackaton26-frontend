@@ -21,7 +21,6 @@ import { CHAT_MOVE, LAYOUT_MINIMAP } from "../components/kit";
 import { lookTokens, useSession } from "../context/session";
 import {
   canDeleteNode,
-  canDuplicateNode,
   chatFitPadding,
   CONCIERGE_ID,
   PAIR_FADE_MS,
@@ -33,7 +32,7 @@ import { AskMenu } from "./AskMenu";
 import { BoardHostProvider } from "./boardHost";
 import { SelectionMenu } from "./SelectionMenu";
 import { defaultEdgeOptions, edgeTypes, flowInteraction, nodeTypes } from "./flow/defaults";
-import { GRID_GAP } from "./flow/constants";
+import { FIT_ZOOM_MAX, GRID_GAP } from "./flow/constants";
 import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
 import { useFineWheelZoom } from "./flow/wheelZoom";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
@@ -62,14 +61,65 @@ function MapTip({ verb }: { verb: "Open" | "Close" }) {
   );
 }
 
+function ZoomControls({
+  faded,
+  fitPadding,
+}: {
+  faded: boolean;
+  fitPadding: ReturnType<typeof chatFitPadding>;
+}) {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+
+  return (
+    <div className={`studio-zoom-controls nowheel nopan${faded ? " is-faded" : ""}`} aria-hidden={faded}>
+      <button
+        type="button"
+        className="studio-zoom-btn"
+        disabled={faded}
+        aria-label="Zoom in"
+        title="Zoom in"
+        onClick={() => void zoomIn({ duration: 160 })}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        className="studio-zoom-btn"
+        disabled={faded}
+        aria-label="Zoom out"
+        title="Zoom out"
+        onClick={() => void zoomOut({ duration: 160 })}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        className="studio-zoom-btn studio-zoom-fit"
+        disabled={faded}
+        aria-label="Fit view"
+        title="Fit view"
+        onClick={() => void fitView({
+          padding: fitPadding,
+          duration: 200,
+          maxZoom: FIT_ZOOM_MAX,
+        })}
+      >
+        Fit
+      </button>
+    </div>
+  );
+}
+
 function MinimapDock({
   interactive,
   previewFill,
   faded,
+  fitPadding,
 }: {
   interactive: boolean;
   previewFill: string;
   faded: boolean;
+  fitPadding: ReturnType<typeof chatFitPadding>;
 }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -216,11 +266,12 @@ function MinimapDock({
         ))}
         {!open && openTip && <MapTip verb="Open" />}
       </motion.div>
+      <ZoomControls faded={faded} fitPadding={fitPadding} />
     </Panel>
   );
 }
 
-function StudioBoardInner() {
+function StudioBoardInner({ narrow }: { narrow: boolean }) {
   const {
     nodes: workspaceNodes,
     entries,
@@ -232,6 +283,8 @@ function StudioBoardInner() {
     previewId,
     fitRequest,
     close,
+    hide,
+    maximize,
     duplicateNodes,
     setLocked,
     commitPositions,
@@ -242,11 +295,12 @@ function StudioBoardInner() {
     enteringNodeIds,
     resuming,
     historyCollapsed,
-    maximizedId,
+    maximizedIds,
     commitStageSize,
     dismissMaximize,
     inspectionJob,
     exitInspection,
+    atLanding,
   } = useWorkspace();
   const { session, showWires, showGrid, accent, theme } = useSession();
   const previewFill = lookTokens(theme, accent).acc;
@@ -267,7 +321,7 @@ function StudioBoardInner() {
 
   const interactive = workspaceNodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const docked = interactive || entries.length > 0 || resuming;
-  const canvasLocked = !!maximizedId;
+  const canvasLocked = maximizedIds.length > 0;
   const inspecting = !!inspectionJob;
 
   useFineWheelZoom(layer, {
@@ -307,7 +361,7 @@ function StudioBoardInner() {
           flash: flashIds.includes(n.id),
           flashKey,
           preview: previewId === n.id,
-          maximized: maximizedId === n.id,
+          maximized: maximizedIds.includes(n.id),
         });
         if (old && draggingNow) {
           mapped.position = old.position;
@@ -334,7 +388,7 @@ function StudioBoardInner() {
         return reuseFlowNode(old, mapped);
       });
     });
-  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, maximizedId, setNodes]);
+  }, [workspaceNodes, flashIds, flashKey, conciergeEnter, enteringNodeIds, previewId, maximizedIds, setNodes]);
 
   const derivedEdges = useMemo(() => {
     if (!showWires) return [] as Edge[];
@@ -375,6 +429,16 @@ function StudioBoardInner() {
   }, [viewport, viewportKey, setViewport]);
 
   const far = Math.max(0, Math.min(1, (0.55 - zoom) / (0.55 - 0.18)));
+  /** Name overlay is on — window chrome menu is allowed; closer zoom keeps content interactive. */
+  const farChromeMenu = far > 0 && maximizedIds.length === 0;
+
+  useEffect(() => {
+    if (!farChromeMenu) setSelMenu(null);
+  }, [farChromeMenu]);
+
+  useEffect(() => {
+    if (atLanding) setAskMenu(null);
+  }, [atLanding]);
 
   useEffect(() => {
     if (!fitRequest) return;
@@ -413,7 +477,7 @@ function StudioBoardInner() {
         void fitView({
           nodes: ids.map((id) => ({ id })),
           maxZoom,
-          padding: chatFitPadding(host.width, docked, collapsed),
+          padding: chatFitPadding(host.width, docked && !narrow, collapsed),
           duration: 280,
         }).then(() => {
           if (inspectionJob) setInspectionMinZoom(getViewport().zoom);
@@ -426,7 +490,7 @@ function StudioBoardInner() {
       window.clearTimeout(timer);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [fitRequest, fitView, getViewport, inspectionJob, nodes, workspaceNodes, docked, host.width, historyCollapsed]);
+  }, [fitRequest, fitView, getViewport, inspectionJob, nodes, workspaceNodes, docked, narrow, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;
@@ -494,16 +558,16 @@ function StudioBoardInner() {
   }, [getNodes, commitPositions]);
 
   const onMoveStart = useCallback(() => {
-    // Right/middle pan must not open AskMenu on pointer-up contextmenu.
+    // Any drag-pan must not open AskMenu on pointer-up contextmenu.
     panMoved.current = false;
   }, []);
 
   const onMove = useCallback(() => {
     panMoved.current = true;
     // While maximized the canvas is locked; fitView must not soft-dismiss.
-    if (maximizedId) return;
+    if (maximizedIds.length) return;
     dismissMaximize();
-  }, [dismissMaximize, maximizedId]);
+  }, [dismissMaximize, maximizedIds]);
 
   const onMoveEnd = useCallback((_: unknown, next: { x: number; y: number; zoom: number }) => {
     appliedViewport.current = `${next.x},${next.y},${next.zoom}`;
@@ -512,7 +576,8 @@ function StudioBoardInner() {
 
   const onPaneContextMenu = useCallback((e: MouseEvent | ReactMouseEvent) => {
     e.preventDefault();
-    if (canvasLocked || inspecting || session?.role === "admin") return;
+    // Landing already has the docked Concierge — skip the old floating ask menu.
+    if (atLanding || canvasLocked || inspecting || session?.role === "admin") return;
     if (panMoved.current) {
       panMoved.current = false;
       return;
@@ -527,12 +592,14 @@ function StudioBoardInner() {
       y: e.clientY - box.top,
       world: { x: flow.x, y: flow.y },
     });
-  }, [canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
+  }, [atLanding, canvasLocked, inspecting, measureHost, screenToFlowPosition, session?.role]);
 
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: StudioFlowNode) => {
+    if (inspecting) return;
+    // Far name-overlay zoom only — closer in, leave right-click for window content.
+    if (maximizedIds.length || far <= 0) return;
     e.preventDefault();
     e.stopPropagation();
-    if (inspecting) return;
     setAskMenu(null);
     const ids = node.selected
       ? nodes.filter((n) => n.selected).map((n) => n.id)
@@ -544,7 +611,92 @@ function StudioBoardInner() {
     const box = layer.current?.getBoundingClientRect();
     if (!box) return;
     setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top, ids });
-  }, [inspecting, measureHost, nodes, setNodes]);
+  }, [far, inspecting, maximizedIds.length, measureHost, nodes, setNodes]);
+
+  // Touch long-press → same menus as right-click (AskMenu / far SelectionMenu).
+  useEffect(() => {
+    const root = layer.current;
+    if (!root || !interactive || canvasLocked || inspecting) return;
+
+    const LONG_MS = 500;
+    const MOVE_PX = 12;
+    let timer: number | null = null;
+    let startX = 0;
+    let startY = 0;
+    let pointerId: number | null = null;
+
+    const clear = () => {
+      if (timer != null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      pointerId = null;
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" || e.button !== 0) return;
+      const target = e.target as Element | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true], .win-btn, .studio-zoom-controls, .studio-minimap-shell")) {
+        return;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
+      pointerId = e.pointerId;
+      const nodeEl = target?.closest(".react-flow__node") as HTMLElement | null;
+      const rfId = nodeEl?.getAttribute("data-id");
+
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (atLanding || session?.role === "admin") return;
+        measureHost();
+        const box = root.getBoundingClientRect();
+        const x = startX - box.left;
+        const y = startY - box.top;
+
+        if (rfId && far > 0 && maximizedIds.length === 0) {
+          setAskMenu(null);
+          const n = getNodes().find((node) => node.id === rfId);
+          const ids = n?.selected
+            ? getNodes().filter((node) => node.selected).map((node) => node.id)
+            : [rfId];
+          if (n && !n.selected) {
+            setNodes((list) => list.map((node) => ({ ...node, selected: node.id === rfId })));
+          }
+          setSelMenu({ x, y, ids });
+          return;
+        }
+
+        if (nodeEl) return;
+        const flow = screenToFlowPosition({ x: startX, y: startY });
+        setSelMenu(null);
+        setAskMenu({ x, y, world: { x: flow.x, y: flow.y } });
+      }, LONG_MS);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (pointerId !== e.pointerId || timer == null) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_PX) clear();
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (pointerId === e.pointerId) clear();
+    };
+
+    root.addEventListener("pointerdown", onDown);
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerup", onUp);
+    root.addEventListener("pointercancel", onUp);
+    return () => {
+      clear();
+      root.removeEventListener("pointerdown", onDown);
+      root.removeEventListener("pointermove", onMove);
+      root.removeEventListener("pointerup", onUp);
+      root.removeEventListener("pointercancel", onUp);
+    };
+  }, [
+    interactive, canvasLocked, inspecting, atLanding, session?.role, far, maximizedIds.length,
+    measureHost, screenToFlowPosition, getNodes, setNodes,
+  ]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -563,13 +715,13 @@ function StudioBoardInner() {
   }, [nodes, duplicateNodes]);
 
   const menuCanDelete = selectedWorkspace.some(canDeleteNode);
-  const menuCanDuplicate = selectedWorkspace.some(canDuplicateNode);
+  const menuCanMaximize = selectedWorkspace.some((n) => n.kind === "app");
   const menuLocked = selectedWorkspace.length > 0 && selectedWorkspace.every((n) => n.locked);
 
   return (
     <BoardHostProvider value={host}>
       <div
-        className={`studio-layer${canvasLocked ? " is-maximized" : ""}${inspecting ? " is-inspecting" : ""}`}
+        className={`studio-layer${canvasLocked ? " is-maximized" : ""}${inspecting ? " is-inspecting" : ""}${far > 0 ? " is-far" : ""}`}
         data-help="studio-canvas"
         ref={layer}
         style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
@@ -602,20 +754,19 @@ function StudioBoardInner() {
           panOnDrag={interactive && !canvasLocked && !inspecting ? flowInteraction.panOnDrag : false}
           panOnScroll={false}
           zoomOnScroll={false}
-          zoomOnPinch={interactive && !canvasLocked && flowInteraction.zoomOnPinch}
+          zoomOnPinch={false}
           zoomOnDoubleClick={false}
-          selectionOnDrag={interactive && !canvasLocked && !inspecting && flowInteraction.selectionOnDrag}
-          selectionMode={flowInteraction.selectionMode}
+          selectionOnDrag={false}
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
           connectionMode={flowInteraction.connectionMode}
-          snapToGrid={showGrid}
+          snapToGrid={false}
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-          nodesDraggable={interactive && !canvasLocked && !inspecting}
-          nodesConnectable={interactive && !canvasLocked && !inspecting}
-          elementsSelectable={interactive && !inspecting}
+          nodesDraggable={interactive && !canvasLocked && !inspecting && far <= 0}
+          nodesConnectable={interactive && !canvasLocked && !inspecting && far <= 0}
+          elementsSelectable={interactive && !inspecting && far <= 0}
           selectNodesOnDrag={false}
           connectionRadius={28}
           fitView={false}
@@ -629,7 +780,12 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MinimapDock interactive={interactive && !inspecting} previewFill={previewFill} faded={!!maximizedId || inspecting} />
+          <MinimapDock
+            interactive={interactive && !inspecting}
+            previewFill={previewFill}
+            faded={maximizedIds.length > 0 || inspecting}
+            fitPadding={chatFitPadding(host.width, docked && !narrow, historyCollapsed)}
+          />
         </ReactFlow>
         {inspectionJob && (
           <button type="button" className="inspection-exit" onClick={exitInspection}>
@@ -644,19 +800,25 @@ function StudioBoardInner() {
             onClose={() => setAskMenu(null)}
           />
         )}
-        {selMenu && (
+        {selMenu && farChromeMenu && (
           <SelectionMenu
             at={selMenu}
             host={host}
             canDelete={menuCanDelete}
-            canDuplicate={menuCanDuplicate}
+            canMaximize={menuCanMaximize}
             locked={menuLocked}
             onDelete={() => {
               for (const n of selectedWorkspace) {
                 if (canDeleteNode(n)) close(n.id);
               }
             }}
-            onDuplicate={() => { duplicateNodes(selectedWorkspace.map((n) => n.id)); }}
+            onHide={() => {
+              for (const n of selectedWorkspace) hide(n.id);
+            }}
+            onMaximize={() => {
+              const app = selectedWorkspace.find((n) => n.kind === "app");
+              if (app) maximize(app.id);
+            }}
             onToggleLock={() => setLocked(selectedWorkspace.map((n) => n.id), !menuLocked)}
             onClose={() => setSelMenu(null)}
           />
@@ -666,10 +828,10 @@ function StudioBoardInner() {
   );
 }
 
-export function StudioBoard() {
+export function StudioBoard({ narrow = false }: { narrow?: boolean }) {
   return (
     <ReactFlowProvider>
-      <StudioBoardInner />
+      <StudioBoardInner narrow={narrow} />
     </ReactFlowProvider>
   );
 }

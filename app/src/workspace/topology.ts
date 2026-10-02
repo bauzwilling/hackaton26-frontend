@@ -61,7 +61,7 @@ export function topology(
   const orbit = appBy("orbit");
   if (orbit) {
     for (const n of apps) {
-      if (n.appId && n.appId !== "orbit" && n.appId !== "admin") add(n.id, orbit.id);
+      if (n.appId && n.appId !== "orbit" && n.appId !== "admin" && n.appId !== "profiles" && n.appId !== "machines-admin") add(n.id, orbit.id);
     }
   }
 

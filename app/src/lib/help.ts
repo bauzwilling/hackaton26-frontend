@@ -3,7 +3,7 @@ import type { WorkspaceApp } from "../context/workspace";
 export const HELP_MSG = "f2f-help";
 export const HELP_ZOOM_MAX = 2.4;
 
-export type HelpTopicId = "studio" | "boxouts" | "simpleparts" | "plyworks";
+export type HelpTopicId = "studio" | "boxouts" | "simpleparts" | "plyworks" | "user";
 export type HelpPhase = "idle" | "offering" | "touring" | "iframe";
 
 export type HelpAnchor =
@@ -20,7 +20,16 @@ export type HelpPrepare =
   | "look-open"
   | "open-boxouts"
   | "open-simpleparts"
-  | "open-plyworks";
+  | "open-plyworks"
+  | "account-open"
+  | "chrome-close"
+  | "network-open"
+  | "ensure-hero"
+  | "ask-design-something"
+  | "expand-history"
+  | "select-table"
+  | "focus-plyworks-produce"
+  | "windows-demo";
 
 export type HelpStep = {
   id: string;
@@ -30,6 +39,8 @@ export type HelpStep = {
   pad?: number;
   prepare?: HelpPrepare;
   handoff?: "plyworks-native";
+  /** Async prepare must finish before Next is enabled. */
+  awaitPrepare?: boolean;
 };
 
 export const HELP_APP_TOPICS: HelpTopicId[] = ["boxouts", "simpleparts", "plyworks"];
@@ -39,9 +50,25 @@ export const HELP_TOPIC_LABEL: Record<HelpTopicId, string> = {
   boxouts: "Door Box Out",
   simpleparts: "Simple Parts",
   plyworks: "Plyworks",
+  user: "Studio tour",
 };
 
-const OFFER_EXACT = /^(help|tour|help me|i need help)[!?.]?$/i;
+export const TOUR_DESIGN_ASK = "I want to design something";
+export const TOUR_TABLE_ASK = "table";
+
+/** Fixed Help offer chips (tour held; capabilities go through Concierge/LLM). */
+export type HelpOfferId = "capabilities" | "tour";
+
+export const HELP_PLEASE = "Help please!";
+export const HELP_OFFER_REPLY = "How can I help?";
+export const HELP_OFFER_CHIPS: HelpOfferId[] = ["capabilities", "tour"];
+export const HELP_OFFER_LABEL: Record<HelpOfferId, string> = {
+  capabilities: "What can I do here?",
+  tour: "Give me a tour",
+};
+export const TOUR_STUB_REPLY = "Tour is under development at the moment";
+
+const OFFER_EXACT = /^(help|tour|help me|i need help|help please)[!?.]?$/i;
 const OFFER_PHRASE = /give me a tour|show me (a |the )?tour|how do i use (this|the studio)|walk me through/;
 
 function matchAppName(lower: string): HelpTopicId | null {
@@ -52,32 +79,33 @@ function matchAppName(lower: string): HelpTopicId | null {
   return null;
 }
 
-function isHelpish(lower: string) {
-  return /\b(help|tour|explain|walk me through|show me around)\b/.test(lower)
-    || /how do i use/.test(lower);
-}
-
-/** Idle Concierge intercept: offer chips, or jump into a named-app tour. */
-export function matchHelpIntent(query: string): { kind: "offer" } | { kind: "topic"; topic: HelpTopicId } | null {
+/** Idle Concierge intercept: open the Help offer (tour not started yet). */
+export function matchHelpIntent(query: string): { kind: "offer" } | null {
   const lower = query.trim().toLowerCase();
   if (!lower) return null;
-  const app = matchAppName(lower);
-  if (app && isHelpish(lower)) return { kind: "topic", topic: app };
   if (OFFER_EXACT.test(lower) || OFFER_PHRASE.test(lower)) return { kind: "offer" };
   return null;
 }
 
-/** Follow-up while the help-offer chips are showing. */
+/** Follow-up while the Help offer chips are showing. */
+export function matchHelpOfferChoice(query: string): HelpOfferId | null {
+  const lower = query.trim().toLowerCase();
+  if (!lower) return null;
+  if (/^(what can i do( here)?|capabilities|what am i able to do)[!?.]?$/i.test(lower)) {
+    return "capabilities";
+  }
+  if (/^(give me a tour|tour|show me (a |the )?tour)[!?.]?$/i.test(lower) || OFFER_PHRASE.test(lower)) {
+    return "tour";
+  }
+  return null;
+}
+
+/** Legacy topic match kept for stored transcript chips / later tour wiring. */
 export function matchHelpTopic(query: string): HelpTopicId | null {
   const lower = query.trim().toLowerCase();
   if (!lower) return null;
   if (/^(general|studio|general use|dashboard)$/i.test(lower)) return "studio";
-  const app = matchAppName(lower);
-  if (app) return app;
-  const intent = matchHelpIntent(query);
-  if (intent?.kind === "topic") return intent.topic;
-  if (intent?.kind === "offer") return "studio";
-  return null;
+  return matchAppName(lower);
 }
 
 export const STUDIO_TOUR: HelpStep[] = [
@@ -107,7 +135,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "canvas",
     title: "Canvas",
-    body: "Once a window is on the board, right-drag to pan, scroll to zoom, and drag a window by its title bar to move it.",
+    body: "Once a window is on the board, drag to pan (two-finger slide on a trackpad), scroll or pinch to zoom, and drag a window by its title bar to move it.",
     anchor: { type: "help", id: "studio-canvas" },
     pad: 4,
   },
@@ -138,7 +166,7 @@ export const STUDIO_TOUR: HelpStep[] = [
     id: "look",
     title: "Settings",
     body: "Theme, accent colour, and canvas options (wires, grid) live in Settings up here.",
-    anchor: { type: "help", id: "chrome-look" },
+    anchor: { type: "help", id: "chrome-settings" },
     prepare: "look-open",
     pad: 10,
   },
@@ -206,7 +234,95 @@ export const PLYWORKS_HOST_TOUR: HelpStep[] = [
   },
 ];
 
+/** Live guided tour for the user role — always starts from the hero. */
+export const USER_TOUR: HelpStep[] = [
+  {
+    id: "hero-chat",
+    title: "Central chat",
+    body: "Describe what you want to make, or drop a file. This is where every request starts.",
+    anchor: { type: "help", id: "concierge" },
+    prepare: "ensure-hero",
+    pad: 10,
+  },
+  {
+    id: "hero-chips",
+    title: "Sample prompts",
+    body: "These chips are ready-made asks — including a tour — to get you moving quickly.",
+    anchor: { type: "help", id: "hero-chips" },
+    pad: 8,
+  },
+  {
+    id: "account",
+    title: "Account",
+    body: "Your profile lives here — name, email, and sign out.",
+    anchor: { type: "help", id: "chrome-account" },
+    prepare: "account-open",
+    pad: 10,
+  },
+  {
+    id: "settings",
+    title: "Settings",
+    body: "Theme, accent colour, and canvas options (wires, grid) live in Settings.",
+    anchor: { type: "help", id: "chrome-settings" },
+    prepare: "look-open",
+    pad: 10,
+  },
+  {
+    id: "network",
+    title: "Network",
+    body: "This mark shows the decentralized manufacturing network is online.",
+    anchor: { type: "help", id: "chrome-network" },
+    prepare: "network-open",
+    pad: 8,
+  },
+  {
+    id: "concierge-live",
+    title: "Concierge",
+    body: "You can talk to the Concierge here. Replies and choices land in this chat.",
+    anchor: { type: "help", id: "concierge" },
+    prepare: "ask-design-something",
+    awaitPrepare: true,
+    pad: 10,
+  },
+  {
+    id: "history",
+    title: "Chat history",
+    body: "Open the sidebar to see earlier chats. Each past chat is listed here.",
+    anchor: { type: "help", id: "session-history" },
+    prepare: "expand-history",
+    pad: 8,
+  },
+  {
+    id: "table-plyworks",
+    title: "Design apps",
+    body: "Pick a base design — Table opens Plyworks on the canvas.",
+    anchor: { type: "app", appId: "plyworks" },
+    prepare: "select-table",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  {
+    id: "produce-joinwiz",
+    title: "Produce",
+    body: "Produce checks the design for manufacture. JoinWiz opens when validation passes.",
+    anchor: { type: "selector", selector: ".pw-corner-chip.is-produce, [data-help='tour-produce']" },
+    prepare: "focus-plyworks-produce",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  {
+    id: "windows-canvas",
+    title: "Open canvas",
+    body: "Windows lets you find, hide, and tile apps on the board. Happy manufacturing.",
+    anchor: { type: "help", id: "overview" },
+    prepare: "windows-demo",
+    awaitPrepare: true,
+    pad: 10,
+  },
+];
+
 export function tourFor(topic: HelpTopicId): HelpStep[] {
+  if (topic === "user") return USER_TOUR;
   if (topic === "boxouts") return BOXOUTS_TOUR;
   if (topic === "simpleparts") return SIMPLEPARTS_TOUR;
   if (topic === "plyworks") return PLYWORKS_HOST_TOUR;

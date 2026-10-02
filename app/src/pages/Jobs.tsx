@@ -2,15 +2,16 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import type { Session } from "../lib/auth";
 import {
   JOB_STATUS_LABELS,
-  MACHINES,
   assignJob,
   getOperatorMachine,
   getJobsSnapshot,
+  getJobMachinesSnapshot,
   jobsFor,
   machineFor,
   sendJobFeedback,
   setOperatorMachine,
   subscribeJobs,
+  subscribeJobMachines,
   updateJobFulfillment,
   updateJobProgress,
   type Job,
@@ -27,7 +28,8 @@ export function JobsPage() {
   // WAITING BFF: role claims, available machines, visible jobs, and permitted row actions come from the authorized jobs response.
   const { session } = useSession();
   const { inspectJob } = useWorkspace();
-  const allJobs = useSyncExternalStore(subscribeJobs, getJobsSnapshot, () => []);
+  const allJobs = useSyncExternalStore(subscribeJobs, getJobsSnapshot, getJobsSnapshot);
+  const MACHINES = useSyncExternalStore(subscribeJobMachines, getJobMachinesSnapshot, getJobMachinesSnapshot);
   const storedMachine = useMemo(() => getOperatorMachine(session), [session]);
   const [machineOverride, setMachineOverride] = useState<{
     email: string;
@@ -122,6 +124,7 @@ export function JobsPage() {
                   key={job.id}
                   job={job}
                   session={session}
+                  machines={MACHINES}
                   selectedMachine={selectedMachine}
                   machineChoice={choice[job.id] ?? ""}
                   onMachineChoice={(machineId) => setChoice((current) => ({ ...current, [job.id]: machineId }))}
@@ -151,6 +154,7 @@ export function JobsPage() {
 function JobRow({
   job,
   session,
+  machines,
   selectedMachine,
   machineChoice,
   onMachineChoice,
@@ -164,6 +168,7 @@ function JobRow({
 }: {
   job: Job;
   session: Session;
+  machines: { id: MachineId; name: string; available: boolean }[];
   selectedMachine: MachineId | null;
   machineChoice: MachineId | "";
   onMachineChoice: (machineId: MachineId | "") => void;
@@ -195,7 +200,7 @@ function JobRow({
               aria-label="Choose machine"
             >
               <option value="">Choose machine</option>
-              {MACHINES.map((item) => (
+              {machines.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}{item.available ? "" : " — In use"}
                 </option>

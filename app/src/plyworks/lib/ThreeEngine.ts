@@ -603,9 +603,39 @@ export class ThreeEngine {
 
   private bindPointer(dom: HTMLElement) {
     let down: any = null;
+    const tips = new Map<number, { x: number; y: number }>();
+    let pinch: { dist: number; r: number } | null = null;
+    let twoFingerPan: { x: number; y: number; tgt: THREE.Vector3 } | null = null;
+
+    const tipDist = () => {
+      const pts = [...tips.values()];
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
+    const tipMid = () => {
+      const pts = [...tips.values()];
+      return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    };
 
     dom.addEventListener("pointerdown", (e) => {
-      dom.setPointerCapture(e.pointerId);
+      if (e.pointerType === "touch") {
+        tips.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        dom.setPointerCapture(e.pointerId);
+        if (tips.size === 2) {
+          down = null;
+          this.drag = null;
+          const d = tipDist();
+          pinch = { dist: d, r: this.orbit.r };
+          const mid = tipMid();
+          twoFingerPan = { x: mid.x, y: mid.y, tgt: this.orbit.target.clone() };
+          e.preventDefault();
+          return;
+        }
+        if (tips.size > 2) return;
+      } else {
+        dom.setPointerCapture(e.pointerId);
+      }
+
       if (e.button === 2) {
         down = {
           x: e.clientX, y: e.clientY,
@@ -622,7 +652,10 @@ export class ThreeEngine {
         return;
       }
       const hit = this.hitId(e);
-      const pan = e.button === 1 || ((e.shiftKey || e.metaKey) && hit == null);
+      // Touch: one finger orbits (same as left-drag). Mouse middle / shift+empty still pans.
+      const pan = e.pointerType !== "touch" && (
+        e.button === 1 || ((e.shiftKey || e.metaKey) && hit == null)
+      );
       down = {
         x: e.clientX, y: e.clientY,
         t: this.orbit.theta, p: this.orbit.phi,
@@ -633,12 +666,37 @@ export class ThreeEngine {
     });
 
     dom.addEventListener("pointermove", (e) => {
+      if (e.pointerType === "touch" && tips.has(e.pointerId)) {
+        tips.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (tips.size >= 2 && pinch && twoFingerPan) {
+          const d = tipDist();
+          if (d > 0 && pinch.dist > 0) {
+            const zoomScale = pinch.dist / d;
+            this.orbit.r = Math.min(8, Math.max(1.4, pinch.r * zoomScale));
+          }
+          const mid = tipMid();
+          const dx = mid.x - twoFingerPan.x;
+          const dy = mid.y - twoFingerPan.y;
+          const panScale = (this.orbit.r * 2 * Math.tan((this.cam.fov * Math.PI / 180) / 2)) / dom.clientHeight;
+          const right = new THREE.Vector3().setFromMatrixColumn(this.cam.matrix, 0);
+          const up = new THREE.Vector3().setFromMatrixColumn(this.cam.matrix, 1);
+          this.orbit.target
+            .copy(twoFingerPan.tgt)
+            .add(right.multiplyScalar(-dx * panScale))
+            .add(up.multiplyScalar(dy * panScale));
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (this.drag) {
         this.handleDrag(e);
         return;
       }
       if (!down) {
-        dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
+        if (e.pointerType !== "touch") {
+          dom.style.cursor = this.pickHandle(e) ? "pointer" : "grab";
+        }
         return;
       }
       down.moved = Math.max(down.moved, Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y));
@@ -659,6 +717,13 @@ export class ThreeEngine {
     });
 
     dom.addEventListener("pointerup", (e) => {
+      if (e.pointerType === "touch") {
+        tips.delete(e.pointerId);
+        if (tips.size < 2) {
+          pinch = null;
+          twoFingerPan = null;
+        }
+      }
       if (this.drag) {
         this.finishDrag(e);
         dom.style.cursor = "grab";
@@ -677,6 +742,16 @@ export class ThreeEngine {
       }
       down = null;
       dom.style.cursor = "grab";
+    });
+
+    dom.addEventListener("pointercancel", (e) => {
+      tips.delete(e.pointerId);
+      if (tips.size < 2) {
+        pinch = null;
+        twoFingerPan = null;
+      }
+      down = null;
+      this.drag = null;
     });
 
     dom.addEventListener("contextmenu", (e) => {

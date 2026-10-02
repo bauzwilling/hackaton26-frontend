@@ -6,6 +6,8 @@ import { PartsNestingPage, PartsPage } from "../pages/Parts";
 import { PlyworksJwPage, PlyworksNestingPage, PlyworksPage } from "../pages/Plyworks";
 import { ProjectsPage } from "../pages/Projects";
 import { JobsPage } from "../pages/Jobs";
+import { ProfileManagerPage } from "../pages/ProfileManager";
+import { MachineManagerPage } from "../pages/MachineManager";
 import NestingResultModalComponent, { type NestingResultModalProps } from "../simpleparts/components/NestingResultModalComponent";
 import { ConciergeChat } from "./Concierge";
 import { useHelpOptional } from "../context/help";
@@ -127,8 +129,10 @@ function NodeBodyImpl({ node }: { node: WorkspaceNode; viewport: { width: number
     if (node.appId === "projects") return <ProjectsPage />;
     if (node.appId === "jobs") return <JobsPage />;
     if (node.appId === "orbit") return <OrbitPage />;
+    if (node.appId === "profiles") return <ProfileManagerPage />;
+    if (node.appId === "machines-admin") return <MachineManagerPage />;
     if (node.appId === "admin") {
-      return <p style={{ margin: 0 }}>The Admin console is not available yet.</p>;
+      return <p style={{ margin: 0 }}>Use Profile Manager and Machine Inventory.</p>;
     }
   }
   return null;

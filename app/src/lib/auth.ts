@@ -2,11 +2,26 @@
  * Sign-in does not look up a server. Company is inferred from the email
  * domain; role is taken from this directory. Swap DIRECTORY / COMPANIES
  * and SESSION_KEY for API results later without changing the session shape. */
+import {
+  bindDirectorySeed,
+  findLiveUser,
+  listUsers,
+  type DirectoryUser,
+} from "./directoryStore";
+import {
+  bindCompanySeed,
+  companyIdFromDomain,
+  getCompany,
+  listCompanies,
+  type CompanyRecord,
+} from "./companyStore";
+
 export const SESSION_KEY = "f2f.session"; // WAITING DATABASE: signed-in session cookie/token
 export const OVERRIDE_KEY = "f2f.roleOverrides"; // WAITING DATABASE: role grants — unused in the app until admin console writes them
 
 export type RoleId = "user" | "operator" | "manager" | "admin";
-export type CompanyId = "A" | "B" | "C" | "D";
+/** Fixture ids A–D plus session-added companies. */
+export type CompanyId = string;
 export type AppId = "boxouts" | "simpleparts" | "plyworks" | "nesting";
 
 export type Session = {
@@ -18,41 +33,30 @@ export type Session = {
   since: number;
 };
 
-export const DOMAINS: Record<string, CompanyId> = {
-  "datab.example": "D",
-  "dashboard.example": "D",
-  "frischeis.example": "A",
-  "strabag.example": "B",
-  "peri.example": "C",
-};
-
 /**
  * WAITING DATABASE: company onboarding decides who is live.
- * Only DataB is enabled for now; the other fixtures stay below and are
- * switched back on by adding their id here.
+ * DataB starts active; other fixture companies start suspended until an admin
+ * activates them (which also activates their profiles for this tab session).
  */
 export const ACTIVE_COMPANY_IDS: CompanyId[] = ["D"];
 
-export function companyIsActive(id: CompanyId | null | undefined): id is CompanyId {
-  return !!id && ACTIVE_COMPANY_IDS.includes(id);
-}
-
 export const DIRECTORY = [
-  { email: "admin@dashboard.example", name: "Alex Morgan", role: "admin" as const, by: "DataB" },
-  { email: "manager@dashboard.example", name: "Morgan Lee", role: "manager" as const, by: "DataB" },
-  { email: "operator@dashboard.example", name: "Taylor Kim", role: "operator" as const, by: "manager@dashboard.example" },
-  { email: "user@dashboard.example", name: "Jordan Patel", role: "user" as const, by: "manager@dashboard.example" },
-  { email: "maria@datab.example", name: "Maria Sanchez", role: "admin" as const, by: "DataB" },
-  { email: "lena@frischeis.example", name: "Lena Frischeis", role: "manager" as const, by: "DataB" },
-  { email: "tobias@frischeis.example", name: "Tobias Reiter", role: "operator" as const, by: "lena@frischeis.example" },
-  { email: "marie@frischeis.example", name: "Marie Gruber", role: "operator" as const, by: "lena@frischeis.example" },
-  { email: "jonas@frischeis.example", name: "Jonas Weber", role: "user" as const, by: "lena@frischeis.example" },
-  { email: "klaus@strabag.example", name: "Klaus Berger", role: "manager" as const, by: "DataB" },
-  { email: "sandra@strabag.example", name: "Sandra Hofer", role: "operator" as const, by: "klaus@strabag.example" },
-  { email: "peter@strabag.example", name: "Peter Mayr", role: "user" as const, by: "klaus@strabag.example" },
-  { email: "iris@peri.example", name: "Iris de Vries", role: "manager" as const, by: "DataB" },
-  { email: "ruben@peri.example", name: "Ruben Bakker", role: "user" as const, by: "iris@peri.example" },
+  { email: "alex.morgan@datab.example", name: "Alex Morgan", role: "admin" as const, by: "DataB" },
+  { email: "morgan.lee@datab.example", name: "Morgan Lee", role: "manager" as const, by: "DataB" },
+  { email: "taylor.kim@datab.example", name: "Taylor Kim", role: "operator" as const, by: "morgan.lee@datab.example" },
+  { email: "jordan.patel@datab.example", name: "Jordan Patel", role: "user" as const, by: "morgan.lee@datab.example" },
+  { email: "lena@frischeis.example", name: "Lena Frischeis", role: "admin" as const, by: "DataB", suspended: true },
+  { email: "tobias@frischeis.example", name: "Tobias Reiter", role: "operator" as const, by: "lena@frischeis.example", suspended: true },
+  { email: "marie@frischeis.example", name: "Marie Gruber", role: "operator" as const, by: "lena@frischeis.example", suspended: true },
+  { email: "jonas@frischeis.example", name: "Jonas Weber", role: "user" as const, by: "lena@frischeis.example", suspended: true },
+  { email: "klaus@strabag.example", name: "Klaus Berger", role: "admin" as const, by: "DataB", suspended: true },
+  { email: "sandra@strabag.example", name: "Sandra Hofer", role: "operator" as const, by: "klaus@strabag.example", suspended: true },
+  { email: "peter@strabag.example", name: "Peter Mayr", role: "user" as const, by: "klaus@strabag.example", suspended: true },
+  { email: "iris@peri.example", name: "Iris de Vries", role: "admin" as const, by: "DataB", suspended: true },
+  { email: "ruben@peri.example", name: "Ruben Bakker", role: "user" as const, by: "iris@peri.example", suspended: true },
 ];
+
+bindDirectorySeed(DIRECTORY);
 
 export const ROLES: Record<RoleId, { label: string; blurb: string; grants: string[] }> = {
   user: {
@@ -77,14 +81,23 @@ export const ROLES: Record<RoleId, { label: string; blurb: string; grants: strin
   },
 };
 
-export const COMPANIES: Record<CompanyId, {
-  id: CompanyId; name: string; short: string; domain: string; plan: string;
-  apps: AppId[]; machineSlugs: string[]; seats: number;
-}> = {
-  D: { id: "D", name: "DataB", short: "DataB", domain: "datab.example", plan: "All tools", apps: ["boxouts", "simpleparts", "plyworks", "nesting"], machineSlugs: ["at-datab", "at-frischeis", "de-strabag", "nl-peri", "ch-peri"], seats: 99 },
-  A: { id: "A", name: "Frischeis Holzwerk", short: "Company A", domain: "frischeis.example", plan: "Full suite", apps: ["boxouts", "simpleparts", "plyworks", "nesting"], machineSlugs: ["at-frischeis", "at-datab"], seats: 42 },
-  B: { id: "B", name: "Strabag Formwork", short: "Company B", domain: "strabag.example", plan: "Boxouts only", apps: ["boxouts", "nesting"], machineSlugs: ["de-strabag"], seats: 18 },
-  C: { id: "C", name: "Peri Systems", short: "Company C", domain: "peri.example", plan: "Parts & panels", apps: ["simpleparts", "plyworks"], machineSlugs: ["nl-peri", "ch-peri"], seats: 7 },
+export type Company = CompanyRecord;
+
+export const COMPANIES: Record<string, CompanyRecord> = {
+  D: { id: "D", name: "DataB", short: "DataB", domain: "datab.example", plan: "All tools", apps: ["boxouts", "simpleparts", "plyworks", "nesting"], machineSlugs: ["at-datab", "at-frischeis", "de-strabag", "nl-peri", "ch-peri"], seats: 99, suspended: false },
+  A: { id: "A", name: "Frischeis Holzwerk", short: "Frischeis", domain: "frischeis.example", plan: "Full suite", apps: ["boxouts", "simpleparts", "plyworks", "nesting"], machineSlugs: ["at-frischeis", "at-datab"], seats: 42, suspended: true },
+  B: { id: "B", name: "Strabag Formwork", short: "Strabag", domain: "strabag.example", plan: "Boxouts only", apps: ["boxouts", "nesting"], machineSlugs: ["de-strabag"], seats: 18, suspended: true },
+  C: { id: "C", name: "Peri Systems", short: "Peri", domain: "peri.example", plan: "Parts & panels", apps: ["simpleparts", "plyworks"], machineSlugs: ["nl-peri", "ch-peri"], seats: 7, suspended: true },
+};
+
+bindCompanySeed(Object.values(COMPANIES));
+
+/** @deprecated Prefer getCompany(id)?.domain — kept for call sites that still index by id. */
+export const COMPANY_LOGIN_DOMAIN: Record<string, string> = {
+  D: "datab.example",
+  A: "frischeis.example",
+  B: "strabag.example",
+  C: "peri.example",
 };
 
 export const APP_LABELS: Record<AppId, string> = {
@@ -94,16 +107,34 @@ export const APP_LABELS: Record<AppId, string> = {
   nesting: "Nesting",
 };
 
-export function companyOf(email: string) {
+export { getCompany, listCompanies };
+
+/** Domain → company without the suspended gate. */
+export function companyIdFromEmail(email: string): CompanyId | null {
   const domain = String(email || "").trim().toLowerCase().split("@")[1];
-  const id = domain ? DOMAINS[domain] ?? null : null;
+  return domain ? companyIdFromDomain(domain) : null;
+}
+
+/** Companies that are not suspended (DataB first via listCompanies order). */
+export function activeCompanyIds(): CompanyId[] {
+  return listCompanies().filter((c) => !c.suspended).map((c) => c.id);
+}
+
+export function companyIsActive(id: CompanyId | null | undefined): id is CompanyId {
+  const company = getCompany(id);
+  return Boolean(company && !company.suspended);
+}
+
+export function companyOf(email: string) {
+  const id = companyIdFromEmail(email);
   return companyIsActive(id) ? id : null;
 }
 
-export function findUser(email: string) {
-  const key = String(email || "").trim().toLowerCase();
-  return DIRECTORY.find((u) => u.email === key) ?? null;
+export function findUser(email: string): DirectoryUser | null {
+  return findLiveUser(email);
 }
+
+export { listUsers };
 
 export function loadSession(): Session | null {
   try {
@@ -112,7 +143,7 @@ export function loadSession(): Session | null {
     const s = JSON.parse(raw) as Session;
     const user = findUser(s.email);
     const company = companyOf(s.email);
-    if (!user || !company) return null;
+    if (!user || !company || user.suspended) return null;
     const session: Session = {
       email: user.email,
       name: user.name,
@@ -136,9 +167,17 @@ export function signIn(email: string, password: string) {
   if (!addr.includes("@")) return { error: "That does not look like an email address." };
   if (!password) return { error: "Enter your password." };
   const company = companyOf(addr);
-  if (!company) return { error: "That domain is not registered with DataB. Ask your administrator to onboard it." };
+  if (!company) {
+    const id = companyIdFromEmail(addr);
+    if (id && getCompany(id)?.suspended) {
+      return { error: "That company is suspended. Ask your administrator to activate it." };
+    }
+    return { error: "That domain is not registered with DataB. Ask your administrator to onboard it." };
+  }
   const user = findUser(addr);
-  if (!user) return { error: `No account for this address at ${COMPANIES[company].name}. Ask your company operator for an invite.` };
+  const companyName = getCompany(company)?.name ?? "your company";
+  if (!user) return { error: `No account for this address at ${companyName}. Ask your company operator for an invite.` };
+  if (user.suspended) return { error: "This profile is suspended. Ask your administrator to activate it." };
   const session: Session = { email: user.email, name: user.name, company, role: user.role, by: user.by, since: Date.now() };
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* ignore */ }
   return { session };
@@ -152,12 +191,17 @@ export function can(session: Session | null, permission: string) {
   return !!session && ROLES[session.role].grants.includes(permission);
 }
 
+/** DataB admins manage the whole platform; other admins are scoped to their company. */
+export function isPlatformAdmin(session: Session | null) {
+  return Boolean(session && session.role === "admin" && session.company === "D");
+}
+
 export function hasApp(session: Session | null, app: AppId) {
-  return !!session && COMPANIES[session.company].apps.includes(app);
+  return !!session && (getCompany(session.company)?.apps.includes(app) ?? false);
 }
 
 export function machinesFor<T extends { slug: string }>(session: Session | null, all: T[]) {
-  const co = session && COMPANIES[session.company];
+  const co = session && getCompany(session.company);
   if (!co) return [];
   return all.filter((m) => co.machineSlugs.some((p) => m.slug.startsWith(p)));
 }

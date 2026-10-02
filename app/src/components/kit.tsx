@@ -10,9 +10,10 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { COMPANIES, ROLES, type Session } from "../lib/auth";
+import { getCompany, ROLES, type Session } from "../lib/auth";
 import { ACCENTS, THEME_DISSOLVE_MS, useSession, type AccentId } from "../context/session";
 import { canDeleteNode, CONCIERGE_ID, useWorkspace } from "../context/workspace";
+import { flyHideWindow, flyShowWindow } from "../canvas/windowFly";
 import { BrandMark } from "./BrandMark";
 
 export const LAYOUT_MARK = "f2f-mark";
@@ -185,7 +186,9 @@ export function Slider({
         e.currentTarget.setPointerCapture(e.pointerId);
         setFromX(e.clientX);
       }}
-      onPointerMove={(e: PointerEvent<HTMLDivElement>) => { if (e.buttons) setFromX(e.clientX); }}
+      onPointerMove={(e: PointerEvent<HTMLDivElement>) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) setFromX(e.clientX);
+      }}
     >
       <span className="slider-fill" style={{ width: `calc(${(pct * 100).toFixed(1)}% - 6px)` }} />
       <span className="slider-thumb" style={{ left: `${(pct * 100).toFixed(1)}%` }} />
@@ -229,7 +232,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onLock, onDrag, onGrab, onFit, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
@@ -240,6 +243,7 @@ export function Window({
   maximized?: boolean;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
   onMaximize?: () => void;
+  onLock?: () => void;
   onDrag?: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
@@ -290,12 +294,18 @@ export function Window({
         <span className="win-dot" />
         <span className="win-title">{title}</span>
         <span className="win-code">{code}</span>
-        {locked && <span className="win-lock" title="Locked in place">Locked</span>}
+        {onLock && (
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onLock} title={locked ? "Unlock" : "Lock in place"} aria-label={locked ? "Unlock" : "Lock in place"} aria-pressed={!!locked}>
+            <IconLock locked={!!locked} />
+          </Surface>
+        )}
         {onMaximize && (
           <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onMaximize} title={maximized ? "Restore" : "Maximize"} aria-label={maximized ? "Restore" : "Maximize"}>{maximized ? "❐" : "□"}</Surface>
         )}
         {onHide && (
-          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide">–</Surface>
+          <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onHide} title="Hide" aria-label="Hide">
+            <IconEye />
+          </Surface>
         )}
         {onClose && (
           <Surface as="button" type="button" relief="ghost" className="win-btn nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close">×</Surface>
@@ -388,7 +398,7 @@ function ChromeMenu({
   }, [open]);
 
   return (
-    <div className="chrome-menu" ref={box}>
+    <div className="chrome-menu" ref={box} data-help={dataHelp}>
       {trigger}
       <AnimatePresence>
         {open && (
@@ -399,7 +409,12 @@ function ChromeMenu({
             exit={reduce ? undefined : { opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           >
-            <Surface className={`chrome-menu-card${cardClass ? ` ${cardClass}` : ""}`} role="dialog" aria-label={label} data-help={dataHelp}>
+            <Surface
+              className={`chrome-menu-card${cardClass ? ` ${cardClass}` : ""}`}
+              role="dialog"
+              aria-label={label}
+              data-help={dataHelp ? `${dataHelp}-panel` : undefined}
+            >
               {children}
             </Surface>
           </motion.div>
@@ -421,6 +436,7 @@ function LookOverflow({ open, onOpenChange }: { open: boolean; onOpenChange: (ne
       onClose={() => onOpenChange(false)}
       label="Settings"
       cardClass="viz-panel"
+      dataHelp="chrome-settings"
       trigger={(
         <Surface
           as="button"
@@ -481,6 +497,7 @@ function ProfileMenu({
       open={open}
       onClose={() => onOpenChange(false)}
       label="Account"
+      dataHelp="chrome-account"
       trigger={(
         <Surface
           as="button"
@@ -513,7 +530,7 @@ function ProfileMenu({
         </div>
         <div className="chrome-menu-fact">
           <span className="chrome-menu-label">Company</span>
-          <strong>{COMPANIES[session.company].name}</strong>
+          <strong>{getCompany(session.company)?.name ?? session.company}</strong>
         </div>
       </div>
       <Surface as="button" type="button" className="user-chip-out" onClick={onSignOut}>
@@ -559,6 +576,19 @@ function IconBin() {
       <path d="M4 7h16" />
       <path d="M9 7V5h6v2" />
       <path d="M6 7l1 13h10l1-13" />
+    </svg>
+  );
+}
+function IconLock({ locked }: { locked?: boolean }) {
+  return locked ? (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 7.5-1.8" />
     </svg>
   );
 }
@@ -610,8 +640,20 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
   }
 
   function zoomTo(id: string) {
+    const node = nodes.find((n) => n.id === id);
+    if (node?.hidden) {
+      void flyShowWindow(id, node.title, () => show(id)).then(() => {
+        focusTargets([id], viewport);
+      });
+      return;
+    }
     show(id);
     focusTargets([id], viewport);
+  }
+
+  function toggleHidden(n: { id: string; title: string; hidden: boolean }) {
+    if (n.hidden) void flyShowWindow(n.id, n.title, () => show(n.id));
+    else void flyHideWindow(n.id, n.title, () => hide(n.id));
   }
 
   return (
@@ -628,6 +670,7 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
           relief="ghost"
           className="chrome-windows chrome-icon"
           data-help="chrome-windows"
+          data-fly-sink="windows"
           active={overviewOpen}
           aria-label={countLabel}
           aria-expanded={overviewOpen}
@@ -710,7 +753,7 @@ function WindowsMenu({ onOpen }: { onOpen?: () => void }) {
                   <button
                     type="button"
                     className="overview-icon-btn"
-                    onClick={() => (n.hidden ? show(n.id) : hide(n.id))}
+                    onClick={() => toggleHidden(n)}
                     title={n.hidden ? "Show" : "Hide"}
                     aria-label={n.hidden ? `Show ${n.title}` : `Hide ${n.title}`}
                   >
@@ -767,6 +810,7 @@ export function Chrome({
           <div className="chrome-tools">
             <motion.div
               className="chrome-status"
+              data-help="chrome-network"
               tabIndex={0}
               title="Decentralized network online"
               aria-label="Decentralized network online"
@@ -784,7 +828,6 @@ export function Chrome({
             <span className="chrome-tools-gap" aria-hidden />
             <motion.div
               className="chrome-tool-btns"
-              data-help="chrome-look"
               initial={reduce ? false : { opacity: 0 }}
               animate={extras}
               transition={extrasMove}

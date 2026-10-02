@@ -299,7 +299,8 @@ const DXFViewerComponent = forwardRef<DXFViewerHandle, DXFViewerProps>(function 
     if (selectionEnabled) event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!selectionEnabled || !leftPointerDown.current || !(event.buttons & 1)) return
+    if (!selectionEnabled || !leftPointerDown.current) return
+    if (event.pointerType === 'touch' && event.isPrimary === false) return
     const distance = Math.hypot(event.clientX - pointerStart.current.x, event.clientY - pointerStart.current.y)
     if (distance <= DRAG_THRESHOLD_PX) return
     pointerDragged.current = true

@@ -1,4 +1,4 @@
-import { ConnectionMode, SelectionMode, type DefaultEdgeOptions, type NodeTypes, type EdgeTypes } from "@xyflow/react";
+import { ConnectionMode, type DefaultEdgeOptions, type NodeTypes, type EdgeTypes } from "@xyflow/react";
 import { GRID_GAP, ZOOM_MAX, ZOOM_MIN } from "./constants";
 import { StudioWindowNode } from "../nodes/StudioWindowNode";
 import { SystemEdge } from "../edges/SystemEdge";
@@ -22,14 +22,15 @@ export const defaultEdgeOptions: DefaultEdgeOptions = {
 export const flowInteraction = {
   minZoom: ZOOM_MIN,
   maxZoom: ZOOM_MAX,
-  panOnDrag: [1, 2] as number[],
+  /** Mouse left/middle/right + touch primary — empty-canvas drag pans. */
+  panOnDrag: [0, 1, 2] as number[],
   panOnScroll: false,
-  /** Wheel zoom is handled by useFineWheelZoom (ZOOM_WHEEL_MULTIPLIER). */
+  /** Wheel zoom/pan is handled by useFineWheelZoom (ZOOM_WHEEL_MULTIPLIER). */
   zoomOnScroll: false,
   zoomOnPinch: true,
   zoomOnDoubleClick: false,
-  selectionOnDrag: true,
-  selectionMode: SelectionMode.Partial,
+  /** Marquee selection removed — click/tap + Shift+click only. */
+  selectionOnDrag: false,
   multiSelectionKeyCode: "Shift" as const,
   deleteKeyCode: ["Delete", "Backspace"] as string[],
   connectionMode: ConnectionMode.Loose,

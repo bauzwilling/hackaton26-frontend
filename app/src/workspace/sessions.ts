@@ -103,6 +103,21 @@ export function leftoverCanvas(
   };
 }
 
+const ADMIN_PAIR_GAP = 24;
+
+/** Two full leftover-sized panes side by side (each keeps the available-area aspect ratio). */
+export function pairedLeftoverCanvas(
+  host: { width: number; height: number },
+  viewport: { x: number; y: number; zoom: number } = { x: 0, y: 0, zoom: 1 },
+  gap = ADMIN_PAIR_GAP,
+) {
+  const full = leftoverCanvas(host, viewport);
+  return {
+    left: { x: full.x, y: full.y, w: full.w, h: full.h },
+    right: { x: full.x + full.w + gap, y: full.y, w: full.w, h: full.h },
+  };
+}
+
 export function pastSessions(sessions: ChatSession[]) {
   return sessions.filter((s) => !sessionIsEmpty(s)).sort((a, b) => b.updatedAt - a.updatedAt);
 }

@@ -21,6 +21,7 @@ import {
   type AppIntakeHandler,
 } from "../lib/appChat";
 import { matchLocalRoute } from "../lib/routing";
+import { capabilitiesFor, capabilitiesReply, isCapabilitiesAsk } from "../lib/roleCapabilities";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
 import { createJob, type FrozenAppSnapshot, type Job } from "../lib/jobs";
@@ -31,6 +32,7 @@ import {
   cleanBoardNodes,
   emptySession,
   leftoverCanvas,
+  pairedLeftoverCanvas,
   loadSessionStore,
   NEW_CHAT_TITLE,
   openedAppIdsFrom,
@@ -95,7 +97,7 @@ import { useSession } from "./session";
 export type { SystemEdge, UserEdge, ViewportSnapshot };
 export type { NodeKind, WorkspaceApp, WorkspaceNode, WorkspaceEdge, RequestEntry };
 export type { ChatSession };
-export { CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, HERO_LEAVE_MS, MAX_STORED_CHATS, PAIR_FADE_MS, PAIR_SHAPE_MS, chatFitPadding, dockedChatWidth, leftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
+export { CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, HERO_LEAVE_MS, MAX_STORED_CHATS, PAIR_FADE_MS, PAIR_SHAPE_MS, chatFitPadding, dockedChatWidth, leftoverCanvas, pairedLeftoverCanvas, NEW_CHAT_TITLE, pastSessions, relativeSessionTime, sessionIsEmpty } from "../workspace/sessions";
 export {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -143,7 +145,10 @@ type Ctx = {
     design?: PlyworksDesign;
     chatIntake?: AppChatIntake;
     skipActivity?: boolean;
+    stage?: { w: number; h: number; x?: number; y?: number };
   }) => { id: string; reused: boolean } | null;
+  /** Admin: open Profile Manager + Machine Inventory side-by-side left of chat. */
+  openAdminPair: () => string[];
   announceOpen: (app: WorkspaceApp, appTarget: string | null, reused?: boolean) => void;
   addNote: (opts?: { x?: number; y?: number }) => string;
   setNodeBody: (id: string, body: string) => void;
@@ -176,7 +181,8 @@ type Ctx = {
   fit: (id: string, w: number, h: number) => void;
   maximize: (id: string) => void;
   dismissMaximize: (force?: boolean) => void;
-  maximizedId: string | null;
+  /** One or more app window ids filling leftover canvas (Jobs single, or admin pair). */
+  maximizedIds: string[];
   commitStageSize: (size: { width: number; height: number }) => void;
   close: (id: string) => void;
   hide: (id: string) => void;
@@ -203,6 +209,17 @@ type Ctx = {
   enteringNodeIds: string[];
   flashIds: string[];
   flashKey: number;
+  captureTourSnapshot: () => TourWorkspaceSnapshot;
+  restoreTourSnapshot: (snap: TourWorkspaceSnapshot) => void;
+};
+
+export type TourWorkspaceSnapshot = {
+  sessions: ChatSession[];
+  activeSessionId: string;
+  atLanding: boolean;
+  historyCollapsed: boolean;
+  overviewOpen: boolean;
+  viewport: ViewportSnapshot;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -261,7 +278,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [resuming, setResuming] = useState(false);
   const [atLanding, setAtLanding] = useState(startsOnLanding);
   const [enteringNodeIds, setEnteringNodeIds] = useState<string[]>([]);
-  const [maximizedId, setMaximizedId] = useState<string | null>(null);
+  const [maximizedIds, setMaximizedIds] = useState<string[]>([]);
   const [inspectionJob, setInspectionJob] = useState<Job | null>(null);
   const zTop = useRef(10);
   const flashTimer = useRef<number | null>(null);
@@ -277,9 +294,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const collapsedRef = useRef(false);
   const atLandingRef = useRef(startsOnLanding);
   const resumingRef = useRef(false);
-  const maximizedIdRef = useRef<string | null>(null);
+  const maximizedIdsRef = useRef<string[]>([]);
+  const adminPairIdsRef = useRef<string[]>([]);
   const maximizeIgnoreUntil = useRef(0);
-  const savedViewport = useRef<ViewportSnapshot | null>(null);
   const stageSizeRef = useRef({ width: 1200, height: 700 });
   /** Same React tree as Concierge — handlers cannot get lost across Vite chunks. */
   const appChatRef = useRef<{
@@ -297,7 +314,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { collapsedRef.current = historyCollapsed; }, [historyCollapsed]);
   useEffect(() => { atLandingRef.current = atLanding; }, [atLanding]);
   useEffect(() => { resumingRef.current = resuming; }, [resuming]);
-  useEffect(() => { maximizedIdRef.current = maximizedId; }, [maximizedId]);
+  useEffect(() => { maximizedIdsRef.current = maximizedIds; }, [maximizedIds]);
   useEffect(() => {
     if (!overviewOpen) setPreviewId(null);
   }, [overviewOpen]);
@@ -383,7 +400,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const clean = cleanBoardNodes(chat.board.nodes);
     setNodes(
       session?.role === "admin"
-        ? clean.filter((node) => node.id === CONCIERGE_ID)
+        ? clean.filter((node) => (
+          node.id === CONCIERGE_ID
+          || node.appId === "profiles"
+          || node.appId === "machines-admin"
+        ))
         : clean,
     );
     setUserEdges(chat.board.userEdges);
@@ -432,34 +453,61 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const commitStageSize = useCallback((size: { width: number; height: number }) => {
     if (size.width < 32 || size.height < 32) return;
+    const prev = stageSizeRef.current;
     stageSizeRef.current = size;
+    // Admin boot often runs before the board has a real host size — re-pair then.
+    const ids = adminPairIdsRef.current;
+    if (ids.length !== 2 || prev.width >= 200) return;
+    const pair = nodesRef.current.filter((n) => (
+      ids.includes(n.id) && (n.appId === "profiles" || n.appId === "machines-admin")
+    ));
+    if (pair.length !== 2) return;
+    const stages = pairedLeftoverCanvas(size, viewportRef.current);
+    const leftId = pair.find((n) => n.appId === "profiles")?.id;
+    const rightId = pair.find((n) => n.appId === "machines-admin")?.id;
+    if (!leftId || !rightId) return;
+    setNodes((list) => {
+      const next = list.map((n) => {
+        if (n.id === leftId) return { ...n, x: stages.left.x, y: stages.left.y, w: stages.left.w, h: stages.left.h, autoSize: false };
+        if (n.id === rightId) return { ...n, x: stages.right.x, y: stages.right.y, w: stages.right.w, h: stages.right.h, autoSize: false };
+        return n;
+      });
+      nodesRef.current = next;
+      return next;
+    });
+    setFitRequest({
+      ids: [leftId, rightId],
+      key: Date.now(),
+      maxZoom: FIT_ZOOM_MAX,
+      collapsedGutter: true,
+    });
   }, []);
 
   const dismissMaximize = useCallback((force = false) => {
     if (!force && Date.now() < maximizeIgnoreUntil.current) return;
-    if (!maximizedIdRef.current) return;
-    maximizedIdRef.current = null;
-    setMaximizedId(null);
-    savedViewport.current = null;
+    if (!maximizedIdsRef.current.length) return;
+    maximizedIdsRef.current = [];
+    setMaximizedIds([]);
   }, []);
 
   const maximize = useCallback((id: string) => {
     const node = nodesRef.current.find((n) => n.id === id && n.kind === "app" && !n.hidden);
     if (!node) return;
-    if (maximizedIdRef.current === id) {
-      const prev = savedViewport.current;
-      savedViewport.current = null;
-      maximizedIdRef.current = null;
-      setMaximizedId(null);
-      if (prev) {
-        maximizeIgnoreUntil.current = Date.now() + 400;
-        setViewport(prev);
-      }
+    const current = maximizedIdsRef.current;
+    if (current.length === 1 && current[0] === id) {
+      // Ease out from the filled frame — don't jump back to the pre-maximize camera.
+      maximizedIdsRef.current = [];
+      setMaximizedIds([]);
+      maximizeIgnoreUntil.current = Date.now() + 400;
+      setFitRequest({
+        ids: [id],
+        key: Date.now(),
+        maxZoom: Math.max(ZOOM_MIN, viewportRef.current.zoom * 0.85),
+      });
       return;
     }
-    savedViewport.current = viewportRef.current;
     maximizeIgnoreUntil.current = Date.now() + 500;
-    maximizedIdRef.current = id;
+    maximizedIdsRef.current = [id];
     setHistoryCollapsedState(true);
     collapsedRef.current = true;
     persistStore({
@@ -467,7 +515,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       sessions: flushList(sessionsRef.current, activeIdRef.current),
       historyCollapsed: true,
     });
-    setMaximizedId(id);
+    setMaximizedIds([id]);
     zTop.current += 1;
     setNodes((list) => list.map((n) => (
       n.id === id
@@ -499,12 +547,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     chatIntake?: AppChatIntake;
     /** Concierge turn will render the Opened activity line itself. */
     skipActivity?: boolean;
+    stage?: { w: number; h: number; x?: number; y?: number };
   }) => {
     zTop.current += 1;
     const z = zTop.current;
     // Compute outside setState — after await, React 18 may defer the updater, so
     // reading `opened` from inside the updater returned null while the app still opened.
-    const result = openAppNodes(nodesRef.current, session, app, z, { ...opts, ...stageOpts() });
+    const stage = opts?.stage ? { stage: opts.stage } : stageOpts();
+    const result = openAppNodes(nodesRef.current, session, app, z, { ...opts, ...stage });
     if (!result) return null;
     nodesRef.current = result.nodes;
     setNodes(result.nodes);
@@ -577,6 +627,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
     flashTimer.current = window.setTimeout(() => setFlashIds([]), FLASH_MS);
   }, []);
+
+  const openAdminPair = useCallback(() => {
+    dismissMaximize(true);
+    setHistoryCollapsedState(true);
+    collapsedRef.current = true;
+    persistStore({
+      activeId: activeIdRef.current,
+      sessions: flushList(sessionsRef.current, activeIdRef.current),
+      historyCollapsed: true,
+    });
+
+    // Each window matches leftover aspect ratio; placed side by side, then zoomed out to fit both.
+    const stages = pairedLeftoverCanvas(stageSizeRef.current, viewportRef.current);
+    const ids: string[] = [];
+    const profiles = openApp("profiles", { skipActivity: true, stage: stages.left });
+    if (profiles) ids.push(profiles.id);
+    const machines = openApp("machines-admin", { skipActivity: true, stage: stages.right });
+    if (machines) ids.push(machines.id);
+    if (!ids.length) return ids;
+
+    adminPairIdsRef.current = ids;
+    zTop.current += ids.length;
+    setNodes((list) => {
+      let z = zTop.current;
+      const next = list.map((n) => {
+        if (!ids.includes(n.id)) return n;
+        z += 1;
+        return { ...n, z, hidden: false };
+      });
+      nodesRef.current = next;
+      return next;
+    });
+    setFitRequest({
+      ids,
+      key: Date.now(),
+      maxZoom: FIT_ZOOM_MAX,
+      collapsedGutter: true,
+    });
+    return ids;
+  }, [dismissMaximize, flushList, openApp, persistStore]);
 
   const flushAppIntake = useCallback((appId: string) => {
     const box = appChatRef.current;
@@ -774,6 +864,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void (async () => {
       /** Applies a reply plus its routing decision, whoever made that decision. */
       const settle = (result: ConciergeResult) => {
+        // WAITING MODEL: non-user Concierge cannot forward into app chat or apply plyworks ops yet
+        const chatLocked = session?.role !== "user";
         const confirm = (result.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         let appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
@@ -784,7 +876,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let confirmApps: WorkspaceApp[] | undefined;
         const kind = result.kind ?? inferConciergeKind(result);
         console.log(`kind: ${kind}`);
-        const ops = result.plyworksOps ?? null;
+        const ops = chatLocked ? null : (result.plyworksOps ?? null);
         // get = focus-only. set to a chat app still forwards so follow-up edits reach the window.
         const inspectGet = kind === "get";
         const inspectSet = kind === "set";
@@ -794,7 +886,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
         // Continue into the already-open chat app when the model drops `app` on a work turn.
         if (
-          !appId
+          !chatLocked
+          && !appId
           && !confirm.length
           && !ops?.length
           && kind !== "info"
@@ -806,6 +899,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           if (top?.appId && chatCapable(top.appId) && openable(session, top.appId)) {
             appId = top.appId;
           }
+        }
+
+        // Drop model-suggested apps the role cannot open; keep the reply.
+        if (appId && !openable(session, appId)) {
+          appId = undefined;
         }
 
         let windowOpened = false;
@@ -859,7 +957,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // WAITING BFF: SuggestedAction accept will own this handoff
         // WAITING MODEL: the app chat still answers; our structuring model takes over later
         // Sequence: Concierge reply paints → open app → zoom → forward intake.
-        const forwardChat = live && appId && chatCapable(appId) && !inspectGet && !ops?.length;
+        const forwardChat = live && !chatLocked && appId && chatCapable(appId) && !inspectGet && !ops?.length;
 
         if (status === "app" && appId && live && !skipOpen && !forwardChat) {
           const opened = openApp(appId, { parentId: conciergeId, query: q, design, skipActivity: true });
@@ -889,8 +987,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           reply: result.reply,
           kind,
           targetIds,
-          design: result.design ?? undefined,
-          choices: result.choices ?? undefined,
+          design: chatLocked ? undefined : (result.design ?? undefined),
+          choices: chatLocked ? undefined : (result.choices ?? undefined),
           confirmApps,
           windowOpened: status === "app" ? windowOpened : undefined,
           pending: false,
@@ -954,16 +1052,52 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
 
       try {
-        settle(await askConcierge(q, history, apps, restricted, snapshotPlyworksBoards()));
+        settle(await askConcierge(q, history, apps, restricted, snapshotPlyworksBoards(), {
+          role: session?.role ?? null,
+          capabilities: capabilitiesFor(session),
+        }));
       } catch {
         // No assistant reachable: fall back to a local name/design match so the board stays usable.
         // WAITING MODEL: alias table stands in for the structuring model when the API is down.
+        if (isCapabilitiesAsk(q)) {
+          settle({
+            kind: "info",
+            reply: capabilitiesReply(session),
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
         const local = matchLocalRoute(q);
         const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
         const confirmApps = (local.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
-        const choices = appId || confirmApps.length ? null : local.choices;
+        // WAITING MODEL: soft-reject design / furniture fallbacks for non-user when the API is down
+        const staffOffline = session?.role !== "user";
+        const designFallback = Boolean(
+          staffOffline
+          && (
+            local.choices?.length
+            || (!appId && !confirmApps.length && (named || local.design || local.confirmApps?.length))
+          ),
+        );
+        if (designFallback) {
+          settle({
+            kind: "info",
+            reply: named
+              ? denyCopy(session, named).body
+              : "Design features are available when signed in as a User. Concierge cannot open them for this role yet — please use the interface for your role's windows.",
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
+        const choices = staffOffline || appId || confirmApps.length ? null : local.choices;
         const routed = {
           app: confirmApps.length ? null : appId,
           design: (!confirmApps.length && appId === "plyworks" ? (local.design ?? "shelf") : null) as PlyworksDesign | null,
@@ -979,11 +1113,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               ? appId === "plyworks"
                 ? plyworksOpening(`Opening ${appLabel(appId)} for you.`)
                 : `Opening ${appLabel(appId)} for you.`
-              : named
+                  : named
                 ? denyCopy(session, named).body
                 : choices
                   ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
-                  : `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`,
+                  : session?.role === "user"
+                    ? `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`
+                    : `I can open ${apps.map(appLabel).join(", ")}. Name one to open it.`,
         });
       }
     })();
@@ -1154,6 +1290,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       design: extras?.design,
       choices: extras?.choices,
       helpTopics: extras?.helpTopics,
+      helpOffer: extras?.helpOffer,
       kind: extras?.kind,
       confirmApps: extras?.confirmApps,
       badgeApp: extras?.badgeApp,
@@ -1276,7 +1413,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback((id: string) => {
-    if (maximizedIdRef.current === id) dismissMaximize(true);
+    if (maximizedIdsRef.current.includes(id)) dismissMaximize(true);
+    if (adminPairIdsRef.current.includes(id)) {
+      adminPairIdsRef.current = adminPairIdsRef.current.filter((x) => x !== id);
+    }
     const node = nodesRef.current.find((n) => n.id === id);
     setUserEdges((edges) => {
       const result = closeNode(nodesRef.current, edges, id);
@@ -1301,7 +1441,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [dismissMaximize]);
 
   const hide = useCallback((id: string) => {
-    if (maximizedIdRef.current === id) dismissMaximize(true);
+    if (maximizedIdsRef.current.includes(id)) dismissMaximize(true);
+    if (adminPairIdsRef.current.includes(id)) {
+      adminPairIdsRef.current = adminPairIdsRef.current.filter((x) => x !== id);
+    }
     setNodes((list) => hideNode(list, id));
   }, [dismissMaximize]);
 
@@ -1348,7 +1491,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     skipSave.current += 1;
     const cleaned = cleanBoardNodes(next.board.nodes);
     const resumable = session?.role === "admin"
-      ? cleaned.filter((node) => node.id === CONCIERGE_ID)
+      ? cleaned.filter((node) => (
+        node.id === CONCIERGE_ID
+        || node.appId === "profiles"
+        || node.appId === "machines-admin"
+      ))
       : cleaned;
     setNodes(resumable.filter((n) => n.id === CONCIERGE_ID));
     setUserEdges([]);
@@ -1437,7 +1584,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const returnToLanding = useCallback(() => {
     if (session?.role === "manager" || session?.role === "operator" || session?.role === "admin") {
       createSession();
-      if (session.role !== "admin") {
+      if (session.role === "admin") {
+        window.setTimeout(() => openAdminPair(), 50);
+      } else {
         window.setTimeout(() => {
           const opened = openApp("jobs", { skipActivity: true });
           if (opened) window.setTimeout(() => maximize(opened.id), 0);
@@ -1472,7 +1621,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveSessionId(draft.id);
     hydrateSession(draft);
     persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, createSession, dismissMaximize, flushList, hydrateSession, maximize, openApp, persistStore, session?.role]);
+  }, [clearReveal, createSession, dismissMaximize, flushList, hydrateSession, maximize, openAdminPair, openApp, persistStore, session?.role]);
 
   const switchSession = useCallback((id: string) => {
     setInspectionJob(null);
@@ -1533,6 +1682,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSessions(next);
     persistStore({ activeId: current.id, sessions: next, historyCollapsed: collapsedRef.current });
   }, [flushList, persistStore]);
+
+  const captureTourSnapshot = useCallback((): TourWorkspaceSnapshot => {
+    const flushed = flushList(sessionsRef.current, activeIdRef.current);
+    return {
+      sessions: structuredClone(flushed),
+      activeSessionId: activeIdRef.current,
+      atLanding: atLandingRef.current,
+      historyCollapsed: collapsedRef.current,
+      overviewOpen,
+      viewport: { ...viewportRef.current },
+    };
+  }, [flushList, overviewOpen]);
+
+  const restoreTourSnapshot = useCallback((snap: TourWorkspaceSnapshot) => {
+    setInspectionJob(null);
+    dismissMaximize(true);
+    clearReveal();
+    resumeLock.current = false;
+    setResuming(false);
+    setEnteringNodeIds([]);
+    setOverviewOpen(false);
+    setPreviewId(null);
+    const list = snap.sessions.map((s) => structuredClone(s));
+    const active = list.find((s) => s.id === snap.activeSessionId) ?? list[0] ?? emptySession();
+    if (!list.some((s) => s.id === active.id)) list.unshift(active);
+  const collapsed = snap.atLanding ? true : snap.historyCollapsed;
+  setSessions(list);
+  setActiveSessionId(active.id);
+  hydrateSession(active);
+  atLandingRef.current = snap.atLanding;
+  setAtLanding(snap.atLanding);
+  collapsedRef.current = collapsed;
+  setHistoryCollapsedState(collapsed);
+  setViewport(snap.viewport);
+  persistStore({
+    activeId: active.id,
+    sessions: list,
+    historyCollapsed: collapsed,
+  });
+}, [clearReveal, dismissMaximize, hydrateSession, persistStore]);
 
   const clearTranscript = useCallback(() => {
     setEntries([]);
@@ -1637,6 +1826,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setPreviewId,
     fitRequest,
     openApp,
+    openAdminPair,
     announceOpen,
     addNote,
     setNodeBody,
@@ -1665,7 +1855,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     fit,
     maximize,
     dismissMaximize,
-    maximizedId,
+    maximizedIds,
     commitStageSize,
     close,
     hide,
@@ -1692,7 +1882,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enteringNodeIds,
     flashIds,
     flashKey,
-  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedId, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey]);
+    captureTourSnapshot,
+    restoreTourSnapshot,
+  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, openAdminPair, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedIds, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey, captureTourSnapshot, restoreTourSnapshot]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

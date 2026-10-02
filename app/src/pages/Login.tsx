@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -32,9 +32,10 @@ import {
 } from "@/components/ui/select";
 import { useSession } from "../context/session";
 // WAITING DATABASE: dummy directory for sign-in; look is not applied on this page
-import { ACTIVE_COMPANY_IDS, COMPANIES, DIRECTORY, ROLES, companyOf, signIn } from "../lib/auth";
+import { ROLES, companyIdFromEmail, listCompanies, signIn } from "../lib/auth";
+import { getCompaniesSnapshot, subscribeCompanies } from "../lib/companyStore";
+import { getDirectorySnapshot, subscribeDirectory } from "../lib/directoryStore";
 
-const COMPANY_ORDER = ACTIVE_COMPANY_IDS;
 const SAMPLE_PASSWORD = "demo";
 const SAMPLE_NONE = "__none__";
 const AUTH_WAIT_MS = 1000;
@@ -53,14 +54,19 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const waitTimer = useRef<number | null>(null);
   const handingOff = useRef(false);
+  const directory = useSyncExternalStore(subscribeDirectory, getDirectorySnapshot, getDirectorySnapshot);
+  const companies = useSyncExternalStore(subscribeCompanies, getCompaniesSnapshot, listCompanies);
   const groups = useMemo(
     () =>
-      COMPANY_ORDER.map((id) => ({
-        id,
-        name: COMPANIES[id].name,
-        people: DIRECTORY.filter((u) => companyOf(u.email) === id),
-      })).filter((g) => g.people.length > 0),
-    [],
+      companies
+        .filter((c) => !c.suspended)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          people: directory.filter((u) => !u.suspended && companyIdFromEmail(u.email) === c.id),
+        }))
+        .filter((g) => g.people.length > 0),
+    [companies, directory],
   );
   const [sampleEmail, setSampleEmail] = useState(SAMPLE_NONE);
   const layout = reduce ? { duration: 0 } : LAYOUT_MOVE;
@@ -151,12 +157,10 @@ export function LoginPage() {
               <Label htmlFor="login-email">Work email</Label>
               <Input
                 id="login-email"
-                name="email"
-                type="text"
+                type="email"
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.example"
                 disabled={busy}
               />
             </div>
@@ -164,19 +168,13 @@ export function LoginPage() {
               <Label htmlFor="login-password">Password</Label>
               <Input
                 id="login-password"
-                name="password"
                 type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 disabled={busy}
               />
             </div>
-            {/* WAITING DATABASE: password reset — fake modal until the account API exists */}
-            <Button type="button" variant="link" className="login-help border-0 bg-transparent shadow-none" onClick={() => setHelpOpen(true)} disabled={busy}>
-              Help logging in
-            </Button>
             <div className="login-error-slot" role="alert" aria-live="polite">
               {error ? (
                 <Surface relief="inset" className="login-error">
@@ -199,15 +197,15 @@ export function LoginPage() {
           transition={arrive}
         >
           <Surface relief="inset" className="login-samples">
-            <div className="login-samples-label">Sample roles</div>
+            <div className="login-samples-label">Sample profiles</div>
             <div className="login-samples-row">
               <Select value={sampleEmail} onValueChange={pickSample} disabled={busy}>
-                <SelectTrigger className="login-sample-select w-full bg-transparent shadow-none" aria-label="Sample roles">
-                  <SelectValue placeholder="Select a sample role" />
+                <SelectTrigger className="login-sample-select w-full bg-transparent shadow-none" aria-label="Sample profiles">
+                  <SelectValue placeholder="Select a sample profile" />
                 </SelectTrigger>
                 <SelectContent position="popper" align="start" className="login-sample-menu border-0 shadow-none">
                   <SelectItem value={SAMPLE_NONE} className="login-sample-none">
-                    Select a sample role
+                    Select a sample profile
                   </SelectItem>
                   {groups.map((g) => (
                     <SelectGroup key={g.id}>

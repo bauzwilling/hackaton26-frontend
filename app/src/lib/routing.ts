@@ -14,7 +14,9 @@ const APP_ALIASES: { app: string; patterns: RegExp[] }[] = [
   { app: "simpleparts", patterns: [/\bsimple\s*-?\s*parts?\b/i] },
   { app: "plyworks", patterns: [/\bply\s*-?\s*works?\b/i] },
   { app: "orbit", patterns: [/\b(cnc\s*)?orbit\b/i] },
-  { app: "admin", patterns: [/\badmin(\s*console)?\b/i] },
+  { app: "jobs", patterns: [/\bjobs?\b/i, /\bproduction\s+jobs?\b/i] },
+  { app: "profiles", patterns: [/\bprofile\s*manager\b/i, /\b(admin(\s*console)?|users?\s*manager)\b/i] },
+  { app: "machines-admin", patterns: [/\bmachine\s*(inventory|manager)\b/i] },
   { app: "projects", patterns: [/\bprojects?\b/i] },
 ];
 
@@ -26,6 +28,8 @@ const DESIGN_ALIASES: { design: PlyworksDesign; patterns: RegExp[] }[] = [
 ];
 
 const VAGUE_FURNITURE = /\b(furniture|plywood|ply\s*wood)\b/i;
+/** Vague design asks that should offer Plyworks base designs. */
+const DESIGN_SOMETHING = /\bi want to design something\b|\bdesign something\b|\bmake (me )?something\b/i;
 
 /** Loose manufacturing language that could fit more than one job app. */
 const AMBIGUOUS_JOB = /\b(parts?\s+to\s+cut|cut\s+parts?|sheet\s+metal|laser\s+cut|cnc\s+parts?|boxes?\s+and\s+parts?)\b/i;
@@ -71,7 +75,7 @@ export function matchLocalRoute(message: string): LocalRoute {
   if (named === "plyworks") {
     return withKind({ app: "plyworks", design: "shelf", choices: null, confirmApps: null });
   }
-  if (VAGUE_FURNITURE.test(message)) {
+  if (VAGUE_FURNITURE.test(message) || DESIGN_SOMETHING.test(message)) {
     return withKind({ app: null, design: null, choices: [...PLYWORKS_DESIGNS], confirmApps: null });
   }
   if (AMBIGUOUS_JOB.test(message)) {

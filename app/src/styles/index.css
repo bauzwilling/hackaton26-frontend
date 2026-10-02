@@ -111,6 +111,9 @@ button.sf:disabled:active { transform: none; }
   align-items: center;
   gap: 14px 24px;
   padding: 16px 28px;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-left: max(28px, env(safe-area-inset-left, 0px));
+  padding-right: max(28px, env(safe-area-inset-right, 0px));
   position: relative;
   background: transparent;
 }
@@ -227,13 +230,15 @@ button.sf:disabled:active { transform: none; }
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .chrome-status:hover .chrome-status-copy,
-.chrome-status:focus-visible .chrome-status-copy {
+.chrome-status:focus-visible .chrome-status-copy,
+.chrome-status.is-tour-open .chrome-status-copy {
   grid-template-columns: 1fr;
   opacity: 1;
   margin-right: 8px;
 }
 .chrome-status:hover .chrome-status-copy-inner,
-.chrome-status:focus-visible .chrome-status-copy-inner {
+.chrome-status:focus-visible .chrome-status-copy-inner,
+.chrome-status.is-tour-open .chrome-status-copy-inner {
   transform: translateX(0);
 }
 .chrome-status-dot {
@@ -267,6 +272,42 @@ button.sf:disabled:active { transform: none; }
 }
 .chrome-windows svg,
 .viz-toggle svg { display: block; }
+.chrome-windows.is-fly-sink {
+  background: var(--face);
+  border-color: color-mix(in oklab, var(--acc) 55%, var(--line));
+  box-shadow: var(--elev-sm), 0 0 0 3px color-mix(in oklab, var(--acc) 22%, transparent);
+}
+.win-fly-ghost {
+  position: fixed;
+  z-index: 240;
+  pointer-events: none;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--acc) 52%, var(--face));
+  border: 1px solid var(--acc);
+  box-shadow: var(--elev);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  overflow: hidden;
+  transition:
+    left 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.win-fly-ghost-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .win-fly-ghost { transition: none; }
+}
 
 .chrome-menu { position: relative; }
 .chrome-actions,
@@ -608,12 +649,21 @@ button.sf:disabled:active { transform: none; }
   user-select: none;
   flex: none;
   border-bottom: 1px solid var(--line);
+  /* Match the window chrome so accent fills follow the rounded top, not square corners. */
+  border-radius: 15px 15px 0 0;
   opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
 .win-bar:active { cursor: grabbing; }
 .win.is-maximized .win-bar,
 .win.is-maximized .win-bar:active {
   cursor: default;
+}
+.win.is-maximized:not(.is-locked) {
+  border-color: color-mix(in oklab, var(--acc) 72%, var(--line));
+}
+.win.is-maximized:not(.is-locked) .win-bar {
+  background: color-mix(in oklab, var(--acc) 48%, var(--face));
+  border-bottom-color: color-mix(in oklab, var(--acc) 32%, var(--line));
 }
 .win-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); flex: none; }
 .win-title {
@@ -629,17 +679,31 @@ button.sf:disabled:active { transform: none; }
   letter-spacing: 0.04em;
   color: var(--muted);
 }
-.win-lock {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  flex: none;
+.win.is-locked {
+  border-color: var(--acc-deep);
 }
 .win.is-locked,
 html[data-bubble="on"] .win.is-locked,
 html[data-bubble="on"] .win.is-locked .win-bar {
   cursor: default;
+}
+.win.is-locked .win-bar {
+  background: color-mix(in oklab, var(--acc-deep) 88%, #000);
+  border-bottom-color: color-mix(in oklab, var(--acc-deep) 65%, #000);
+  color: #fff;
+}
+.win.is-locked .win-code {
+  color: color-mix(in oklab, #fff 68%, transparent);
+}
+.win.is-locked .win-dot {
+  background: #fff;
+}
+.win.is-locked .win-btn {
+  color: color-mix(in oklab, #fff 78%, transparent);
+}
+.win.is-locked .win-btn:hover {
+  color: #fff;
+  background: color-mix(in oklab, #fff 14%, transparent);
 }
 .win-btn {
   width: 28px;
@@ -648,14 +712,44 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   font-size: 16px;
   line-height: 1;
   color: var(--muted);
+  display: grid;
+  place-items: center;
 }
+.win-btn svg { display: block; }
 .win-btn:hover { color: var(--ink); background: var(--recess); }
+.win.is-fly-pending {
+  opacity: 0 !important;
+}
 .win-body {
   padding: 16px 18px 18px;
   overflow: auto;
   flex: 1;
   min-height: 0;
   opacity: calc(1 - var(--win-far, 0) * 0.62);
+}
+/*
+ * Far zoom: windows are map labels — drag/pinch/scroll on them go to the canvas.
+ * Only title-bar action buttons stay clickable (pointer-events: auto on a none parent).
+ */
+.studio-layer.is-far {
+  cursor: grab;
+}
+.studio-layer.is-far:active {
+  cursor: grabbing;
+}
+.studio-layer.is-far .react-flow__pane.draggable {
+  cursor: grab;
+}
+.studio-layer.is-far .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+.studio-layer.is-far .react-flow__node-studioWindow,
+.studio-layer.is-far .react-flow__edge {
+  pointer-events: none;
+}
+.studio-layer.is-far .win-btn {
+  pointer-events: auto;
+  cursor: pointer;
 }
 .win-far-label {
   position: absolute;
@@ -841,7 +935,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 999px;
   padding: 9px 14px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
   box-shadow: var(--elev);
   cursor: pointer;
 }
@@ -851,6 +945,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   padding: 24px;
   overflow: auto;
   background: var(--face);
+  color: var(--ink);
 }
 .jobs-head {
   display: flex;
@@ -862,6 +957,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .jobs-head h1 {
   margin: 2px 0 0;
   font-size: 26px;
+  color: var(--ink);
 }
 .operator-machine-picker {
   display: grid;
@@ -881,7 +977,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 8px;
   padding: 6px 10px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
 }
 .jobs-kicker {
   margin: 0;
@@ -944,7 +1040,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 7px;
   padding: 5px 8px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
 }
 .job-machine,
 .job-feedback-summary {
@@ -979,7 +1075,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: 7px;
   padding: 7px 8px;
   background: var(--face);
-  color: var(--text);
+  color: var(--ink);
   font: inherit;
 }
 .job-feedback-form > div {
@@ -994,6 +1090,256 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   color: var(--muted);
 }
 .jobs-error { color: var(--bad, #b42318); }
+
+.admin-page .admin-primary {
+  min-height: 36px;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 14px;
+  background: var(--ink);
+  color: var(--face);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.admin-page .admin-primary:hover {
+  opacity: 0.9;
+}
+.admin-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--face2);
+  color: var(--ink);
+}
+.admin-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink);
+}
+.admin-form label > span,
+.admin-check span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.admin-form input,
+.admin-form select,
+.jobs-table select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--face);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.admin-form input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.admin-form option {
+  background: var(--face);
+  color: var(--ink);
+}
+.admin-email-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-email-row input { flex: 1; min-width: 0; }
+.admin-email-domain {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--ink);
+}
+.admin-hint {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-company-list {
+  display: grid;
+  gap: 16px;
+}
+.admin-company {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--face);
+}
+.admin-company.is-suspended {
+  opacity: 0.92;
+}
+.admin-company-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--face2);
+}
+.admin-company-head h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+.admin-company-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-company-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.admin-company-actions button,
+.admin-company .job-actions button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: var(--face);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-company-actions button:disabled,
+.admin-company .job-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Suspended/offline rows fade content, but keep action buttons readable. */
+.jobs-table tr.is-suspended td {
+  opacity: 0.65;
+}
+.jobs-table tr.is-suspended td:last-child {
+  opacity: 1;
+}
+.admin-action-activate {
+  color: var(--ink) !important;
+  background: var(--face) !important;
+  border-color: var(--line) !important;
+  font-weight: 600;
+  opacity: 1 !important;
+}
+.admin-action-remove:not(:disabled) {
+  opacity: 1;
+  color: var(--ink) !important;
+  background: var(--face) !important;
+  border-color: var(--line) !important;
+  cursor: pointer;
+}
+.admin-action-remove:disabled {
+  opacity: 0.45;
+  color: var(--muted) !important;
+  background: color-mix(in oklab, var(--muted) 8%, var(--face)) !important;
+  border-color: var(--line) !important;
+  cursor: not-allowed;
+}
+.admin-company .jobs-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.admin-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.admin-table th,
+.admin-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.admin-table td strong,
+.admin-table td small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0;
+  text-transform: none;
+}
+.admin-table--profiles .admin-col-name { width: 18%; }
+.admin-table--profiles .admin-col-email { width: 28%; }
+.admin-table--profiles .admin-col-role { width: 14%; }
+.admin-table--profiles .admin-col-status { width: 12%; }
+.admin-table--profiles .admin-col-actions { width: 28%; }
+
+.admin-table--machines .admin-col-name { width: 12%; }
+.admin-table--machines .admin-col-slug { width: 16%; }
+.admin-table--machines .admin-col-location { width: 28%; }
+.admin-table--machines .admin-col-status { width: 12%; }
+.admin-table--machines .admin-col-actions { width: 32%; }
+
+.admin-table .job-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: visible;
+}
+.admin-table td:last-child {
+  overflow: visible;
+  white-space: nowrap;
+}
+.admin-table select {
+  width: 100%;
+  max-width: 100%;
+}
+.admin-empty-row {
+  color: var(--muted);
+  text-align: center;
+  white-space: normal;
+}
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.admin-status.is-active {
+  color: #0f7a3a;
+  background: color-mix(in oklab, #0f7a3a 14%, var(--face));
+  border: 1px solid color-mix(in oklab, #0f7a3a 35%, transparent);
+}
+.admin-status.is-suspended {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--muted) 12%, var(--face));
+  border: 1px solid var(--line);
+}
 
 .archived-chat {
   height: 100%;
@@ -1060,10 +1406,56 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 }
 .studio-minimap-dock.react-flow__panel {
   margin: 16px;
+  margin-right: max(16px, env(safe-area-inset-right, 0px));
+  margin-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }
 .studio-minimap-dock.is-faded {
   pointer-events: none;
+}
+.studio-zoom-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 1;
+  transition: opacity 0.16s ease;
+}
+.studio-zoom-controls.is-faded {
+  opacity: 0;
+  pointer-events: none;
+}
+.studio-zoom-btn {
+  box-sizing: border-box;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--ink) 16%, var(--line));
+  background: var(--face);
+  color: var(--ink);
+  box-shadow: var(--elev-sm);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.studio-zoom-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--acc) 10%, var(--face));
+}
+.studio-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.studio-zoom-fit {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .studio-minimap-shell {
   position: relative;
@@ -1163,12 +1555,6 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   stroke: var(--acc);
   stroke-width: 2;
 }
-.studio-layer.is-marquee { cursor: crosshair; }
-.studio-layer.is-panning,
-.studio-layer.is-panning .win,
-.studio-layer.is-panning .win-bar {
-  cursor: grabbing;
-}
 .studio-grid {
   position: absolute;
   inset: 0;
@@ -1181,14 +1567,6 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   left: 0; top: 0;
   width: 1px; height: 1px;
   transform-origin: 0 0;
-}
-.studio-marquee {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid var(--acc);
-  background: color-mix(in oklab, var(--acc) 14%, transparent);
-  pointer-events: none;
-  z-index: 40;
 }
 .wire-layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 9999; }
 .wire { stroke: var(--acc); stroke-width: calc(2.5 / var(--studio-zoom, 1)); stroke-opacity: 0.8; }
@@ -1489,6 +1867,7 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 @media (prefers-reduced-motion: reduce) {
   .win-enter { animation: none; }
   .win-flash-overlay { animation: none; }
+  .win-fly-ghost { transition: none; }
   .seg-theme > .sf { transition: none; }
   .chrome-status-copy,
   .chrome-status-copy-inner { transition: none; }
@@ -1807,6 +2186,85 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   border-radius: var(--radius);
   overflow: hidden;
 }
+/* Narrow landscape: chat is a slide-over drawer; canvas keeps full width. */
+.studio.is-narrow.is-chat-docked .studio-chat-slot.is-docked {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  width: auto;
+  max-width: none;
+  pointer-events: none;
+}
+.studio.is-narrow.is-chat-docked .studio-chat-slot.is-docked .studio-chat-col {
+  width: auto;
+  max-width: none;
+  height: 100%;
+  pointer-events: none;
+}
+.studio.is-narrow .studio-chat-dock {
+  position: fixed;
+  left: max(0px, env(safe-area-inset-left, 0px));
+  top: 0;
+  bottom: 0;
+  z-index: 72;
+  width: min(340px, calc(100vw - 48px));
+  max-width: min(340px, calc(100vw - 48px));
+  height: auto;
+  padding-bottom: var(--keyboard-inset, 0px);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  transform: translateX(-105%);
+  transition: transform 0.22s ease, padding-bottom 0.16s ease;
+  pointer-events: auto;
+}
+.studio.is-narrow.is-chat-drawer-open .studio-chat-dock {
+  transform: translateX(0);
+}
+.studio.is-narrow .studio-chat-dock .studio-chat-card.is-docked {
+  width: 100%;
+  height: 100%;
+}
+.studio.is-narrow .studio-chat-dock .studio-chat-stage {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.studio-chat-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 71;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: color-mix(in oklab, #000 36%, transparent);
+  cursor: pointer;
+}
+.chat-fab {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 40px + 8px);
+  z-index: 45;
+}
+.studio-chat-mark {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.studio.is-narrow .help-fab {
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+}
+.studio.is-narrow.is-chat-docked .help-fab {
+  left: max(16px, env(safe-area-inset-left, 0px));
+}
+@media (pointer: coarse) {
+  .studio-tool:focus-visible .studio-tool-tip,
+  .studio-tool.is-on .studio-tool-tip,
+  .studio-minimap-shell.is-open .studio-map-tip {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .studio-chat-dock .studio-chat-card.is-docked {
   flex: none;
   align-self: stretch;
@@ -1903,10 +2361,12 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 }
 
 .login-wrap {
-  min-height: 100vh;
+  min-height: 100%;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 32px 16px;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overflow: auto;
 }
 .login-col {
   width: min(400px, 100%);
@@ -2559,9 +3019,33 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   font-size: 12px;
   font-weight: 600;
 }
+.help-card-btn:disabled,
+.help-card-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
 
 @media (pointer: coarse) {
-  .studio-hint, .pan-hint { display: none; }
+  .win-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .chrome-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .overview-icon-btn,
+  .overview-icon-spacer {
+    width: 44px;
+    height: 44px;
+  }
+  .studio-zoom-btn {
+    min-width: 44px;
+    height: 44px;
+  }
+  .react-flow__node.selected .studio-handle {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 860px) {
@@ -2570,4 +3054,68 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   .chrome-title { font-size: 18px; }
   .hero-title { font-size: clamp(30px, 9vw, 48px); }
   .studio-hint { font-size: 11px; letter-spacing: 0.01em; }
+}
+
+/* Short landscape (phone): compact login / admin so forms stay reachable. */
+@media (max-width: 899px) and (max-height: 500px) {
+  .login-wrap {
+    place-items: start center;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+  .login-brand { margin-bottom: 10px; }
+  .sf.login-card {
+    padding: 16px 16px 14px;
+  }
+  .login-title {
+    margin: 0 0 12px;
+    font-size: 22px;
+  }
+  .login-field { margin-bottom: 10px; }
+  .login-card [data-slot="input"] { height: 40px; }
+  .login-samples-wrap { margin-top: 10px; }
+  .admin-page {
+    padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    overflow: auto;
+    max-height: 100%;
+  }
+}
+
+/* Live portrait block — above chrome, help, menus; children stay mounted underneath. */
+.landscape-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  background: color-mix(in oklab, var(--recess) 88%, #000);
+  color: var(--ink);
+  pointer-events: auto;
+}
+.landscape-gate-card {
+  max-width: 360px;
+  text-align: center;
+  padding: 28px 24px;
+  border-radius: 20px;
+  background: var(--face);
+  border: 1px solid var(--line);
+  box-shadow: var(--elev);
+}
+.landscape-gate-icon {
+  display: block;
+  margin: 0 auto 16px;
+  color: var(--acc);
+}
+.landscape-gate-title {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.landscape-gate-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
 }

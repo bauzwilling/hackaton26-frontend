@@ -158,13 +158,16 @@ export function openAppNodes(
   const base = withRail(list);
   const parentId = opts?.parentId;
   const current = base.find((n) => n.kind === "app" && n.appId === app);
+  const forcedSlot = box.x !== undefined && box.y !== undefined && !parentId
+    ? { x: box.x, y: box.y }
+    : null;
   if (current) {
     // Keep children parked to the right of their parent when they reopen.
     const childOfOther = parentId && parentId !== current.id;
     const without = childOfOther ? base.filter((n) => n.id !== current.id) : base;
     const slot = childOfOther
       ? placeAppSlot(without, app, { parentId, origin })
-      : null;
+      : forcedSlot;
     return {
       id: current.id,
       reused: true,
@@ -191,7 +194,7 @@ export function openAppNodes(
   }
 
   const id = uid("a");
-  const slot = placeAppSlot(base, app, { parentId, origin });
+  const slot = forcedSlot ?? placeAppSlot(base, app, { parentId, origin });
   const node: WorkspaceNode = {
     id,
     kind: "app",

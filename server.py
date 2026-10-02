@@ -42,6 +42,8 @@ class ChatRequest(BaseModel):
     apps: List[str] = Field(default_factory=list)
     restricted: List[str] = Field(default_factory=list)
     plyworksBoards: List[Dict[str, Any]] = Field(default_factory=list)
+    role: Optional[str] = None
+    capabilities: List[str] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -74,6 +76,8 @@ def chat(req: ChatRequest) -> ChatResponse:
             available_apps=req.apps,
             restricted_apps=req.restricted,
             plyworks_boards=req.plyworksBoards,
+            role=req.role,
+            capabilities=req.capabilities,
         )
     except Exception as exc:
         log.exception("Concierge route failed")
