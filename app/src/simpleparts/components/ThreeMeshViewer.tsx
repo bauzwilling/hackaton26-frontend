@@ -175,7 +175,8 @@ const ThreeMeshViewer = forwardRef<ThreeMeshViewerHandle, ThreeMeshViewerProps>(
     if (propertiesEnabled) event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!propertiesEnabled || !leftPointerDown.current || !(event.buttons & 1)) return
+    if (!propertiesEnabled || !leftPointerDown.current) return
+    if (event.pointerType === 'touch' && event.isPrimary === false) return
     if (Math.hypot(event.clientX - pointerStart.current.x, event.clientY - pointerStart.current.y) <= DRAG_THRESHOLD_PX) return
     pointerDragged.current = true
     const shell = event.currentTarget.getBoundingClientRect()

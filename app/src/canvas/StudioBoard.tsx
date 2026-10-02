@@ -271,7 +271,7 @@ function MinimapDock({
   );
 }
 
-function StudioBoardInner() {
+function StudioBoardInner({ narrow }: { narrow: boolean }) {
   const {
     nodes: workspaceNodes,
     entries,
@@ -477,7 +477,7 @@ function StudioBoardInner() {
         void fitView({
           nodes: ids.map((id) => ({ id })),
           maxZoom,
-          padding: chatFitPadding(host.width, docked, collapsed),
+          padding: chatFitPadding(host.width, docked && !narrow, collapsed),
           duration: 280,
         }).then(() => {
           if (inspectionJob) setInspectionMinZoom(getViewport().zoom);
@@ -490,7 +490,7 @@ function StudioBoardInner() {
       window.clearTimeout(timer);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [fitRequest, fitView, getViewport, inspectionJob, nodes, workspaceNodes, docked, host.width, historyCollapsed]);
+  }, [fitRequest, fitView, getViewport, inspectionJob, nodes, workspaceNodes, docked, narrow, host.width, historyCollapsed]);
 
   const measureHost = useCallback(() => {
     const el = layer.current;
@@ -613,6 +613,91 @@ function StudioBoardInner() {
     setSelMenu({ x: e.clientX - box.left, y: e.clientY - box.top, ids });
   }, [far, inspecting, maximizedIds.length, measureHost, nodes, setNodes]);
 
+  // Touch long-press → same menus as right-click (AskMenu / far SelectionMenu).
+  useEffect(() => {
+    const root = layer.current;
+    if (!root || !interactive || canvasLocked || inspecting) return;
+
+    const LONG_MS = 500;
+    const MOVE_PX = 12;
+    let timer: number | null = null;
+    let startX = 0;
+    let startY = 0;
+    let pointerId: number | null = null;
+
+    const clear = () => {
+      if (timer != null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      pointerId = null;
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" || e.button !== 0) return;
+      const target = e.target as Element | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true], .win-btn, .studio-zoom-controls, .studio-minimap-shell")) {
+        return;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
+      pointerId = e.pointerId;
+      const nodeEl = target?.closest(".react-flow__node") as HTMLElement | null;
+      const rfId = nodeEl?.getAttribute("data-id");
+
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (atLanding || session?.role === "admin") return;
+        measureHost();
+        const box = root.getBoundingClientRect();
+        const x = startX - box.left;
+        const y = startY - box.top;
+
+        if (rfId && far > 0 && maximizedIds.length === 0) {
+          setAskMenu(null);
+          const n = getNodes().find((node) => node.id === rfId);
+          const ids = n?.selected
+            ? getNodes().filter((node) => node.selected).map((node) => node.id)
+            : [rfId];
+          if (n && !n.selected) {
+            setNodes((list) => list.map((node) => ({ ...node, selected: node.id === rfId })));
+          }
+          setSelMenu({ x, y, ids });
+          return;
+        }
+
+        if (nodeEl) return;
+        const flow = screenToFlowPosition({ x: startX, y: startY });
+        setSelMenu(null);
+        setAskMenu({ x, y, world: { x: flow.x, y: flow.y } });
+      }, LONG_MS);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (pointerId !== e.pointerId || timer == null) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_PX) clear();
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (pointerId === e.pointerId) clear();
+    };
+
+    root.addEventListener("pointerdown", onDown);
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerup", onUp);
+    root.addEventListener("pointercancel", onUp);
+    return () => {
+      clear();
+      root.removeEventListener("pointerdown", onDown);
+      root.removeEventListener("pointermove", onMove);
+      root.removeEventListener("pointerup", onUp);
+      root.removeEventListener("pointercancel", onUp);
+    };
+  }, [
+    interactive, canvasLocked, inspecting, atLanding, session?.role, far, maximizedIds.length,
+    measureHost, screenToFlowPosition, getNodes, setNodes,
+  ]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
@@ -699,7 +784,7 @@ function StudioBoardInner() {
             interactive={interactive && !inspecting}
             previewFill={previewFill}
             faded={maximizedIds.length > 0 || inspecting}
-            fitPadding={chatFitPadding(host.width, docked, historyCollapsed)}
+            fitPadding={chatFitPadding(host.width, docked && !narrow, historyCollapsed)}
           />
         </ReactFlow>
         {inspectionJob && (
@@ -743,10 +828,10 @@ function StudioBoardInner() {
   );
 }
 
-export function StudioBoard() {
+export function StudioBoard({ narrow = false }: { narrow?: boolean }) {
   return (
     <ReactFlowProvider>
-      <StudioBoardInner />
+      <StudioBoardInner narrow={narrow} />
     </ReactFlowProvider>
   );
 }

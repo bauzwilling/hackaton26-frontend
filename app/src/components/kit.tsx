@@ -186,7 +186,9 @@ export function Slider({
         e.currentTarget.setPointerCapture(e.pointerId);
         setFromX(e.clientX);
       }}
-      onPointerMove={(e: PointerEvent<HTMLDivElement>) => { if (e.buttons) setFromX(e.clientX); }}
+      onPointerMove={(e: PointerEvent<HTMLDivElement>) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) setFromX(e.clientX);
+      }}
     >
       <span className="slider-fill" style={{ width: `calc(${(pct * 100).toFixed(1)}% - 6px)` }} />
       <span className="slider-thumb" style={{ left: `${(pct * 100).toFixed(1)}%` }} />
