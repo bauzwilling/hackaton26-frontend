@@ -347,13 +347,13 @@ export function StudioPage() {
       </div>
       {hasWindows && (
         <p className="studio-hint" data-help="studio-hint">
-          Right-drag to pan
+          Drag to pan
           <span aria-hidden="true"> · </span>
-          Left-drag to select
+          Scroll or pinch to zoom
+          <span aria-hidden="true"> · </span>
+          Drag title bar to move
           <span aria-hidden="true"> · </span>
           Delete to close apps
-          <span aria-hidden="true"> · </span>
-          Right-click for options
         </p>
       )}
       {dropping && (

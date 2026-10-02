@@ -32,7 +32,7 @@ import { AskMenu } from "./AskMenu";
 import { BoardHostProvider } from "./boardHost";
 import { SelectionMenu } from "./SelectionMenu";
 import { defaultEdgeOptions, edgeTypes, flowInteraction, nodeTypes } from "./flow/defaults";
-import { GRID_GAP } from "./flow/constants";
+import { FIT_ZOOM_MAX, GRID_GAP } from "./flow/constants";
 import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
 import { useFineWheelZoom } from "./flow/wheelZoom";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
@@ -61,14 +61,65 @@ function MapTip({ verb }: { verb: "Open" | "Close" }) {
   );
 }
 
+function ZoomControls({
+  faded,
+  fitPadding,
+}: {
+  faded: boolean;
+  fitPadding: ReturnType<typeof chatFitPadding>;
+}) {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+
+  return (
+    <div className={`studio-zoom-controls nowheel nopan${faded ? " is-faded" : ""}`} aria-hidden={faded}>
+      <button
+        type="button"
+        className="studio-zoom-btn"
+        disabled={faded}
+        aria-label="Zoom in"
+        title="Zoom in"
+        onClick={() => void zoomIn({ duration: 160 })}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        className="studio-zoom-btn"
+        disabled={faded}
+        aria-label="Zoom out"
+        title="Zoom out"
+        onClick={() => void zoomOut({ duration: 160 })}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        className="studio-zoom-btn studio-zoom-fit"
+        disabled={faded}
+        aria-label="Fit view"
+        title="Fit view"
+        onClick={() => void fitView({
+          padding: fitPadding,
+          duration: 200,
+          maxZoom: FIT_ZOOM_MAX,
+        })}
+      >
+        Fit
+      </button>
+    </div>
+  );
+}
+
 function MinimapDock({
   interactive,
   previewFill,
   faded,
+  fitPadding,
 }: {
   interactive: boolean;
   previewFill: string;
   faded: boolean;
+  fitPadding: ReturnType<typeof chatFitPadding>;
 }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -215,6 +266,7 @@ function MinimapDock({
         ))}
         {!open && openTip && <MapTip verb="Open" />}
       </motion.div>
+      <ZoomControls faded={faded} fitPadding={fitPadding} />
     </Panel>
   );
 }
@@ -506,7 +558,7 @@ function StudioBoardInner() {
   }, [getNodes, commitPositions]);
 
   const onMoveStart = useCallback(() => {
-    // Right/middle pan must not open AskMenu on pointer-up contextmenu.
+    // Any drag-pan must not open AskMenu on pointer-up contextmenu.
     panMoved.current = false;
   }, []);
 
@@ -584,7 +636,7 @@ function StudioBoardInner() {
   return (
     <BoardHostProvider value={host}>
       <div
-        className={`studio-layer${canvasLocked ? " is-maximized" : ""}${inspecting ? " is-inspecting" : ""}`}
+        className={`studio-layer${canvasLocked ? " is-maximized" : ""}${inspecting ? " is-inspecting" : ""}${far > 0 ? " is-far" : ""}`}
         data-help="studio-canvas"
         ref={layer}
         style={{ ["--studio-zoom" as string]: String(zoom), ["--win-far" as string]: String(far) }}
@@ -617,10 +669,9 @@ function StudioBoardInner() {
           panOnDrag={interactive && !canvasLocked && !inspecting ? flowInteraction.panOnDrag : false}
           panOnScroll={false}
           zoomOnScroll={false}
-          zoomOnPinch={interactive && !canvasLocked && flowInteraction.zoomOnPinch}
+          zoomOnPinch={false}
           zoomOnDoubleClick={false}
-          selectionOnDrag={interactive && !canvasLocked && !inspecting && flowInteraction.selectionOnDrag}
-          selectionMode={flowInteraction.selectionMode}
+          selectionOnDrag={false}
           multiSelectionKeyCode={flowInteraction.multiSelectionKeyCode}
           deleteKeyCode={flowInteraction.deleteKeyCode}
           connectionMode={flowInteraction.connectionMode}
@@ -628,9 +679,9 @@ function StudioBoardInner() {
           snapGrid={flowInteraction.snapGrid}
           elevateNodesOnSelect={flowInteraction.elevateNodesOnSelect}
           onlyRenderVisibleElements={flowInteraction.onlyRenderVisibleElements}
-          nodesDraggable={interactive && !canvasLocked && !inspecting}
-          nodesConnectable={interactive && !canvasLocked && !inspecting}
-          elementsSelectable={interactive && !inspecting}
+          nodesDraggable={interactive && !canvasLocked && !inspecting && far <= 0}
+          nodesConnectable={interactive && !canvasLocked && !inspecting && far <= 0}
+          elementsSelectable={interactive && !inspecting && far <= 0}
           selectNodesOnDrag={false}
           connectionRadius={28}
           fitView={false}
@@ -644,7 +695,12 @@ function StudioBoardInner() {
               className="studio-flow-grid"
             />
           )}
-          <MinimapDock interactive={interactive && !inspecting} previewFill={previewFill} faded={maximizedIds.length > 0 || inspecting} />
+          <MinimapDock
+            interactive={interactive && !inspecting}
+            previewFill={previewFill}
+            faded={maximizedIds.length > 0 || inspecting}
+            fitPadding={chatFitPadding(host.width, docked, historyCollapsed)}
+          />
         </ReactFlow>
         {inspectionJob && (
           <button type="button" className="inspection-exit" onClick={exitInspection}>

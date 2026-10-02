@@ -724,6 +724,30 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   min-height: 0;
   opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
+/*
+ * Far zoom: windows are map labels — drag/pinch/scroll on them go to the canvas.
+ * Only title-bar action buttons stay clickable (pointer-events: auto on a none parent).
+ */
+.studio-layer.is-far {
+  cursor: grab;
+}
+.studio-layer.is-far:active {
+  cursor: grabbing;
+}
+.studio-layer.is-far .react-flow__pane.draggable {
+  cursor: grab;
+}
+.studio-layer.is-far .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+.studio-layer.is-far .react-flow__node-studioWindow,
+.studio-layer.is-far .react-flow__edge {
+  pointer-events: none;
+}
+.studio-layer.is-far .win-btn {
+  pointer-events: auto;
+  cursor: pointer;
+}
 .win-far-label {
   position: absolute;
   inset: 0;
@@ -1380,9 +1404,53 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 .studio-minimap-dock.react-flow__panel {
   margin: 16px;
   z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }
 .studio-minimap-dock.is-faded {
   pointer-events: none;
+}
+.studio-zoom-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 1;
+  transition: opacity 0.16s ease;
+}
+.studio-zoom-controls.is-faded {
+  opacity: 0;
+  pointer-events: none;
+}
+.studio-zoom-btn {
+  box-sizing: border-box;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--ink) 16%, var(--line));
+  background: var(--face);
+  color: var(--ink);
+  box-shadow: var(--elev-sm);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.studio-zoom-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--acc) 10%, var(--face));
+}
+.studio-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.studio-zoom-fit {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .studio-minimap-shell {
   position: relative;
@@ -1482,12 +1550,6 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   stroke: var(--acc);
   stroke-width: 2;
 }
-.studio-layer.is-marquee { cursor: crosshair; }
-.studio-layer.is-panning,
-.studio-layer.is-panning .win,
-.studio-layer.is-panning .win-bar {
-  cursor: grabbing;
-}
 .studio-grid {
   position: absolute;
   inset: 0;
@@ -1500,14 +1562,6 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   left: 0; top: 0;
   width: 1px; height: 1px;
   transform-origin: 0 0;
-}
-.studio-marquee {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid var(--acc);
-  background: color-mix(in oklab, var(--acc) 14%, transparent);
-  pointer-events: none;
-  z-index: 40;
 }
 .wire-layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 9999; }
 .wire { stroke: var(--acc); stroke-width: calc(2.5 / var(--studio-zoom, 1)); stroke-opacity: 0.8; }
@@ -2886,7 +2940,26 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 }
 
 @media (pointer: coarse) {
-  .studio-hint, .pan-hint { display: none; }
+  .win-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .chrome-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .overview-icon-btn,
+  .overview-icon-spacer {
+    width: 44px;
+    height: 44px;
+  }
+  .studio-zoom-btn {
+    min-width: 44px;
+    height: 44px;
+  }
+  .react-flow__node.selected .studio-handle {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 860px) {
@@ -2895,4 +2968,43 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   .chrome-title { font-size: 18px; }
   .hero-title { font-size: clamp(30px, 9vw, 48px); }
   .studio-hint { font-size: 11px; letter-spacing: 0.01em; }
+}
+
+/* Live portrait block — above chrome, help, menus; children stay mounted underneath. */
+.landscape-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--recess) 88%, #000);
+  color: var(--ink);
+  pointer-events: auto;
+}
+.landscape-gate-card {
+  max-width: 360px;
+  text-align: center;
+  padding: 28px 24px;
+  border-radius: 20px;
+  background: var(--face);
+  border: 1px solid var(--line);
+  box-shadow: var(--elev);
+}
+.landscape-gate-icon {
+  display: block;
+  margin: 0 auto 16px;
+  color: var(--acc);
+}
+.landscape-gate-title {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.landscape-gate-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
 }

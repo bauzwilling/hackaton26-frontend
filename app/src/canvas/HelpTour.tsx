@@ -70,7 +70,7 @@ export function PanHint({ interactive }: { interactive: boolean }) {
 
   return (
     <Surface className="pan-hint" role="status">
-      <p className="pan-hint-copy">This is a canvas. Right-drag to pan, scroll to zoom.</p>
+      <p className="pan-hint-copy">This is a canvas. Drag to pan (two-finger slide on a trackpad), scroll or pinch to zoom.</p>
       <div className="pan-hint-actions">
         <Surface as="button" type="button" relief="ghost" className="help-card-btn" onClick={dismiss}>
           Got it
