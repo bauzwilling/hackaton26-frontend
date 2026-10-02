@@ -189,7 +189,7 @@ type Ctx = {
   show: (id: string) => void;
   setLocked: (ids: string[], locked: boolean) => void;
   duplicateNodes: (ids: string[]) => string[];
-  tile: (viewport: { width: number; height: number }) => void;
+  tile: (viewport?: { width: number; height: number }) => void;
   clear: (opts?: { transcript?: boolean }) => void;
   clearTranscript: () => void;
   sessions: ChatSession[];

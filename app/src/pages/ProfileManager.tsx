@@ -66,6 +66,8 @@ export function ProfileManagerPage() {
     return <div className="jobs-empty">Profile Manager is available to admins.</div>;
   }
 
+  const actorEmail = session.email;
+
   function run(action: () => void) {
     try {
       setError("");
@@ -85,7 +87,7 @@ export function ProfileManagerPage() {
       return;
     }
     const email = `${localPart.trim().toLowerCase()}@${company.domain}`;
-    if (run(() => addUser({ email, name, role, by: session.email }))) {
+    if (run(() => addUser({ email, name, role, by: actorEmail }))) {
       setAddingProfile(false);
       setName("");
       setLocalPart("");

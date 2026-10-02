@@ -151,7 +151,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     captureTourSnapshot,
     restoreTourSnapshot,
     tile,
-    viewport,
   } = useWorkspace();
 
   const [phase, setPhase] = useState<HelpPhase>("idle");
@@ -421,7 +420,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
         show(app.id);
         await delay(300);
       }
-      tile(viewport);
+      tile();
       await delay(400);
       // Keep the Windows menu open so the spotlight covers trigger + full panel.
       setOverviewOpen(true);
@@ -442,7 +441,6 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setOverviewOpen,
     show,
     tile,
-    viewport,
     zoomConcierge,
   ]);
 
