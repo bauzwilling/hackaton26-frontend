@@ -19,7 +19,7 @@ import {
 export const SESSION_KEY = "f2f.session"; // WAITING DATABASE: signed-in session cookie/token
 export const OVERRIDE_KEY = "f2f.roleOverrides"; // WAITING DATABASE: role grants — unused in the app until admin console writes them
 
-export type RoleId = "user" | "operator" | "manager" | "admin";
+export type RoleId = "user" | "operator" | "manager" | "admin" | "superuser";
 /** Fixture ids A–D plus session-added companies. */
 export type CompanyId = string;
 export type AppId = "boxouts" | "simpleparts" | "plyworks" | "nesting";
@@ -33,6 +33,9 @@ export type Session = {
   since: number;
 };
 
+/** WAITING DATABASE: immutable root superuser fixture for DataB. */
+export const PROTECTED_SUPERUSER_EMAIL = "david.dabic@datab.example";
+
 /**
  * WAITING DATABASE: company onboarding decides who is live.
  * DataB starts active; other fixture companies start suspended until an admin
@@ -41,6 +44,8 @@ export type Session = {
 export const ACTIVE_COMPANY_IDS: CompanyId[] = ["D"];
 
 export const DIRECTORY = [
+  // WAITING DATABASE: DataB root superuser — cannot be deleted/suspended/demoted in the fixture overlay.
+  { email: PROTECTED_SUPERUSER_EMAIL, name: "David Dabic", role: "superuser" as const, by: "DataB" },
   { email: "alex.morgan@datab.example", name: "Alex Morgan", role: "admin" as const, by: "DataB" },
   { email: "morgan.lee@datab.example", name: "Morgan Lee", role: "manager" as const, by: "DataB" },
   { email: "taylor.kim@datab.example", name: "Taylor Kim", role: "operator" as const, by: "morgan.lee@datab.example" },
@@ -58,26 +63,36 @@ export const DIRECTORY = [
 
 bindDirectorySeed(DIRECTORY);
 
+const USER_GRANTS = ["overview", "worklists.read", "orders.create"];
+const OPERATOR_GRANTS = ["overview", "jobs.read", "jobs.update", "worklists.read", "worklists.write", "validation", "machines.read", "machines.control", "orbit"];
+const MANAGER_GRANTS = ["overview", "jobs.read", "jobs.assign", "jobs.fulfill", "worklists.read", "machines.read", "orbit"];
+const ADMIN_GRANTS = ["overview", "users", "apps.manage", "billing"];
+
 export const ROLES: Record<RoleId, { label: string; blurb: string; grants: string[] }> = {
   user: {
     label: "User",
     blurb: "Reads company data, places orders. No machine access.",
-    grants: ["overview", "worklists.read", "orders.create"],
+    grants: USER_GRANTS,
   },
   operator: {
     label: "Operator",
     blurb: "Runs assigned production jobs.",
-    grants: ["overview", "jobs.read", "jobs.update", "worklists.read", "worklists.write", "validation", "machines.read", "machines.control", "orbit"],
+    grants: OPERATOR_GRANTS,
   },
   manager: {
     label: "Manager",
     blurb: "Assigns work and manages fulfillment.",
-    grants: ["overview", "jobs.read", "jobs.assign", "jobs.fulfill", "worklists.read", "machines.read", "orbit"],
+    grants: MANAGER_GRANTS,
   },
   admin: {
     label: "Admin",
     blurb: "Administration access.",
-    grants: ["overview", "users", "apps.manage", "billing"],
+    grants: ADMIN_GRANTS,
+  },
+  superuser: {
+    label: "Superuser",
+    blurb: "DataB root access — all role powers; can promote other DataB superusers.",
+    grants: [...new Set([...USER_GRANTS, ...OPERATOR_GRANTS, ...MANAGER_GRANTS, ...ADMIN_GRANTS])],
   },
 };
 
@@ -187,13 +202,40 @@ export function clearSession() {
   try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
 }
 
-export function can(session: Session | null, permission: string) {
-  return !!session && ROLES[session.role].grants.includes(permission);
+/** WAITING DATABASE: role claim — replace with authz from the profile API. */
+export function isSuperuser(session: Session | null) {
+  return Boolean(session && session.role === "superuser");
 }
 
-/** DataB admins manage the whole platform; other admins are scoped to their company. */
+/** WAITING DATABASE: immutable root superuser email — protect in the profiles API. */
+export function isProtectedSuperuser(email: string | null | undefined) {
+  return String(email || "").trim().toLowerCase() === PROTECTED_SUPERUSER_EMAIL;
+}
+
+/** WAITING DATABASE: admin-console gate — company admin or DataB superuser. */
+export function isAdminLike(session: Session | null) {
+  return Boolean(session && (session.role === "admin" || session.role === "superuser"));
+}
+
+/** WAITING DATABASE: design-chat gate — user or superuser until the profile API owns grants. */
+export function isDesignChatRole(session: Session | null) {
+  return Boolean(session && (session.role === "user" || session.role === "superuser"));
+}
+
+export function can(session: Session | null, permission: string) {
+  if (!session) return false;
+  // WAITING DATABASE: superuser grant-all — replace with server-side authz.
+  if (session.role === "superuser") return true;
+  return ROLES[session.role].grants.includes(permission);
+}
+
+/** WAITING DATABASE: platform scope — DataB admins and superusers. */
 export function isPlatformAdmin(session: Session | null) {
-  return Boolean(session && session.role === "admin" && session.company === "D");
+  return Boolean(
+    session
+    && session.company === "D"
+    && (session.role === "admin" || session.role === "superuser"),
+  );
 }
 
 export function hasApp(session: Session | null, app: AppId) {
