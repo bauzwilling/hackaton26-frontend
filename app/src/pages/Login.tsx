@@ -32,13 +32,21 @@ import {
 } from "@/components/ui/select";
 import { useSession } from "../context/session";
 // WAITING DATABASE: dummy directory for sign-in; look is not applied on this page
-import { ROLES, companyIdFromEmail, listCompanies, signIn } from "../lib/auth";
+import {
+  PROTECTED_SUPERUSER_EMAIL,
+  ROLES,
+  companyIdFromEmail,
+  listCompanies,
+  signIn,
+} from "../lib/auth";
 import { getCompaniesSnapshot, subscribeCompanies } from "../lib/companyStore";
 import { getDirectorySnapshot, subscribeDirectory } from "../lib/directoryStore";
 
 const SAMPLE_PASSWORD = "demo";
 const SAMPLE_NONE = "__none__";
 const AUTH_WAIT_MS = 1000;
+/** Default demo journey — Superuser, ready to sign in. */
+const DEFAULT_SAMPLE_EMAIL = PROTECTED_SUPERUSER_EMAIL;
 
 export function LoginPage() {
   const { session, setSession } = useSession();
@@ -47,8 +55,8 @@ export function LoginPage() {
   const reduce = useReducedMotion();
   const fromLogout = Boolean((location.state as { fromLogout?: boolean } | null)?.fromLogout);
   const arrive = fromLogout && !reduce ? LAND_FADE : { duration: 0 };
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEFAULT_SAMPLE_EMAIL);
+  const [password, setPassword] = useState(SAMPLE_PASSWORD);
   const [error, setError] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,12 +71,19 @@ export function LoginPage() {
         .map((c) => ({
           id: c.id,
           name: c.name,
-          people: directory.filter((u) => !u.suspended && companyIdFromEmail(u.email) === c.id),
+          // Superuser last so it sits closest to the sample dropdown trigger.
+          people: directory
+            .filter((u) => !u.suspended && companyIdFromEmail(u.email) === c.id)
+            .sort((a, b) => {
+              if (a.role === "superuser" && b.role !== "superuser") return 1;
+              if (b.role === "superuser" && a.role !== "superuser") return -1;
+              return a.name.localeCompare(b.name);
+            }),
         }))
         .filter((g) => g.people.length > 0),
     [companies, directory],
   );
-  const [sampleEmail, setSampleEmail] = useState(SAMPLE_NONE);
+  const [sampleEmail, setSampleEmail] = useState(DEFAULT_SAMPLE_EMAIL);
   const layout = reduce ? { duration: 0 } : LAYOUT_MOVE;
 
   useEffect(() => () => {
@@ -220,7 +235,7 @@ export function LoginPage() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="login-samples-hint">Preview a company role, then sign in.</p>
+            <p className="login-samples-hint">Superuser is prefilled — pick another sample to try a different role.</p>
           </Surface>
         </motion.div>
       </div>

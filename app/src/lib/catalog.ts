@@ -1,5 +1,6 @@
 /* WAITING DATABASE: catalog fixtures (machines, projects, materials) until product APIs exist. */
 import { bindMachineSeed } from "./machineStore";
+import type { Session } from "./auth";
 
 export const WOODS = [
   { id: "Pine", note: "Solid, oiled", rate: 1, chip: "#d8b184" },
@@ -38,23 +39,79 @@ export const PROJECTS = [
 ];
 
 export const TOUR_CHIP = "Give me a tour";
+export const CAPABILITIES_CHIP = "What can I do here?";
+export const WILDCARD_CHIP = "Will it rain?";
 
-export const CHIPS = [
-  TOUR_CHIP,
-  "Make a boxout 300×2000×1000 — 5×",
-  "Configure a door boxout",
-  "How does plate nesting work?",
+/** Shared manufacturing FAQ starters — every role gets these after role-specific asks. */
+export const COMMON_CHIPS = [
+  "What is plate nesting?",
+  "What is CNC milling?",
   "What can you manufacture?",
-  "What does it cost?",
-  "Where do I order?",
-  "Open Simple Parts",
-  "Open CNC Orbit",
 ];
 
-const ORBIT_CHIP = "Open CNC Orbit";
+/** Designer / user role-specific asks (no app-name wording). */
+export const USER_ROLE_CHIPS = [
+  "Make a boxout 300×2000×1000 — 5×",
+  "I need laser-cut brackets",
+  "Design a plywood shelf",
+];
 
-export function chipsFor(includeOrbit: boolean) {
-  return includeOrbit ? CHIPS : CHIPS.filter((c) => c !== ORBIT_CHIP);
+/** Operator role-specific asks. */
+export const OPERATOR_ROLE_CHIPS = [
+  "How are my assigned jobs looking?",
+  "What's running on the shop floor?",
+];
+
+/** Manager role-specific asks. */
+export const MANAGER_ROLE_CHIPS = [
+  "What's the job status?",
+  "Who's free on the floor?",
+];
+
+/** Admin role-specific asks. */
+export const ADMIN_ROLE_CHIPS = [
+  "Who can sign in here?",
+  "Which machines are in the fleet?",
+];
+
+function withLandingRecipe(roleChips: readonly string[]) {
+  return [TOUR_CHIP, ...roleChips, ...COMMON_CHIPS, WILDCARD_CHIP];
+}
+
+export const USER_CHIPS = withLandingRecipe(USER_ROLE_CHIPS);
+export const OPERATOR_CHIPS = withLandingRecipe(OPERATOR_ROLE_CHIPS);
+export const MANAGER_CHIPS = withLandingRecipe(MANAGER_ROLE_CHIPS);
+export const ADMIN_CHIPS = withLandingRecipe(ADMIN_ROLE_CHIPS);
+
+/**
+ * Landing / ask-menu suggestion chips for the signed-in role.
+ * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
+ * these lists are the heuristic stand-in until then.
+ */
+function uniqueChips(chips: readonly string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const chip of chips) {
+    if (seen.has(chip)) continue;
+    seen.add(chip);
+    out.push(chip);
+  }
+  return out;
+}
+
+export function chipsFor(session: Session | null): string[] {
+  if (session?.role === "superuser") {
+    return withLandingRecipe(uniqueChips([
+      ...USER_ROLE_CHIPS,
+      ...OPERATOR_ROLE_CHIPS,
+      ...MANAGER_ROLE_CHIPS,
+      ...ADMIN_ROLE_CHIPS,
+    ]));
+  }
+  if (session?.role === "operator") return OPERATOR_CHIPS;
+  if (session?.role === "manager") return MANAGER_CHIPS;
+  if (session?.role === "admin") return ADMIN_CHIPS;
+  return USER_CHIPS;
 }
 
 export const PLYWORKS_INTRO =

@@ -3,7 +3,10 @@ import {
   ROLES,
   companyIdFromEmail,
   getCompany,
+  isAdminLike,
   isPlatformAdmin,
+  isProtectedSuperuser,
+  isSuperuser,
   listCompanies,
   type CompanyId,
   type RoleId,
@@ -25,13 +28,19 @@ import {
 } from "../lib/directoryStore";
 import { useSession } from "../context/session";
 
-const ROLE_OPTIONS: RoleId[] = ["user", "operator", "manager", "admin"];
+const BASE_ROLE_OPTIONS: RoleId[] = ["user", "operator", "manager", "admin"];
+
+function roleOptionsFor(actorIsSuperuser: boolean, companyId: CompanyId | null): RoleId[] {
+  if (actorIsSuperuser && companyId === "D") return [...BASE_ROLE_OPTIONS, "superuser"];
+  return BASE_ROLE_OPTIONS;
+}
 
 export function ProfileManagerPage() {
   const { session } = useSession();
   const users = useSyncExternalStore(subscribeDirectory, getDirectorySnapshot, getDirectorySnapshot);
   const allCompanies = useSyncExternalStore(subscribeCompanies, getCompaniesSnapshot, listCompanies);
   const platformAdmin = isPlatformAdmin(session);
+  const actorIsSuperuser = isSuperuser(session);
   const homeCompanyId = session?.company ?? "D";
 
   const visibleCompanies = useMemo(
@@ -62,11 +71,12 @@ export function ProfileManagerPage() {
     }));
   }, [visibleCompanies, users]);
 
-  if (!session || session.role !== "admin") {
-    return <div className="jobs-empty">Profile Manager is available to admins.</div>;
+  if (!session || !isAdminLike(session)) {
+    return <div className="jobs-empty">Profile Manager is available to admins and superusers.</div>;
   }
 
   const actorEmail = session.email;
+  const createRoleOptions = roleOptionsFor(actorIsSuperuser, platformAdmin ? companyId : homeCompanyId);
 
   function run(action: () => void) {
     try {
@@ -111,7 +121,7 @@ export function ProfileManagerPage() {
 
   return (
     <section className="jobs-page admin-page">
-      <header className="jobs-head">
+      <header className="jobs-head" data-help="profiles-head">
         <div>
           <p className="jobs-kicker">Administration</p>
           <h1>Profile Manager</h1>
@@ -192,7 +202,14 @@ export function ProfileManagerPage() {
           {platformAdmin ? (
             <label>
               <span>Company</span>
-              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <select
+                value={companyId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setCompanyId(next);
+                  if (next !== "D" && role === "superuser") setRole("user");
+                }}
+              >
                 {visibleCompanies.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -207,7 +224,7 @@ export function ProfileManagerPage() {
           <label>
             <span>Role</span>
             <select value={role} onChange={(e) => setRole(e.target.value as RoleId)}>
-              {ROLE_OPTIONS.map((id) => (
+              {createRoleOptions.map((id) => (
                 <option key={id} value={id}>{ROLES[id].label}</option>
               ))}
             </select>
@@ -229,6 +246,7 @@ export function ProfileManagerPage() {
             company={company}
             people={people}
             actorEmail={session.email}
+            actorIsSuperuser={actorIsSuperuser}
             platformAdmin={platformAdmin}
             onRun={run}
           />
@@ -243,12 +261,14 @@ function CompanyGroup({
   company,
   people,
   actorEmail,
+  actorIsSuperuser,
   platformAdmin,
   onRun,
 }: {
   company: CompanyRecord;
   people: DirectoryUser[];
   actorEmail: string;
+  actorIsSuperuser: boolean;
   platformAdmin: boolean;
   onRun: (action: () => void) => boolean;
 }) {
@@ -307,6 +327,7 @@ function CompanyGroup({
                 key={user.email}
                 user={user}
                 actorEmail={actorEmail}
+                actorIsSuperuser={actorIsSuperuser}
                 onRun={onRun}
               />
             ))}
@@ -320,28 +341,37 @@ function CompanyGroup({
 function ProfileRow({
   user,
   actorEmail,
+  actorIsSuperuser,
   onRun,
 }: {
   user: DirectoryUser;
   actorEmail: string;
+  actorIsSuperuser: boolean;
   onRun: (action: () => void) => boolean;
 }) {
   const self = user.email === actorEmail;
+  const protectedRoot = isProtectedSuperuser(user.email);
   const suspended = Boolean(user.suspended);
   const companyId = companyIdFromEmail(user.email);
+  const options = roleOptionsFor(actorIsSuperuser, companyId);
+  // Keep current role visible even if the actor cannot assign it (e.g. admin viewing a superuser).
+  const roleChoices = options.includes(user.role) ? options : [...options, user.role];
 
   return (
     <tr className={suspended ? "is-suspended" : undefined}>
-      <td><strong>{user.name}</strong></td>
+      <td>
+        <strong>{user.name}</strong>
+        {protectedRoot && <small> Root superuser — locked</small>}
+      </td>
       <td><small>{user.email}</small></td>
       <td>
         <select
           value={user.role}
-          disabled={self}
+          disabled={self || protectedRoot}
           aria-label={`Role for ${user.name}`}
           onChange={(e) => onRun(() => updateUser(user.email, { role: e.target.value as RoleId }, actorEmail))}
         >
-          {ROLE_OPTIONS.map((id) => (
+          {roleChoices.map((id) => (
             <option key={id} value={id}>{ROLES[id].label}</option>
           ))}
         </select>
@@ -356,7 +386,8 @@ function ProfileRow({
           <button
             type="button"
             className={suspended ? "admin-action-activate" : undefined}
-            disabled={self}
+            disabled={self || protectedRoot}
+            title={protectedRoot ? "David Dabic cannot be suspended" : undefined}
             onClick={() => onRun(() => {
               updateUser(user.email, { suspended: !suspended }, actorEmail);
               if (suspended && companyId) setCompanySuspended(companyId, false, { cascade: false });
@@ -367,8 +398,16 @@ function ProfileRow({
           <button
             type="button"
             className="admin-action-remove"
-            disabled={self || !suspended}
-            title={self ? undefined : suspended ? undefined : "Suspend to remove"}
+            disabled={self || protectedRoot || !suspended}
+            title={
+              protectedRoot
+                ? "David Dabic cannot be removed"
+                : self
+                  ? undefined
+                  : suspended
+                    ? undefined
+                    : "Suspend to remove"
+            }
             onClick={() => onRun(() => removeUser(user.email, actorEmail))}
           >
             Remove
