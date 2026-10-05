@@ -960,6 +960,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const forwardChat = live && !chatLocked && appId && chatCapable(appId) && !inspectGet && !ops?.length;
 
         if (status === "app" && appId && live && !skipOpen && !forwardChat) {
+          // Leave any maximized window so Concierge get/open can zoom the target into view.
+          dismissMaximize(true);
           const opened = openApp(appId, { parentId: conciergeId, query: q, design, skipActivity: true });
           if (opened) {
             appTarget = opened.id;
@@ -975,6 +977,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         } else if (!forwardChat) {
           const focusIds = targetIds.filter((id) => id !== conciergeId);
           if (live && focusIds.length && (inspectGet || inspectSet || status === "app")) {
+            dismissMaximize(true);
             focusTargets(focusIds);
           }
         }
@@ -1135,7 +1138,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         });
       }
     })();
-  }, [openApp, openZoomThenForward, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
+  }, [dismissMaximize, openApp, openZoomThenForward, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
 
   const ask = useCallback((raw: string) => {
     if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
