@@ -8,19 +8,25 @@ export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | 
 export type WorkspaceApp = "boxouts" | "simpleparts" | "simpleparts-nesting" | "plyworks" | "plyworks-jw" | "plyworks-nesting" | "projects" | "orbit" | "admin" | "profiles" | "machines-admin" | "jobs";
 
 /** Windows each role may open. Concierge available/restricted follow this via openable(). */
+const USER_APPS = [
+  "boxouts",
+  "simpleparts",
+  "simpleparts-nesting",
+  "plyworks",
+  "plyworks-jw",
+  "plyworks-nesting",
+  "projects",
+] as const satisfies readonly WorkspaceApp[];
+
+const STAFF_APPS = ["jobs", "orbit"] as const satisfies readonly WorkspaceApp[];
+const ADMIN_APPS = ["profiles", "machines-admin"] as const satisfies readonly WorkspaceApp[];
+
 const ROLE_APPS: Record<RoleId, ReadonlySet<WorkspaceApp>> = {
-  user: new Set([
-    "boxouts",
-    "simpleparts",
-    "simpleparts-nesting",
-    "plyworks",
-    "plyworks-jw",
-    "plyworks-nesting",
-    "projects",
-  ]),
-  operator: new Set(["jobs", "orbit"]),
-  manager: new Set(["jobs", "orbit"]),
-  admin: new Set(["profiles", "machines-admin"]),
+  user: new Set(USER_APPS),
+  operator: new Set(STAFF_APPS),
+  manager: new Set(STAFF_APPS),
+  admin: new Set(ADMIN_APPS),
+  superuser: new Set([...USER_APPS, ...STAFF_APPS, ...ADMIN_APPS]),
 };
 
 export function roleAllowsApp(session: Session | null, app: WorkspaceApp) {

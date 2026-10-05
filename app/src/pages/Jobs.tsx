@@ -1,5 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import type { Session } from "../lib/auth";
+import { can, type Session } from "../lib/auth";
 import {
   JOB_STATUS_LABELS,
   assignJob,
@@ -30,17 +30,19 @@ export function JobsPage() {
   const { inspectJob } = useWorkspace();
   const allJobs = useSyncExternalStore(subscribeJobs, getJobsSnapshot, getJobsSnapshot);
   const MACHINES = useSyncExternalStore(subscribeJobMachines, getJobMachinesSnapshot, getJobMachinesSnapshot);
+  const canAssign = can(session, "jobs.assign");
+  const canOperate = can(session, "jobs.update");
   const storedMachine = useMemo(() => getOperatorMachine(session), [session]);
   const [machineOverride, setMachineOverride] = useState<{
     email: string;
     machineId: MachineId | null;
   } | null>(null);
-  const selectedMachine = session?.role === "operator"
-    ? (machineOverride?.email === session.email ? machineOverride.machineId : storedMachine)
+  const selectedMachine = canOperate
+    ? (machineOverride?.email === session?.email ? machineOverride.machineId : storedMachine)
     : null;
   const jobs = useMemo(
-    () => jobsFor(session, allJobs, selectedMachine),
-    [session, allJobs, selectedMachine],
+    () => jobsFor(session, allJobs, canAssign ? null : selectedMachine),
+    [session, allJobs, selectedMachine, canAssign],
   );
   const [choice, setChoice] = useState<Record<string, MachineId | "">>({});
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function JobsPage() {
     }
   }
 
-  if (!session || (session.role !== "manager" && session.role !== "operator")) {
+  if (!session || (!canAssign && !canOperate && !can(session, "jobs.read"))) {
     return <div className="jobs-empty">Jobs are available to managers and operators.</div>;
   }
 
@@ -69,7 +71,7 @@ export function JobsPage() {
           <p className="jobs-kicker">Production</p>
           <h1>Jobs</h1>
         </div>
-        {session.role === "operator" ? (
+        {canOperate ? (
           <label className="operator-machine-picker">
             <span>Operating machine</span>
             <select
@@ -96,11 +98,11 @@ export function JobsPage() {
         )}
       </header>
       {error && <p className="jobs-error" role="alert">{error}</p>}
-      {session.role === "operator" && !selectedMachine ? (
+      {canOperate && !canAssign && !selectedMachine ? (
         <div className="jobs-empty">Select an available machine to see its job queue.</div>
       ) : !jobs.length ? (
         <div className="jobs-empty">
-          {session.role === "manager"
+          {canAssign
             ? "No orders have been placed yet."
             : `No jobs are assigned to ${machineFor(selectedMachine)?.name ?? "this machine"}.`}
         </div>
@@ -126,6 +128,8 @@ export function JobsPage() {
                   session={session}
                   machines={MACHINES}
                   selectedMachine={selectedMachine}
+                  canAssign={canAssign}
+                  canOperate={canOperate}
                   machineChoice={choice[job.id] ?? ""}
                   onMachineChoice={(machineId) => setChoice((current) => ({ ...current, [job.id]: machineId }))}
                   feedbackOpen={feedbackFor === job.id}
@@ -156,6 +160,8 @@ function JobRow({
   session,
   machines,
   selectedMachine,
+  canAssign,
+  canOperate,
   machineChoice,
   onMachineChoice,
   feedbackOpen,
@@ -170,6 +176,8 @@ function JobRow({
   session: Session;
   machines: { id: MachineId; name: string; available: boolean }[];
   selectedMachine: MachineId | null;
+  canAssign: boolean;
+  canOperate: boolean;
   machineChoice: MachineId | "";
   onMachineChoice: (machineId: MachineId | "") => void;
   feedbackOpen: boolean;
@@ -192,7 +200,7 @@ function JobRow({
       <td>{job.submittedByName}</td>
       <td><span className={`job-status is-${job.status}`}>{JOB_STATUS_LABELS[job.status]}</span></td>
       <td>
-        {session.role === "manager" && job.status === "unassigned" ? (
+        {canAssign && job.status === "unassigned" ? (
           <div className="job-assign">
             <select
               value={machineChoice}
@@ -222,7 +230,7 @@ function JobRow({
         )}
       </td>
       <td>
-        {session.role === "operator" ? (
+        {canOperate ? (
           feedbackOpen ? (
             <div className="job-feedback-form">
               <textarea
@@ -269,22 +277,22 @@ function JobRow({
       <td>
         <div className="job-actions">
           <button type="button" onClick={onInspect}>Inspect</button>
-          {session.role === "operator" && selectedMachine && job.status === "assigned" && (
+          {canOperate && selectedMachine && job.status === "assigned" && (
             <>
               <button type="button" onClick={() => onRun(() => updateJobProgress(session, job.id, selectedMachine, "queued"))}>Add to queue</button>
               <button type="button" onClick={() => onRun(() => updateJobProgress(session, job.id, selectedMachine, "in_progress"))}>Start</button>
             </>
           )}
-          {session.role === "operator" && selectedMachine && job.status === "queued" && (
+          {canOperate && selectedMachine && job.status === "queued" && (
             <button type="button" onClick={() => onRun(() => updateJobProgress(session, job.id, selectedMachine, "in_progress"))}>Start</button>
           )}
-          {session.role === "operator" && selectedMachine && job.status === "in_progress" && (
+          {canOperate && selectedMachine && job.status === "in_progress" && (
             <button type="button" onClick={() => onRun(() => updateJobProgress(session, job.id, selectedMachine, "completed"))}>Mark completed</button>
           )}
-          {session.role === "manager" && job.status === "completed" && (
+          {canAssign && job.status === "completed" && (
             <button type="button" onClick={() => onRun(() => updateJobFulfillment(session, job.id, "shipped"))}>Mark shipped</button>
           )}
-          {session.role === "manager" && job.status === "shipped" && (
+          {canAssign && job.status === "shipped" && (
             <button type="button" onClick={() => onRun(() => updateJobFulfillment(session, job.id, "received"))}>Mark received</button>
           )}
         </div>

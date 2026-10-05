@@ -92,6 +92,7 @@ import {
   uid,
   unrailConcierge,
 } from "../workspace/commands";
+import { isDesignChatRole } from "../lib/auth";
 import { useSession } from "./session";
 
 export type { SystemEdge, UserEdge, ViewportSnapshot };
@@ -865,7 +866,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       /** Applies a reply plus its routing decision, whoever made that decision. */
       const settle = (result: ConciergeResult) => {
         // WAITING MODEL: non-user Concierge cannot forward into app chat or apply plyworks ops yet
-        const chatLocked = session?.role !== "user";
+        const chatLocked = !isDesignChatRole(session);
         const confirm = (result.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         let appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
@@ -1091,7 +1092,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const confirmApps = (local.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         // WAITING MODEL: soft-reject design / furniture fallbacks for non-user when the API is down
-        const staffOffline = session?.role !== "user";
+        const staffOffline = !isDesignChatRole(session);
         const designFallback = Boolean(
           staffOffline
           && (
@@ -1132,7 +1133,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                 ? denyCopy(session, named).body
                 : choices
                   ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
-                  : session?.role === "user"
+                  : isDesignChatRole(session)
                     ? `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`
                     : `I can open ${apps.map(appLabel).join(", ")}. Name one to open it.`,
         });
@@ -1317,7 +1318,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [ensureConcierge]);
 
   const placeOrder = useCallback((sourceApp: string, appSnapshot?: FrozenAppSnapshot) => {
-    if (!session || session.role !== "user") return null;
+    if (!session || !isDesignChatRole(session)) return null;
     const active = sessionsRef.current.find((item) => item.id === activeIdRef.current);
     if (!active || active.orderedJobId) return null;
     const apps: FrozenAppSnapshot[] = [];
