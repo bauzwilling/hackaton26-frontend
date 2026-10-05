@@ -69,6 +69,13 @@ export const MANAGER_CHIPS = [
   "Assign production jobs",
 ];
 
+/** Admin landing starters. */
+export const ADMIN_CHIPS = [
+  CAPABILITIES_CHIP,
+  "Open Profile Manager",
+  "Open Machine Inventory",
+];
+
 /**
  * Landing / ask-menu suggestion chips for the signed-in role.
  * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
@@ -77,9 +84,8 @@ export const MANAGER_CHIPS = [
 export function chipsFor(session: Session | null): string[] {
   if (session?.role === "operator") return OPERATOR_CHIPS;
   if (session?.role === "manager") return MANAGER_CHIPS;
-  if (!session || session.role === "user") return USER_CHIPS;
-  // Admin role set lands in a follow-up commit; capabilities is the safe starter.
-  return [CAPABILITIES_CHIP];
+  if (session?.role === "admin") return ADMIN_CHIPS;
+  return USER_CHIPS;
 }
 
 export const PLYWORKS_INTRO =
