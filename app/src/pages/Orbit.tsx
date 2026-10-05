@@ -30,7 +30,7 @@ export function OrbitPage() {
   const selected = machines.find((m) => m.slug === selectedSlug) ?? null;
 
   return (
-    <section className="orbit-page jobs-page">
+    <section className="orbit-page jobs-page" data-help="orbit-page">
       <header className="jobs-head">
         <div>
           <p className="jobs-kicker">Operations</p>

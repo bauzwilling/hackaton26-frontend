@@ -27,9 +27,14 @@ import {
   HELP_ZOOM_MAX,
   matchHelpIntent,
   matchHelpOfferChoice,
+  matchTourRoleChoice,
   queryHelpAnchor,
   setHelpAskHandler,
+  staffTourAsk,
+  SUPERUSER_TOUR_REPLY,
+  SUPERUSER_TOUR_ROLES,
   tourFor,
+  tourTopicForRole,
   TOUR_DESIGN_ASK,
   TOUR_STUB_REPLY,
   TOUR_TABLE_ASK,
@@ -39,6 +44,7 @@ import {
   type HelpPrepare,
   type HelpStep,
   type HelpTopicId,
+  type LiveTourRole,
 } from "../lib/help";
 
 export type HelpCtx = {
@@ -52,7 +58,7 @@ export type HelpCtx = {
   pending: boolean;
   tourBooting: boolean;
   startHelp: () => void;
-  startUserTour: () => void;
+  startRoleTour: (topic?: LiveTourRole) => void;
   offerHelp: (query?: string) => void;
   pickOffer: (id: HelpOfferId) => void;
   pickTopic: (topic: HelpTopicId) => void;
@@ -182,6 +188,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   /** Design-something ask is sent once per tour run. */
   const designAskSentRef = useRef(false);
   const tableAskSentRef = useRef(false);
+  const staffAskSentRef = useRef(new Set<string>());
 
   const steps = topic ? tourFor(topic) : [];
   const step = phase === "touring" || (phase === "iframe" && !iframeReady)
@@ -222,6 +229,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     userTourRef.current = false;
     designAskSentRef.current = false;
     tableAskSentRef.current = false;
+    staffAskSentRef.current = new Set();
     clearNetworkTourOpen();
     setPhase("idle");
     setTopic(null);
@@ -427,6 +435,59 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       await delay(200);
       return;
     }
+    if (prepare === "dock-concierge") {
+      closeChromeMenus();
+      setOverviewOpen(false);
+      if (atLandingRef.current) {
+        await new Promise<void>((resolve) => {
+          departLanding(() => resolve());
+        });
+      }
+      zoomConcierge();
+      await delay(200);
+      return;
+    }
+    const staffAsk = staffTourAsk(topicRef.current, prepare);
+    if (staffAsk) {
+      closeChromeMenus();
+      setOverviewOpen(false);
+      const existing = nodesRef.current.find((n) => n.kind === "app" && n.appId === staffAsk.app && !n.hidden);
+      if (existing && staffAskSentRef.current.has(staffAsk.query)) {
+        setAppNodeId(existing.id);
+        focusTargets([existing.id], studioViewport());
+        return;
+      }
+      const sendChip = () => {
+        tourDriveAskRef.current = true;
+        try {
+          // WAITING MODEL: canned role chip; Concierge get/open should open this app
+          ask(staffAsk.query);
+          staffAskSentRef.current.add(staffAsk.query);
+        } finally {
+          tourDriveAskRef.current = false;
+        }
+      };
+      if (atLandingRef.current) {
+        await new Promise<void>((resolve) => {
+          departLanding(() => {
+            sendChip();
+            resolve();
+          });
+        });
+      } else {
+        sendChip();
+      }
+      await waitUntil(() => {
+        const node = nodesRef.current.find((n) => n.kind === "app" && n.appId === staffAsk.app && !n.hidden);
+        if (!node) return false;
+        setAppNodeId(node.id);
+        return true;
+      }, 60000);
+      const node = nodesRef.current.find((n) => n.kind === "app" && n.appId === staffAsk.app && !n.hidden);
+      if (node) focusTargets([node.id], studioViewport());
+      await delay(400);
+      return;
+    }
     if (prepare === "open-boxouts") findOrOpenApp("boxouts");
     if (prepare === "open-simpleparts") findOrOpenApp("simpleparts");
     if (prepare === "open-plyworks") findOrOpenApp("plyworks");
@@ -487,8 +548,27 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     paintOffer(query);
   }, [createSession, departLanding, minimizeOnScreen, paintOffer]);
 
-  const startUserTour = useCallback(() => {
-    if (session?.role !== "user") {
+  const offerTourRoles = useCallback((query = HELP_OFFER_LABEL.tour) => {
+    const paint = () => {
+      appendConciergeTurn(query, SUPERUSER_TOUR_REPLY, { helpTourRoles: [...SUPERUSER_TOUR_ROLES] });
+      phaseRef.current = "choosing-tour";
+      setPhase("choosing-tour");
+      setTopic(null);
+    };
+    if (atLandingRef.current) {
+      departLanding(() => paint());
+      return;
+    }
+    paint();
+  }, [appendConciergeTurn, departLanding]);
+
+  const startRoleTour = useCallback((topic?: LiveTourRole) => {
+    const topicId = topic ?? tourTopicForRole(session?.role);
+    if (!topicId) {
+      if (session?.role === "superuser") {
+        offerTourRoles();
+        return;
+      }
       appendConciergeTurn(HELP_OFFER_LABEL.tour, TOUR_STUB_REPLY);
       setPhase("idle");
       return;
@@ -502,6 +582,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     userTourRef.current = true;
     designAskSentRef.current = false;
     tableAskSentRef.current = false;
+    staffAskSentRef.current = new Set();
     clearNetworkTourOpen();
     closeChromeMenus();
     setOverviewOpen(false);
@@ -512,12 +593,12 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       if (!userTourRef.current) return;
       setTourBooting(false);
       setHistoryCollapsed(true);
-      setTopic("user");
+      setTopic(topicId);
       setStepIndex(0);
       setAppNodeId(null);
       setIframeReady(false);
       setPhase("touring");
-      void runStepPrepare(tourFor("user"), 0);
+      void runStepPrepare(tourFor(topicId), 0);
     };
 
     // From Help chat (docked): close the thread, collapse the rail, return to hero, then start.
@@ -544,6 +625,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     appendConciergeTurn,
     captureTourSnapshot,
     dismissMaximize,
+    offerTourRoles,
     returnToLanding,
     runStepPrepare,
     session?.role,
@@ -553,8 +635,12 @@ export function HelpProvider({ children }: { children: ReactNode }) {
 
   const pickOffer = useCallback((id: HelpOfferId) => {
     if (id === "tour") {
-      if (session?.role === "user") {
-        startUserTour();
+      if (session?.role === "superuser") {
+        offerTourRoles();
+        return;
+      }
+      if (tourTopicForRole(session?.role)) {
+        startRoleTour();
         return;
       }
       phaseRef.current = "idle";
@@ -567,7 +653,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setPhase("idle");
     setTopic(null);
     ask(HELP_OFFER_LABEL.capabilities);
-  }, [appendConciergeTurn, ask, session?.role, startUserTour]);
+  }, [appendConciergeTurn, ask, offerTourRoles, session?.role, startRoleTour]);
 
   const pickTopic = useCallback((nextTopic: HelpTopicId) => {
     const catalog = tourFor(nextTopic);
@@ -617,7 +703,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setStepIndex(upcoming);
     // Chrome prepares only — do not rewind live Concierge side effects.
     const prep = catalog[upcoming]?.prepare;
-    if (prep === "account-open" || prep === "look-open" || prep === "chrome-close" || prep === "network-open" || prep === "ensure-hero" || prep === "expand-history" || prep === "overview-open" || prep === "ask-design-something") {
+    if (prep === "account-open" || prep === "look-open" || prep === "chrome-close" || prep === "network-open" || prep === "ensure-hero" || prep === "expand-history" || prep === "overview-open" || prep === "ask-design-something" || prep === "dock-concierge") {
       void runStepPrepare(catalog, upcoming);
     } else {
       closeChromeMenus();
@@ -636,6 +722,16 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setHelpAskHandler((query) => {
       const current = phaseRef.current;
+      if (current === "choosing-tour") {
+        const role = matchTourRoleChoice(query);
+        if (role) {
+          startRoleTour(role);
+          return true;
+        }
+        phaseRef.current = "idle";
+        setPhase("idle");
+        return false;
+      }
       if (current === "offering") {
         const choice = matchHelpOfferChoice(query);
         if (choice) {
@@ -657,10 +753,10 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       return true;
     });
     return () => setHelpAskHandler(null);
-  }, [offerHelp, pickOffer]);
+  }, [offerHelp, pickOffer, startRoleTour]);
 
   useEffect(() => {
-    if (phase !== "offering" && phase !== "touring" && phase !== "iframe") return;
+    if (phase !== "offering" && phase !== "choosing-tour" && phase !== "touring" && phase !== "iframe") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const t = e.target as HTMLElement;
@@ -683,7 +779,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     pending,
     tourBooting,
     startHelp,
-    startUserTour,
+    startRoleTour,
     offerHelp,
     pickOffer,
     pickTopic,
@@ -692,7 +788,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     stop,
     onPlyworksDone,
     onPlyworksReady,
-  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, pending, tourBooting, startHelp, startUserTour, offerHelp, pickOffer, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
+  }), [phase, topic, stepIndex, steps, step, appNodeId, iframeReady, pending, tourBooting, startHelp, startRoleTour, offerHelp, pickOffer, pickTopic, next, back, stop, onPlyworksDone, onPlyworksReady]);
 
   return <HelpContext.Provider value={value}>{children}</HelpContext.Provider>;
 }

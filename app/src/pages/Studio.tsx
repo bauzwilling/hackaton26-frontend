@@ -11,6 +11,7 @@ import { useSession } from "../context/session";
 import { useHelp } from "../context/help";
 import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
+import { canRequestRoleTour } from "../lib/help";
 import { useKeyboardInset } from "../lib/useKeyboardInset";
 import { useMatchMedia, useNarrowLandscape } from "../lib/useMatchMedia";
 
@@ -80,7 +81,7 @@ function ChatFab({
 
 export function StudioPage() {
   const { session } = useSession();
-  const { phase, tourBooting, startUserTour } = useHelp();
+  const { phase, tourBooting, startRoleTour } = useHelp();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const {
@@ -331,7 +332,7 @@ export function StudioPage() {
                     type="button"
                     className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
                     onClick={() => {
-                      if (c === TOUR_CHIP && session?.role === "user") startUserTour();
+                      if (c === TOUR_CHIP && canRequestRoleTour(session?.role)) startRoleTour();
                       else ask(c);
                     }}
                   >

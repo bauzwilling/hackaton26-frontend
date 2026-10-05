@@ -1307,6 +1307,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       choices: extras?.choices,
       helpTopics: extras?.helpTopics,
       helpOffer: extras?.helpOffer,
+      helpTourRoles: extras?.helpTourRoles,
       kind: extras?.kind,
       confirmApps: extras?.confirmApps,
       badgeApp: extras?.badgeApp,

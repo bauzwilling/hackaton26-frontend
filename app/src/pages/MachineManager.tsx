@@ -83,7 +83,7 @@ export function MachineManagerPage() {
 
   return (
     <section className="jobs-page admin-page">
-      <header className="jobs-head">
+      <header className="jobs-head" data-help="machines-admin-head">
         <div>
           <p className="jobs-kicker">Administration</p>
           <h1>Machine Inventory</h1>

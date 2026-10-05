@@ -1,7 +1,7 @@
 import { APP_LABELS, can, getCompany, hasApp, type AppId, type RoleId, type Session } from "../lib/auth";
 import type { AppChatIntake, AppChatPrompt } from "../lib/appChat";
 import type { ConciergeKind, PlyworksDesign } from "../lib/concierge";
-import type { HelpTopicId } from "../lib/help";
+import type { HelpTopicId, LiveTourRole } from "../lib/help";
 import { requestsKey } from "./persist";
 
 export type NodeKind = "log" | "request" | "app" | "menu" | "denied" | "text" | "note" | "archive";
@@ -88,8 +88,10 @@ export type RequestEntry = {
   design?: PlyworksDesign;
   choices?: PlyworksDesign[];
   helpTopics?: HelpTopicId[];
-  /** Fixed Help offer chips — capabilities vs tour (tour currently stubbed). */
+  /** Fixed Help offer chips — capabilities vs live role tour. */
   helpOffer?: Array<"capabilities" | "tour">;
+  /** Superuser: pick a real role tour (user / operator / manager / admin). */
+  helpTourRoles?: LiveTourRole[];
   /** True when this turn created the app window (false on reuse / focus-only). */
   windowOpened?: boolean;
   pending?: boolean;

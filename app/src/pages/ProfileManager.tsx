@@ -121,7 +121,7 @@ export function ProfileManagerPage() {
 
   return (
     <section className="jobs-page admin-page">
-      <header className="jobs-head">
+      <header className="jobs-head" data-help="profiles-head">
         <div>
           <p className="jobs-kicker">Administration</p>
           <h1>Profile Manager</h1>

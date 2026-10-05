@@ -1,10 +1,13 @@
+import { ROLES, type RoleId } from "./auth";
+import { ADMIN_ROLE_CHIPS, MANAGER_ROLE_CHIPS, OPERATOR_ROLE_CHIPS } from "./catalog";
 import type { WorkspaceApp } from "../context/workspace";
 
 export const HELP_MSG = "f2f-help";
 export const HELP_ZOOM_MAX = 2.4;
 
-export type HelpTopicId = "studio" | "boxouts" | "simpleparts" | "plyworks" | "user";
-export type HelpPhase = "idle" | "offering" | "touring" | "iframe";
+export type HelpTopicId = "studio" | "boxouts" | "simpleparts" | "plyworks" | "user" | "operator" | "manager" | "admin";
+export type HelpPhase = "idle" | "offering" | "choosing-tour" | "touring" | "iframe";
+export type LiveTourRole = "user" | "operator" | "manager" | "admin";
 
 export type HelpAnchor =
   | { type: "node"; id: string }
@@ -29,7 +32,12 @@ export type HelpPrepare =
   | "expand-history"
   | "select-table"
   | "focus-plyworks-produce"
-  | "windows-demo";
+  | "windows-demo"
+  | "dock-concierge"
+  | "open-jobs"
+  | "open-orbit"
+  | "open-profiles"
+  | "open-machines-admin";
 
 export type HelpStep = {
   id: string;
@@ -51,7 +59,44 @@ export const HELP_TOPIC_LABEL: Record<HelpTopicId, string> = {
   simpleparts: "Simple Parts",
   plyworks: "Plyworks",
   user: "Studio tour",
+  operator: "Operator tour",
+  manager: "Manager tour",
+  admin: "Admin tour",
 };
+
+export function isLiveTourRole(role: RoleId | null | undefined): role is LiveTourRole {
+  return role === "user" || role === "operator" || role === "manager" || role === "admin";
+}
+
+export function canRequestRoleTour(role: RoleId | null | undefined) {
+  return isLiveTourRole(role) || role === "superuser";
+}
+
+export function tourTopicForRole(role: RoleId | null | undefined): HelpTopicId | null {
+  return isLiveTourRole(role) ? role : null;
+}
+
+/**
+ * Role-chip → window for staff tours (same path as the user tour sending "table" into Plyworks).
+ * WAITING MODEL: Concierge should open the matching app from the ask; these chips are the stand-in.
+ */
+export function staffTourAsk(topic: HelpTopicId | null, prepare: HelpPrepare): { query: string; app: WorkspaceApp } | null {
+  if (prepare === "open-jobs") {
+    if (topic === "operator") return { query: OPERATOR_ROLE_CHIPS[0], app: "jobs" };
+    if (topic === "manager") return { query: MANAGER_ROLE_CHIPS[0], app: "jobs" };
+  }
+  if (prepare === "open-orbit") {
+    if (topic === "operator") return { query: OPERATOR_ROLE_CHIPS[1], app: "orbit" };
+    if (topic === "manager") return { query: MANAGER_ROLE_CHIPS[1], app: "orbit" };
+  }
+  if (prepare === "open-profiles" && topic === "admin") {
+    return { query: ADMIN_ROLE_CHIPS[0], app: "profiles" };
+  }
+  if (prepare === "open-machines-admin" && topic === "admin") {
+    return { query: ADMIN_ROLE_CHIPS[1], app: "machines-admin" };
+  }
+  return null;
+}
 
 export const TOUR_DESIGN_ASK = "I want to design something";
 export const TOUR_TABLE_ASK = "table";
@@ -67,6 +112,27 @@ export const HELP_OFFER_LABEL: Record<HelpOfferId, string> = {
   tour: "Give me a tour",
 };
 export const TOUR_STUB_REPLY = "Tour is under development at the moment";
+
+/** Real roles a superuser can preview — Superuser itself is not a tour. */
+export const SUPERUSER_TOUR_ROLES: LiveTourRole[] = ["user", "operator", "manager", "admin"];
+export const SUPERUSER_TOUR_REPLY =
+  "Superuser is not a separate tour. Pick a role to walk through that journey.";
+export const SUPERUSER_TOUR_ROLE_LABEL: Record<LiveTourRole, string> = {
+  user: ROLES.user.label,
+  operator: ROLES.operator.label,
+  manager: ROLES.manager.label,
+  admin: ROLES.admin.label,
+};
+
+export function matchTourRoleChoice(query: string): LiveTourRole | null {
+  const lower = query.trim().toLowerCase();
+  if (!lower) return null;
+  if (/^(user|studio)( tour)?[!?.]?$/.test(lower)) return "user";
+  if (/^operator( tour)?[!?.]?$/.test(lower)) return "operator";
+  if (/^manager( tour)?[!?.]?$/.test(lower)) return "manager";
+  if (/^admin( tour)?[!?.]?$/.test(lower)) return "admin";
+  return null;
+}
 
 const OFFER_EXACT = /^(help|tour|help me|i need help|help please)[!?.]?$/i;
 const OFFER_PHRASE = /give me a tour|show me (a |the )?tour|how do i use (this|the studio)|walk me through/;
@@ -234,8 +300,8 @@ export const PLYWORKS_HOST_TOUR: HelpStep[] = [
   },
 ];
 
-/** Live guided tour for the user role — always starts from the hero. */
-export const USER_TOUR: HelpStep[] = [
+/** Shared hero + chrome prefix for every live role tour. */
+export const TOUR_CHROME_PREFIX: HelpStep[] = [
   {
     id: "hero-chat",
     title: "Central chat",
@@ -275,6 +341,30 @@ export const USER_TOUR: HelpStep[] = [
     prepare: "network-open",
     pad: 8,
   },
+];
+
+const TOUR_HISTORY_STEP: HelpStep = {
+  id: "history",
+  title: "Chat history",
+  body: "Open the sidebar to see earlier chats. Each past chat is listed here.",
+  anchor: { type: "help", id: "session-history" },
+  prepare: "expand-history",
+  pad: 8,
+};
+
+const TOUR_WINDOWS_STEP: HelpStep = {
+  id: "windows-canvas",
+  title: "Open canvas",
+  body: "Windows lets you find, hide, and tile apps on the board. Happy manufacturing.",
+  anchor: { type: "help", id: "overview" },
+  prepare: "windows-demo",
+  awaitPrepare: true,
+  pad: 10,
+};
+
+/** Live guided tour for the user role — always starts from the hero. */
+export const USER_TOUR: HelpStep[] = [
+  ...TOUR_CHROME_PREFIX,
   {
     id: "concierge-live",
     title: "Concierge",
@@ -284,14 +374,7 @@ export const USER_TOUR: HelpStep[] = [
     awaitPrepare: true,
     pad: 10,
   },
-  {
-    id: "history",
-    title: "Chat history",
-    body: "Open the sidebar to see earlier chats. Each past chat is listed here.",
-    anchor: { type: "help", id: "session-history" },
-    prepare: "expand-history",
-    pad: 8,
-  },
+  TOUR_HISTORY_STEP,
   {
     id: "table-plyworks",
     title: "Design apps",
@@ -310,19 +393,113 @@ export const USER_TOUR: HelpStep[] = [
     awaitPrepare: true,
     pad: 8,
   },
+  TOUR_WINDOWS_STEP,
+];
+
+export const OPERATOR_TOUR: HelpStep[] = [
+  ...TOUR_CHROME_PREFIX,
   {
-    id: "windows-canvas",
-    title: "Open canvas",
-    body: "Windows lets you find, hide, and tile apps on the board. Happy manufacturing.",
-    anchor: { type: "help", id: "overview" },
-    prepare: "windows-demo",
+    id: "staff-concierge",
+    title: "Concierge",
+    body: "Ask here to open Jobs or Orbit. Concierge cannot assign or update jobs in chat yet — use the highlighted window.",
+    anchor: { type: "help", id: "concierge" },
+    prepare: "dock-concierge",
     awaitPrepare: true,
     pad: 10,
   },
+  TOUR_HISTORY_STEP,
+  {
+    id: "operator-jobs",
+    title: "Jobs",
+    body: "Pick the machine you are operating to see its queue. Update progress and send feedback from the row.",
+    anchor: { type: "selector", selector: "[data-help='jobs-machine-picker'], [data-help='jobs-board']" },
+    prepare: "open-jobs",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  {
+    id: "operator-orbit",
+    title: "Orbit",
+    body: "CNC Orbit is the shop-floor dashboard — fleet status, worklists, and machines for this company.",
+    anchor: { type: "selector", selector: "[data-help='orbit-page']" },
+    prepare: "open-orbit",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  TOUR_WINDOWS_STEP,
+];
+
+export const MANAGER_TOUR: HelpStep[] = [
+  ...TOUR_CHROME_PREFIX,
+  {
+    id: "staff-concierge",
+    title: "Concierge",
+    body: "Ask here to open Jobs or Orbit. Concierge cannot assign or fulfill jobs in chat yet — use the highlighted window.",
+    anchor: { type: "help", id: "concierge" },
+    prepare: "dock-concierge",
+    awaitPrepare: true,
+    pad: 10,
+  },
+  TOUR_HISTORY_STEP,
+  {
+    id: "manager-jobs",
+    title: "Jobs",
+    body: "This is the company job list. Assign machines, then mark shipped and received when production is done.",
+    anchor: { type: "selector", selector: "[data-help='jobs-board']" },
+    prepare: "open-jobs",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  {
+    id: "manager-orbit",
+    title: "Orbit",
+    body: "CNC Orbit is the shop-floor dashboard — who is free, what is online, and worklists for this company.",
+    anchor: { type: "selector", selector: "[data-help='orbit-page']" },
+    prepare: "open-orbit",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  TOUR_WINDOWS_STEP,
+];
+
+export const ADMIN_TOUR: HelpStep[] = [
+  ...TOUR_CHROME_PREFIX,
+  {
+    id: "admin-concierge",
+    title: "Concierge",
+    body: "Ask here to open Profile Manager or Machine Inventory. Concierge cannot apply admin changes in chat yet — use the highlighted window.",
+    anchor: { type: "help", id: "concierge" },
+    prepare: "dock-concierge",
+    awaitPrepare: true,
+    pad: 10,
+  },
+  TOUR_HISTORY_STEP,
+  {
+    id: "admin-profiles",
+    title: "Profile Manager",
+    body: "Add, suspend, or change roles here. New profiles start suspended until you activate them.",
+    anchor: { type: "selector", selector: "[data-help='profiles-head']" },
+    prepare: "open-profiles",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  {
+    id: "admin-machines",
+    title: "Machine Inventory",
+    body: "Add, remove, or enable fleet machines for this company.",
+    anchor: { type: "selector", selector: "[data-help='machines-admin-head']" },
+    prepare: "open-machines-admin",
+    awaitPrepare: true,
+    pad: 8,
+  },
+  TOUR_WINDOWS_STEP,
 ];
 
 export function tourFor(topic: HelpTopicId): HelpStep[] {
   if (topic === "user") return USER_TOUR;
+  if (topic === "operator") return OPERATOR_TOUR;
+  if (topic === "manager") return MANAGER_TOUR;
+  if (topic === "admin") return ADMIN_TOUR;
   if (topic === "boxouts") return BOXOUTS_TOUR;
   if (topic === "simpleparts") return SIMPLEPARTS_TOUR;
   if (topic === "plyworks") return PLYWORKS_HOST_TOUR;

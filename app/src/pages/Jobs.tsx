@@ -65,14 +65,14 @@ export function JobsPage() {
   }
 
   return (
-    <section className="jobs-page">
+    <section className="jobs-page" data-help="jobs-board">
       <header className="jobs-head">
         <div>
           <p className="jobs-kicker">Production</p>
           <h1>Jobs</h1>
         </div>
         {canOperate ? (
-          <label className="operator-machine-picker">
+          <label className="operator-machine-picker" data-help="jobs-machine-picker">
             <span>Operating machine</span>
             <select
               value={selectedMachine ?? ""}

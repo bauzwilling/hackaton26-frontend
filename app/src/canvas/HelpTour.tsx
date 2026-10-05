@@ -44,7 +44,7 @@ function markPanHintSeen() {
 
 /** First-visit canvas tip. Not the Help tour overlay. */
 export function PanHint({ interactive }: { interactive: boolean }) {
-  const { phase, startUserTour } = useHelp();
+  const { phase, startRoleTour } = useHelp();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(() => !panHintSeen());
 
@@ -82,7 +82,7 @@ export function PanHint({ interactive }: { interactive: boolean }) {
           className="help-card-btn"
           onClick={() => {
             dismiss();
-            startUserTour();
+            startRoleTour();
           }}
         >
           Give me a tour
