@@ -48,7 +48,7 @@ const APP_ALIASES: { app: string; patterns: RegExp[] }[] = [
   {
     app: "machines-admin",
     patterns: [
-      /\bmachines?\s+in\s+the\s+fleet\b/i,
+      /\bmachines?\s+(?:are\s+)?in\s+the\s+fleet\b/i,
       /\bmachine\s+fleet\b/i,
       /\bmachine\s*(inventory|manager)\b/i,
     ],
