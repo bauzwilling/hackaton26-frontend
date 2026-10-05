@@ -88,7 +88,26 @@ export const ADMIN_CHIPS = withLandingRecipe(ADMIN_ROLE_CHIPS);
  * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
  * these lists are the heuristic stand-in until then.
  */
+function uniqueChips(chips: readonly string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const chip of chips) {
+    if (seen.has(chip)) continue;
+    seen.add(chip);
+    out.push(chip);
+  }
+  return out;
+}
+
 export function chipsFor(session: Session | null): string[] {
+  if (session?.role === "superuser") {
+    return withLandingRecipe(uniqueChips([
+      ...USER_ROLE_CHIPS,
+      ...OPERATOR_ROLE_CHIPS,
+      ...MANAGER_ROLE_CHIPS,
+      ...ADMIN_ROLE_CHIPS,
+    ]));
+  }
   if (session?.role === "operator") return OPERATOR_CHIPS;
   if (session?.role === "manager") return MANAGER_CHIPS;
   if (session?.role === "admin") return ADMIN_CHIPS;
