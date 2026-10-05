@@ -20,7 +20,7 @@ import {
   type AppChatPrompt,
   type AppIntakeHandler,
 } from "../lib/appChat";
-import { matchLocalRoute } from "../lib/routing";
+import { matchLocalRoute, RAIN_DENY_REPLY } from "../lib/routing";
 import { capabilitiesFor, capabilitiesReply, isCapabilitiesAsk } from "../lib/roleCapabilities";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
@@ -1071,6 +1071,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return;
         }
         const local = matchLocalRoute(q);
+        // WAITING MODEL: offline deny for off-topic wildcard chips (e.g. Will it rain?)
+        if (local.kind === "deny") {
+          settle({
+            kind: "deny",
+            reply: local.reply ?? RAIN_DENY_REPLY,
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
         const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
         const confirmApps = (local.confirmApps ?? [])
