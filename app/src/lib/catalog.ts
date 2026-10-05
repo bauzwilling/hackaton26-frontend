@@ -1,5 +1,6 @@
 /* WAITING DATABASE: catalog fixtures (machines, projects, materials) until product APIs exist. */
 import { bindMachineSeed } from "./machineStore";
+import type { Session } from "./auth";
 
 export const WOODS = [
   { id: "Pine", note: "Solid, oiled", rate: 1, chip: "#d8b184" },
@@ -38,8 +39,10 @@ export const PROJECTS = [
 ];
 
 export const TOUR_CHIP = "Give me a tour";
+export const CAPABILITIES_CHIP = "What can I do here?";
 
-export const CHIPS = [
+/** Designer / user landing starters. */
+export const USER_CHIPS = [
   TOUR_CHIP,
   "Make a boxout 300×2000×1000 — 5×",
   "Configure a door boxout",
@@ -48,13 +51,17 @@ export const CHIPS = [
   "What does it cost?",
   "Where do I order?",
   "Open Simple Parts",
-  "Open CNC Orbit",
 ];
 
-const ORBIT_CHIP = "Open CNC Orbit";
-
-export function chipsFor(includeOrbit: boolean) {
-  return includeOrbit ? CHIPS : CHIPS.filter((c) => c !== ORBIT_CHIP);
+/**
+ * Landing / ask-menu suggestion chips for the signed-in role.
+ * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
+ * these lists are the heuristic stand-in until then.
+ */
+export function chipsFor(session: Session | null): string[] {
+  if (!session || session.role === "user") return USER_CHIPS;
+  // Staff role sets land in follow-up commits; capabilities is the safe starter.
+  return [CAPABILITIES_CHIP];
 }
 
 export const PLYWORKS_INTRO =

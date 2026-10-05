@@ -11,7 +11,6 @@ import { useSession } from "../context/session";
 import { useHelp } from "../context/help";
 import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
-import { can } from "../lib/auth";
 import { useKeyboardInset } from "../lib/useKeyboardInset";
 import { useMatchMedia, useNarrowLandscape } from "../lib/useMatchMedia";
 
@@ -101,7 +100,7 @@ export function StudioPage() {
   const root = useRef<HTMLDivElement>(null);
   const chatDockRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
-  const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
+  const chips = useMemo(() => chipsFor(session), [session]);
   const canAttach = session?.role === "user";
   const narrow = useNarrowLandscape();
   const coarse = useMatchMedia("(pointer: coarse)");
