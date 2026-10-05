@@ -148,7 +148,7 @@ export async function askConcierge(
   const reply = typeof data.reply === "string" ? data.reply.trim() : "";
   if (!reply) throw new Error("Concierge returned an empty reply");
   const allowed = new Set(apps.map((a) => a.trim().toLowerCase()).filter(Boolean));
-  let app = typeof data.app === "string" && data.app.trim() ? data.app.trim() : null;
+  let app = typeof data.app === "string" && data.app.trim() ? data.app.trim().toLowerCase() : null;
   if (app && !allowed.has(app)) app = null;
   let design = asDesign(data.design);
   let choices = asChoices(data.choices);

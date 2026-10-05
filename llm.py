@@ -15,7 +15,17 @@ from typing import Any, Dict, List, Optional
 import config
 from plyworks_ops import compact_plyworks_boards, normalize_plyworks_ops
 
-KNOWN_APPS = ("boxouts", "simpleparts", "plyworks", "projects", "orbit", "admin")
+KNOWN_APPS = (
+    "boxouts",
+    "simpleparts",
+    "plyworks",
+    "projects",
+    "orbit",
+    "jobs",
+    "profiles",
+    "machines-admin",
+    "admin",
+)
 KNOWN_DESIGNS = ("shelf", "table", "stool", "bench")
 KNOWN_KINDS = ("info", "open", "close", "get", "set", "clarify", "deny")
 
