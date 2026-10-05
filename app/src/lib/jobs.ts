@@ -214,7 +214,9 @@ export function createJob(
   actor: Session,
   input: Pick<Job, "sourceSessionId" | "sourceApp" | "snapshot">,
 ): Job {
-  if (actor.role !== "user") throw new Error("Only users can place orders.");
+  if (actor.role !== "user" && actor.role !== "superuser") {
+    throw new Error("Only users can place orders.");
+  }
   const now = Date.now();
   const job: Job = {
     id: jobId(),
@@ -239,11 +241,13 @@ export function createJob(
 }
 
 export function jobsFor(actor: Session | null, jobs = getJobsSnapshot(), machineId: MachineId | null = null) {
-  if (!actor || (actor.role !== "manager" && actor.role !== "operator")) return [];
+  if (!actor) return [];
   const companyJobs = jobs.filter((job) => job.company === actor.company);
-  return actor.role === "manager"
-    ? companyJobs
-    : companyJobs.filter((job) => machineId && job.assignedMachineId === machineId);
+  if (actor.role === "manager" || actor.role === "superuser") return companyJobs;
+  if (actor.role === "operator") {
+    return companyJobs.filter((job) => machineId && job.assignedMachineId === machineId);
+  }
+  return [];
 }
 
 export function getJobFor(actor: Session | null, id: string, machineId: MachineId | null = null) {
@@ -272,7 +276,9 @@ function withStatus(job: Job, status: JobStatus, actor: Session): Job {
 
 export function assignJob(actor: Session, id: string, machineId: MachineId) {
   // WAITING BFF: manager authorization and machine assignment are validated and written by the production endpoint.
-  if (actor.role !== "manager") throw new Error("Only managers can assign jobs.");
+  if (actor.role !== "manager" && actor.role !== "superuser") {
+    throw new Error("Only managers can assign jobs.");
+  }
   if (!isMachineId(machineId)) throw new Error("Choose a machine.");
   return replaceJob(id, (job) => {
     if (job.company !== actor.company || job.status !== "unassigned") throw new Error("This job cannot be assigned.");
@@ -303,7 +309,9 @@ export function updateJobProgress(
   status: "queued" | "in_progress" | "completed",
 ) {
   // WAITING BFF: operator authorization, active machine claim, and status transition are validated by the production endpoint.
-  if (actor.role !== "operator") throw new Error("Only operators can update production progress.");
+  if (actor.role !== "operator" && actor.role !== "superuser") {
+    throw new Error("Only operators can update production progress.");
+  }
   if (!machineIsAvailable(machineId)) throw new Error("Select an available machine.");
   return replaceJob(id, (job) => {
     if (job.company !== actor.company || job.assignedMachineId !== machineId) throw new Error("This job is not assigned to your machine.");
@@ -321,7 +329,9 @@ export function updateJobProgress(
 
 export function sendJobFeedback(actor: Session, id: string, machineId: MachineId, message: string) {
   // WAITING BFF: production feedback is submitted to the assigned ProductionRequest through the authorized endpoint.
-  if (actor.role !== "operator") throw new Error("Only operators can send production feedback.");
+  if (actor.role !== "operator" && actor.role !== "superuser") {
+    throw new Error("Only operators can send production feedback.");
+  }
   if (!machineIsAvailable(machineId)) throw new Error("Select an available machine.");
   const clean = message.trim();
   if (!clean) throw new Error("Enter feedback before sending.");
@@ -347,7 +357,9 @@ export function sendJobFeedback(actor: Session, id: string, machineId: MachineId
 }
 
 export function updateJobFulfillment(actor: Session, id: string, status: "shipped" | "received") {
-  if (actor.role !== "manager") throw new Error("Only managers can update fulfillment.");
+  if (actor.role !== "manager" && actor.role !== "superuser") {
+    throw new Error("Only managers can update fulfillment.");
+  }
   return replaceJob(id, (job) => {
     if (job.company !== actor.company) throw new Error("Job not found.");
     const allowed = (job.status === "completed" && status === "shipped")
@@ -378,7 +390,7 @@ export function machineIsAvailable(id: MachineId | null | undefined): id is Mach
 // WAITING BFF: selected machine is an authenticated operator-session claim returned by the BFF.
 // WAITING DATABASE: operator-machine login belongs to an active shift/session record.
 export function getOperatorMachine(actor: Session | null): MachineId | null {
-  if (!actor || actor.role !== "operator") return null;
+  if (!actor || (actor.role !== "operator" && actor.role !== "superuser")) return null;
   try {
     const value = JSON.parse(localStorage.getItem(OPERATOR_MACHINE_KEY) ?? "{}") as Record<string, unknown>;
     const machineId = value[actor.email];
@@ -389,7 +401,9 @@ export function getOperatorMachine(actor: Session | null): MachineId | null {
 }
 
 export function setOperatorMachine(actor: Session, machineId: MachineId | null) {
-  if (actor.role !== "operator") throw new Error("Only operators select machines.");
+  if (actor.role !== "operator" && actor.role !== "superuser") {
+    throw new Error("Only operators select machines.");
+  }
   if (machineId && !machineIsAvailable(machineId)) throw new Error("That machine is already in use.");
   try {
     const value = JSON.parse(localStorage.getItem(OPERATOR_MACHINE_KEY) ?? "{}") as Record<string, unknown>;

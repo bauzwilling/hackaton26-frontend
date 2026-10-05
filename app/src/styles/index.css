@@ -1091,6 +1091,263 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
 }
 .jobs-error { color: var(--bad, #b42318); }
 
+/* CNC Orbit — shop-floor dashboard over session machines/jobs/directory */
+.orbit-page .orbit-lead {
+  margin: 8px 0 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.orbit-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.orbit-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--face2, var(--face));
+  color: var(--ink);
+}
+.orbit-pill.is-muted {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.orbit-tabs { margin-bottom: 18px; }
+.orbit-stack {
+  display: grid;
+  gap: 18px;
+}
+.orbit-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.orbit-stat {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--face2, var(--face)) 0%, var(--face) 100%);
+  box-shadow: var(--elev-sm, none);
+}
+.orbit-stat-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.orbit-stat-value {
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.orbit-stat-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.orbit-panel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--face);
+}
+.orbit-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.orbit-panel-head h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.orbit-scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+.orbit-scope strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+}
+.orbit-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.orbit-fleet,
+.orbit-job-list,
+.orbit-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.orbit-fleet-row,
+.orbit-roster li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--face2, var(--face));
+}
+.orbit-fleet-main,
+.orbit-fleet-side,
+.orbit-roster li div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.orbit-fleet-main { flex: 1; }
+.orbit-fleet-side { text-align: right; }
+.orbit-fleet-main small,
+.orbit-fleet-side small,
+.orbit-roster li small,
+.orbit-machine-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.orbit-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 18%, transparent);
+  flex: none;
+}
+.orbit-fleet-row.is-online .orbit-dot,
+.orbit-machine-card.is-online .orbit-dot {
+  background: var(--ok, #2e7d32);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok, #2e7d32) 22%, transparent);
+}
+.orbit-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.orbit-badge.is-ok { color: var(--ok, #2e7d32); }
+.orbit-job-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--face2, var(--face));
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.orbit-job-row:hover { border-color: var(--acc); }
+.orbit-job-row strong,
+.orbit-job-row small { display: block; }
+.orbit-job-row small { margin-top: 3px; color: var(--muted); }
+.orbit-roster .orbit-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--acc-deep, var(--ink));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+}
+.orbit-machine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.orbit-machine-card {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(165deg, var(--face2, var(--face)) 0%, var(--face) 70%);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.orbit-machine-card.is-static { cursor: default; }
+.orbit-machine-card:not(.is-static):hover,
+.orbit-machine-card.is-selected { border-color: var(--acc); }
+.orbit-machine-card.is-selected { box-shadow: inset 0 0 0 1px var(--acc); }
+.orbit-machine-card strong { font-size: 18px; letter-spacing: -0.02em; }
+.orbit-machine-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.orbit-machine-metrics {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.orbit-machine-metrics b { color: var(--ink); }
+.orbit-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+.orbit-empty {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.orbit-drop {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  min-height: 120px;
+  margin-top: 12px;
+  padding: 20px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--acc) 6%, var(--face));
+  color: var(--muted);
+  text-align: center;
+}
+.orbit-drop strong { color: var(--ink); font-size: 14px; }
+.job-status.is-in-progress,
+.job-status.is-queued { color: var(--acc-deep, var(--acc)); }
+.job-status.is-assigned { color: var(--ink); }
+.job-status.is-unassigned { color: var(--muted); }
+.job-status.is-shipped { color: var(--ok, #2e7d32); }
+
 .admin-page .admin-primary {
   min-height: 36px;
   border: 1px solid var(--ink);

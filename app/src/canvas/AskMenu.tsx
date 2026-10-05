@@ -3,7 +3,6 @@ import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { useWorkspace } from "../context/workspace";
 import { chipsFor } from "../lib/catalog";
-import { can } from "../lib/auth";
 import { FILE_ACCEPT } from "../lib/intake";
 
 export function AskMenu({
@@ -35,7 +34,7 @@ export function AskMenu({
   }, [onClose]);
 
   const suggestions = useMemo(
-    () => chipsFor(can(session, "orbit")).filter((c) => !entries.some((n) => n.query.toLowerCase() === c.toLowerCase())).slice(0, 3),
+    () => chipsFor(session).filter((c) => !entries.some((n) => n.query.toLowerCase() === c.toLowerCase())).slice(0, 3),
     [session, entries],
   );
 

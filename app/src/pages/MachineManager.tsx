@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { getCompany, isPlatformAdmin, type CompanyId } from "../lib/auth";
+import { getCompany, isAdminLike, isPlatformAdmin, type CompanyId } from "../lib/auth";
 import {
   getCompaniesSnapshot,
   listCompanies,
@@ -54,8 +54,8 @@ export function MachineManagerPage() {
     return { byCompany, orphan };
   }, [visibleCompanies, machines, platformAdmin]);
 
-  if (!session || session.role !== "admin") {
-    return <div className="jobs-empty">Machine Inventory is available to admins.</div>;
+  if (!session || !isAdminLike(session)) {
+    return <div className="jobs-empty">Machine Inventory is available to admins and superusers.</div>;
   }
 
   function run(action: () => void) {
@@ -83,7 +83,7 @@ export function MachineManagerPage() {
 
   return (
     <section className="jobs-page admin-page">
-      <header className="jobs-head">
+      <header className="jobs-head" data-help="machines-admin-head">
         <div>
           <p className="jobs-kicker">Administration</p>
           <h1>Machine Inventory</h1>

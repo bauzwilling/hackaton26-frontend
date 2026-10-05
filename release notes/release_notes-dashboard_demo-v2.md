@@ -14,7 +14,7 @@ This update responds to the feedback received on the demo. The goal: a UI/UX dem
 | Admin roles don't work | **Addressed** | New **Profile Manager** and **Machine Inventory** windows for admins (see section 2). |
 | No role can show the whole process | **Partly addressed** | Each role now has a defined path (designer: tour; operator/manager: Jobs/Orbit; admin: Profile/Machine). Each role still needs a guided tour. For now only implemented for USER role. |
 | Operator role gives no response, no zooming | **Addressed** | Operators get role-scoped Help, steered to Jobs/Orbit, plus the canvas fixes above. |
-| Starting point should always be the same | **Partly addressed** | The designer tour always begins from the home (hero) screen and restores the previous workspace on exit; the floating "ask" menu no longer opens on the landing screen. Still to confirm: every role and entry point opens on the same start state. |
+| Starting point should always be the same | **Addressed** | Every role lands on the shared hero and opens apps via Concierge; role-scoped suggestion chips steer operator, manager, and admin. The designer tour still begins from the hero and restores the previous workspace on exit. |
 | Some windows appear locked automatically; how to unlock? | **Addressed** | Windows now have an explicit lock control in their chrome. Window locking, maximizing and hiding has been made more obvious. |
 | Logic of window sorting unclear | **Addressed** | New app windows open one under the other. Their childres (Plyworks -> JoinWiz -> Nesting) open to the right of the parent. |
 

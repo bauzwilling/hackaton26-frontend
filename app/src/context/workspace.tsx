@@ -20,7 +20,7 @@ import {
   type AppChatPrompt,
   type AppIntakeHandler,
 } from "../lib/appChat";
-import { matchLocalRoute } from "../lib/routing";
+import { matchLocalRoute, RAIN_DENY_REPLY } from "../lib/routing";
 import { capabilitiesFor, capabilitiesReply, isCapabilitiesAsk } from "../lib/roleCapabilities";
 import { plyworksOpening } from "../lib/catalog";
 import { tryHelpAsk } from "../lib/help";
@@ -92,6 +92,7 @@ import {
   uid,
   unrailConcierge,
 } from "../workspace/commands";
+import { isDesignChatRole } from "../lib/auth";
 import { useSession } from "./session";
 
 export type { SystemEdge, UserEdge, ViewportSnapshot };
@@ -261,7 +262,8 @@ function topChatAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const email = session?.email ?? "anon";
-  const startsOnLanding = session?.role === "user" || !session;
+  // Every signed-in role starts on the shared landing hero and opens apps via Concierge.
+  const startsOnLanding = true;
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const [userEdges, setUserEdges] = useState<UserEdge[]>([]);
   const [entries, setEntries] = useState<RequestEntry[]>([]);
@@ -419,20 +421,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const store = loadSessionStore(email);
-    const staff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
     let list = store.sessions;
     let draft = list.find(sessionIsEmpty);
     if (!draft) {
       draft = emptySession();
       list = [draft, ...list];
     }
-    setHistoryCollapsedState(staff ? true : store.historyCollapsed);
+    setHistoryCollapsedState(store.historyCollapsed);
     setSessions(list);
     setActiveSessionId(draft.id);
-    atLandingRef.current = !staff;
-    setAtLanding(!staff);
+    atLandingRef.current = true;
+    setAtLanding(true);
     hydrateSession(draft);
-    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: staff ? true : store.historyCollapsed });
+    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: store.historyCollapsed });
   }, [email, session?.role, hydrateSession, persistStore]);
 
   useEffect(() => {
@@ -865,7 +866,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       /** Applies a reply plus its routing decision, whoever made that decision. */
       const settle = (result: ConciergeResult) => {
         // WAITING MODEL: non-user Concierge cannot forward into app chat or apply plyworks ops yet
-        const chatLocked = session?.role !== "user";
+        const chatLocked = !isDesignChatRole(session);
         const confirm = (result.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         let appId = !confirm.length && result.app && isWorkspaceApp(result.app) ? result.app : undefined;
@@ -960,6 +961,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const forwardChat = live && !chatLocked && appId && chatCapable(appId) && !inspectGet && !ops?.length;
 
         if (status === "app" && appId && live && !skipOpen && !forwardChat) {
+          // Leave any maximized window so Concierge get/open can zoom the target into view.
+          dismissMaximize(true);
           const opened = openApp(appId, { parentId: conciergeId, query: q, design, skipActivity: true });
           if (opened) {
             appTarget = opened.id;
@@ -975,6 +978,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         } else if (!forwardChat) {
           const focusIds = targetIds.filter((id) => id !== conciergeId);
           if (live && focusIds.length && (inspectGet || inspectSet || status === "app")) {
+            dismissMaximize(true);
             focusTargets(focusIds);
           }
         }
@@ -1071,12 +1075,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return;
         }
         const local = matchLocalRoute(q);
+        // WAITING MODEL: offline deny for off-topic wildcard chips (e.g. Will it rain?)
+        if (local.kind === "deny") {
+          settle({
+            kind: "deny",
+            reply: local.reply ?? RAIN_DENY_REPLY,
+            app: null,
+            design: null,
+            choices: null,
+            confirmApps: null,
+          });
+          return;
+        }
         const named = local.app && isWorkspaceApp(local.app) ? local.app : null;
         const appId = named && openable(session, named) ? named : null;
         const confirmApps = (local.confirmApps ?? [])
           .filter((id): id is WorkspaceApp => isWorkspaceApp(id) && openable(session, id));
         // WAITING MODEL: soft-reject design / furniture fallbacks for non-user when the API is down
-        const staffOffline = session?.role !== "user";
+        const staffOffline = !isDesignChatRole(session);
         const designFallback = Boolean(
           staffOffline
           && (
@@ -1117,13 +1133,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                 ? denyCopy(session, named).body
                 : choices
                   ? "Have a specific type in mind? We have base designs for: shelf, table, stool, and bench."
-                  : session?.role === "user"
+                  : isDesignChatRole(session)
                     ? `I can open ${apps.map(appLabel).join(", ")}. Name one, or drop a file and I'll route it.`
                     : `I can open ${apps.map(appLabel).join(", ")}. Name one to open it.`,
         });
       }
     })();
-  }, [openApp, openZoomThenForward, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
+  }, [dismissMaximize, openApp, openZoomThenForward, ensureConcierge, session, focus, focusTargets, patchInactiveSession, stageOpts]);
 
   const ask = useCallback((raw: string) => {
     if (sessionsRef.current.find((item) => item.id === activeIdRef.current)?.orderedJobId) return;
@@ -1291,6 +1307,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       choices: extras?.choices,
       helpTopics: extras?.helpTopics,
       helpOffer: extras?.helpOffer,
+      helpTourRoles: extras?.helpTourRoles,
       kind: extras?.kind,
       confirmApps: extras?.confirmApps,
       badgeApp: extras?.badgeApp,
@@ -1302,7 +1319,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [ensureConcierge]);
 
   const placeOrder = useCallback((sourceApp: string, appSnapshot?: FrozenAppSnapshot) => {
-    if (!session || session.role !== "user") return null;
+    if (!session || !isDesignChatRole(session)) return null;
     const active = sessionsRef.current.find((item) => item.id === activeIdRef.current);
     if (!active || active.orderedJobId) return null;
     const apps: FrozenAppSnapshot[] = [];
@@ -1582,18 +1599,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const returnToLanding = useCallback(() => {
-    if (session?.role === "manager" || session?.role === "operator" || session?.role === "admin") {
-      createSession();
-      if (session.role === "admin") {
-        window.setTimeout(() => openAdminPair(), 50);
-      } else {
-        window.setTimeout(() => {
-          const opened = openApp("jobs", { skipActivity: true });
-          if (opened) window.setTimeout(() => maximize(opened.id), 0);
-        }, 0);
-      }
-      return;
-    }
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
@@ -1621,7 +1626,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveSessionId(draft.id);
     hydrateSession(draft);
     persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, createSession, dismissMaximize, flushList, hydrateSession, maximize, openAdminPair, openApp, persistStore, session?.role]);
+  }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const switchSession = useCallback((id: string) => {
     setInspectionJob(null);

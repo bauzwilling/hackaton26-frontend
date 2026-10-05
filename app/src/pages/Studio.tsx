@@ -11,7 +11,7 @@ import { useSession } from "../context/session";
 import { useHelp } from "../context/help";
 import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
-import { can } from "../lib/auth";
+import { canRequestRoleTour } from "../lib/help";
 import { useKeyboardInset } from "../lib/useKeyboardInset";
 import { useMatchMedia, useNarrowLandscape } from "../lib/useMatchMedia";
 
@@ -81,20 +81,19 @@ function ChatFab({
 
 export function StudioPage() {
   const { session } = useSession();
-  const { phase, tourBooting, startUserTour } = useHelp();
+  const { phase, tourBooting, startRoleTour } = useHelp();
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const {
-    nodes, ask, openApp, openAdminPair, announceOpen, ingestFiles, resuming, atLanding, departLanding,
-    maximize, activeSessionId, setHistoryCollapsed,
+    nodes, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding,
+    setHistoryCollapsed,
   } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
   const [historyPeek, setHistoryPeek] = useState(false);
   const [railW, setRailW] = useState(CHAT_RAIL_W);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
-  const isStaff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
-  const [chrome, setChrome] = useState<"hero" | "dock">(isStaff ? "dock" : "hero");
+  const [chrome, setChrome] = useState<"hero" | "dock">("hero");
   const [heroLeaving, setHeroLeaving] = useState(false);
   const [pair, setPair] = useState<RailPair>(null);
   const [heroGen, setHeroGen] = useState(0);
@@ -102,8 +101,7 @@ export function StudioPage() {
   const root = useRef<HTMLDivElement>(null);
   const chatDockRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
-  const staffBoot = useRef("");
-  const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
+  const chips = useMemo(() => chipsFor(session), [session]);
   const canAttach = session?.role === "user";
   const narrow = useNarrowLandscape();
   const coarse = useMatchMedia("(pointer: coarse)");
@@ -163,18 +161,6 @@ export function StudioPage() {
   const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const wasLanding = useRef(true);
   const pairLock = useRef(false);
-
-  useEffect(() => {
-    if (!session || !activeSessionId || !isStaff || staffBoot.current === session.email) return;
-    staffBoot.current = session.email;
-    setChrome("dock");
-    if (session.role === "manager" || session.role === "operator") {
-      const opened = openApp("jobs", { skipActivity: true });
-      if (opened) window.setTimeout(() => maximize(opened.id), 0);
-    } else if (session.role === "admin") {
-      window.setTimeout(() => openAdminPair(), 50);
-    }
-  }, [activeSessionId, isStaff, maximize, openAdminPair, openApp, session]);
 
   useEffect(() => {
     if (atLanding && !wasLanding.current) setHeroGen((n) => n + 1);
@@ -346,7 +332,7 @@ export function StudioPage() {
                     type="button"
                     className={c === TOUR_CHIP ? "chip is-tour" : "chip"}
                     onClick={() => {
-                      if (c === TOUR_CHIP && session?.role === "user") startUserTour();
+                      if (c === TOUR_CHIP && canRequestRoleTour(session?.role)) startRoleTour();
                       else ask(c);
                     }}
                   >

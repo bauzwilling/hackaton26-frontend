@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { plyworksDesignLabel } from "../lib/concierge";
-import { HELP_OFFER_LABEL, HELP_TOPIC_LABEL, type HelpOfferId, type HelpTopicId } from "../lib/help";
+import { HELP_OFFER_LABEL, HELP_TOPIC_LABEL, SUPERUSER_TOUR_ROLE_LABEL, type HelpOfferId, type HelpTopicId, type LiveTourRole } from "../lib/help";
 import {
   activityClock,
   activityFocusIds,
@@ -102,7 +102,7 @@ export function ConciergeThread() {
     nodes, focusTargets, activeSession, returnToLanding,
   } = useWorkspace();
   const { session } = useSession();
-  const { pickTopic, pickOffer } = useHelp();
+  const { pickTopic, pickOffer, startRoleTour } = useHelp();
   const listRef = useRef<HTMLDivElement>(null);
   const canLogFilter = session?.role === "user";
   const [logOnly, setLogOnly] = useState(false);
@@ -228,7 +228,8 @@ export function ConciergeThread() {
             && !(e.confirmApps && e.confirmApps.length)
             && !(e.choices && e.choices.length)
             && !(e.helpTopics && e.helpTopics.length)
-            && !(e.helpOffer && e.helpOffer.length)) {
+            && !(e.helpOffer && e.helpOffer.length)
+            && !(e.helpTourRoles && e.helpTourRoles.length)) {
             return (
             <div
               key={e.id}
@@ -333,6 +334,24 @@ export function ConciergeThread() {
                         }}
                       >
                         {HELP_OFFER_LABEL[id]}
+                      </Surface>
+                    ))}
+                  </div>
+                )}
+                {e.helpTourRoles && e.helpTourRoles.length > 0 && (
+                  <div className="concierge-confirm">
+                    {e.helpTourRoles.map((id: LiveTourRole) => (
+                      <Surface
+                        key={id}
+                        as="button"
+                        type="button"
+                        className="chip"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          startRoleTour(id);
+                        }}
+                      >
+                        {SUPERUSER_TOUR_ROLE_LABEL[id]}
                       </Surface>
                     ))}
                   </div>

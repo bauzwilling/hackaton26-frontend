@@ -1,5 +1,10 @@
 /* WAITING DATABASE: user directory CRUD — session overlay until the profile API owns users/roles. */
-import type { RoleId } from "./auth";
+import {
+  PROTECTED_SUPERUSER_EMAIL,
+  companyIdFromEmail,
+  isProtectedSuperuser,
+  type RoleId,
+} from "./auth";
 
 export const DIRECTORY_KEY = "f2f.adminDirectory.v1";
 
@@ -105,6 +110,10 @@ function adminCount(users: DirectoryUser[] = listUsers()) {
   return users.filter((u) => u.role === "admin" && !u.suspended).length;
 }
 
+function superuserCount(users: DirectoryUser[] = listUsers()) {
+  return users.filter((u) => u.role === "superuser" && !u.suspended).length;
+}
+
 export function addUser(input: {
   email: string;
   name: string;
@@ -116,6 +125,7 @@ export function addUser(input: {
   if (!email.includes("@")) throw new Error("Enter a valid work email address.");
   if (!name) throw new Error("Enter a display name.");
   if (findLiveUser(email)) throw new Error("A profile with that email already exists.");
+  assertMayAssignSuperuser(input.role, input.by, email);
 
   const user: DirectoryUser = {
     email,
@@ -133,6 +143,17 @@ export function addUser(input: {
   return user;
 }
 
+function assertMayAssignSuperuser(role: RoleId, actorEmail: string | undefined, targetEmail: string) {
+  if (role !== "superuser") return;
+  const actor = actorEmail ? findLiveUser(actorEmail) : null;
+  if (!actor || actor.role !== "superuser") {
+    throw new Error("Only a superuser can assign the superuser role.");
+  }
+  if (companyIdFromEmail(targetEmail) !== "D") {
+    throw new Error("Superuser is only available for DataB profiles.");
+  }
+}
+
 export function updateUser(
   email: string,
   patch: Partial<Pick<DirectoryUser, "name" | "role" | "suspended">>,
@@ -142,15 +163,36 @@ export function updateUser(
   const current = findLiveUser(key);
   if (!current) throw new Error("That profile was not found.");
 
+  if (isProtectedSuperuser(key)) {
+    if (patch.suspended === true) throw new Error("David Dabic's superuser profile cannot be suspended.");
+    if (patch.role && patch.role !== "superuser") {
+      throw new Error("David Dabic's superuser role cannot be changed.");
+    }
+  }
+
+  if (patch.role === "superuser") {
+    assertMayAssignSuperuser("superuser", actorEmail, key);
+  }
+
   if (actorEmail && key === actorEmail.toLowerCase()) {
     if (patch.suspended === true) throw new Error("You cannot suspend your own profile.");
-    if (patch.role && patch.role !== "admin") throw new Error("You cannot remove your own admin role.");
+    if (patch.role && current.role === "superuser" && patch.role !== "superuser") {
+      throw new Error("You cannot remove your own superuser role.");
+    }
+    if (patch.role && current.role === "admin" && patch.role !== "admin") {
+      throw new Error("You cannot remove your own admin role.");
+    }
   }
 
   const nextRole = patch.role ?? current.role;
   const nextSuspended = patch.suspended ?? current.suspended ?? false;
   if (current.role === "admin" && !current.suspended && (nextRole !== "admin" || nextSuspended)) {
     if (adminCount() <= 1) throw new Error("Keep at least one active admin.");
+  }
+  if (current.role === "superuser" && !current.suspended && (nextRole !== "superuser" || nextSuspended)) {
+    if (superuserCount() <= 1 && !isProtectedSuperuser(key)) {
+      throw new Error("Keep at least one active superuser.");
+    }
   }
 
   const overlay = readDirectoryOverlay();
@@ -183,11 +225,17 @@ export function removeUser(email: string, actorEmail?: string) {
   const key = String(email || "").trim().toLowerCase();
   const current = findLiveUser(key);
   if (!current) throw new Error("That profile was not found.");
+  if (isProtectedSuperuser(key) || key === PROTECTED_SUPERUSER_EMAIL) {
+    throw new Error("David Dabic's superuser profile cannot be removed.");
+  }
   if (actorEmail && key === actorEmail.toLowerCase()) {
     throw new Error("You cannot remove your own profile.");
   }
   if (current.role === "admin" && !current.suspended && adminCount() <= 1) {
     throw new Error("Keep at least one active admin.");
+  }
+  if (current.role === "superuser" && !current.suspended && superuserCount() <= 1) {
+    throw new Error("Keep at least one active superuser.");
   }
 
   const overlay = readDirectoryOverlay();
@@ -204,11 +252,14 @@ export function setUsersSuspendedForDomain(domain: string, suspended: boolean) {
   if (!key) return;
   const overlay = readDirectoryOverlay();
   let added = overlay.added.map((u) => (
-    u.email.endsWith(`@${key}`) ? { ...u, suspended } : u
+    u.email.endsWith(`@${key}`) && !(suspended && isProtectedSuperuser(u.email))
+      ? { ...u, suspended }
+      : u
   ));
   const patches = { ...overlay.patches };
   for (const user of seed) {
     if (!user.email.endsWith(`@${key}`)) continue;
+    if (suspended && isProtectedSuperuser(user.email)) continue;
     if (added.some((u) => u.email === user.email)) continue;
     patches[user.email] = { ...patches[user.email], suspended };
   }
