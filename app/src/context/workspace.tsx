@@ -261,7 +261,8 @@ function topChatAppNode(nodes: WorkspaceNode[]): WorkspaceNode | undefined {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const email = session?.email ?? "anon";
-  const startsOnLanding = session?.role === "user" || !session;
+  // Every signed-in role starts on the shared landing hero and opens apps via Concierge.
+  const startsOnLanding = true;
   const [nodes, setNodes] = useState<WorkspaceNode[]>([]);
   const [userEdges, setUserEdges] = useState<UserEdge[]>([]);
   const [entries, setEntries] = useState<RequestEntry[]>([]);
@@ -419,20 +420,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const store = loadSessionStore(email);
-    const staff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
     let list = store.sessions;
     let draft = list.find(sessionIsEmpty);
     if (!draft) {
       draft = emptySession();
       list = [draft, ...list];
     }
-    setHistoryCollapsedState(staff ? true : store.historyCollapsed);
+    setHistoryCollapsedState(store.historyCollapsed);
     setSessions(list);
     setActiveSessionId(draft.id);
-    atLandingRef.current = !staff;
-    setAtLanding(!staff);
+    atLandingRef.current = true;
+    setAtLanding(true);
     hydrateSession(draft);
-    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: staff ? true : store.historyCollapsed });
+    persistStore({ activeId: draft.id, sessions: list, historyCollapsed: store.historyCollapsed });
   }, [email, session?.role, hydrateSession, persistStore]);
 
   useEffect(() => {
@@ -1582,18 +1582,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const returnToLanding = useCallback(() => {
-    if (session?.role === "manager" || session?.role === "operator" || session?.role === "admin") {
-      createSession();
-      if (session.role === "admin") {
-        window.setTimeout(() => openAdminPair(), 50);
-      } else {
-        window.setTimeout(() => {
-          const opened = openApp("jobs", { skipActivity: true });
-          if (opened) window.setTimeout(() => maximize(opened.id), 0);
-        }, 0);
-      }
-      return;
-    }
     dismissMaximize(true);
     clearReveal();
     resumeLock.current = false;
@@ -1621,7 +1609,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveSessionId(draft.id);
     hydrateSession(draft);
     persistStore({ activeId: draft.id, sessions: list, historyCollapsed: collapsedRef.current });
-  }, [clearReveal, createSession, dismissMaximize, flushList, hydrateSession, maximize, openAdminPair, openApp, persistStore, session?.role]);
+  }, [clearReveal, dismissMaximize, flushList, hydrateSession, persistStore]);
 
   const switchSession = useCallback((id: string) => {
     setInspectionJob(null);

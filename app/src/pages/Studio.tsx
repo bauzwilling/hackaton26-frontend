@@ -85,16 +85,15 @@ export function StudioPage() {
   const reduce = useReducedMotion();
   const { leaving, onLeaveDone } = useOutletContext<StudioLeave>();
   const {
-    nodes, ask, openApp, openAdminPair, announceOpen, ingestFiles, resuming, atLanding, departLanding,
-    maximize, activeSessionId, setHistoryCollapsed,
+    nodes, ask, openApp, announceOpen, ingestFiles, resuming, atLanding, departLanding,
+    setHistoryCollapsed,
   } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const [dropping, setDropping] = useState(false);
   const [historyPeek, setHistoryPeek] = useState(false);
   const [railW, setRailW] = useState(CHAT_RAIL_W);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
-  const isStaff = session?.role === "manager" || session?.role === "operator" || session?.role === "admin";
-  const [chrome, setChrome] = useState<"hero" | "dock">(isStaff ? "dock" : "hero");
+  const [chrome, setChrome] = useState<"hero" | "dock">("hero");
   const [heroLeaving, setHeroLeaving] = useState(false);
   const [pair, setPair] = useState<RailPair>(null);
   const [heroGen, setHeroGen] = useState(0);
@@ -102,7 +101,6 @@ export function StudioPage() {
   const root = useRef<HTMLDivElement>(null);
   const chatDockRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
-  const staffBoot = useRef("");
   const chips = useMemo(() => chipsFor(can(session, "orbit")), [session]);
   const canAttach = session?.role === "user";
   const narrow = useNarrowLandscape();
@@ -163,18 +161,6 @@ export function StudioPage() {
   const hasWindows = nodes.some((n) => n.id !== CONCIERGE_ID && n.kind !== "log");
   const wasLanding = useRef(true);
   const pairLock = useRef(false);
-
-  useEffect(() => {
-    if (!session || !activeSessionId || !isStaff || staffBoot.current === session.email) return;
-    staffBoot.current = session.email;
-    setChrome("dock");
-    if (session.role === "manager" || session.role === "operator") {
-      const opened = openApp("jobs", { skipActivity: true });
-      if (opened) window.setTimeout(() => maximize(opened.id), 0);
-    } else if (session.role === "admin") {
-      window.setTimeout(() => openAdminPair(), 50);
-    }
-  }, [activeSessionId, isStaff, maximize, openAdminPair, openApp, session]);
 
   useEffect(() => {
     if (atLanding && !wasLanding.current) setHeroGen((n) => n + 1);
