@@ -17,6 +17,18 @@ import {
 export function capabilitiesFor(session: Session | null): string[] {
   if (!session) return [];
 
+  if (session.role === "superuser") {
+    return [
+      "Ask Concierge in words or drop a design file — chat can open any available window",
+      "Open design apps, Jobs, Orbit, Profile Manager, and Machine Inventory",
+      "In Profile Manager: promote other DataB profiles to superuser; David Dabic's root profile cannot be deleted, suspended, or demoted",
+      "In Jobs: company-wide assign/fulfill and operator progress when a machine is selected",
+      "Concierge cannot apply most mutations in chat yet; use the open window to view or edit",
+      "Session changes appear on the login screen and in Orbit/Jobs until this browser tab ends",
+      "Change theme, accent, and canvas options in Settings",
+    ];
+  }
+
   if (session.role === "admin") {
     if (session.company === "D") {
       return [
