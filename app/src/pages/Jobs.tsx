@@ -38,7 +38,7 @@ export function JobsPage() {
     machineId: MachineId | null;
   } | null>(null);
   const selectedMachine = canOperate
-    ? (machineOverride?.email === session?.email ? machineOverride.machineId : storedMachine)
+    ? (machineOverride && machineOverride.email === session?.email ? machineOverride.machineId : storedMachine)
     : null;
   const jobs = useMemo(
     () => jobsFor(session, allJobs, canAssign ? null : selectedMachine),
