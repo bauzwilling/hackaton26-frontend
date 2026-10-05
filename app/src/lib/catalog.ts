@@ -53,14 +53,23 @@ export const USER_CHIPS = [
   "Open Simple Parts",
 ];
 
+/** Operator landing starters. */
+export const OPERATOR_CHIPS = [
+  CAPABILITIES_CHIP,
+  "Open Jobs",
+  "Open CNC Orbit",
+  "Update my assigned jobs",
+];
+
 /**
  * Landing / ask-menu suggestion chips for the signed-in role.
  * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
  * these lists are the heuristic stand-in until then.
  */
 export function chipsFor(session: Session | null): string[] {
+  if (session?.role === "operator") return OPERATOR_CHIPS;
   if (!session || session.role === "user") return USER_CHIPS;
-  // Staff role sets land in follow-up commits; capabilities is the safe starter.
+  // Remaining staff role sets land in follow-up commits; capabilities is the safe starter.
   return [CAPABILITIES_CHIP];
 }
 
