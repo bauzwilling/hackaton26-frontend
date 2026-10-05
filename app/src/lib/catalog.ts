@@ -61,6 +61,14 @@ export const OPERATOR_CHIPS = [
   "Update my assigned jobs",
 ];
 
+/** Manager landing starters. */
+export const MANAGER_CHIPS = [
+  CAPABILITIES_CHIP,
+  "Open Jobs",
+  "Open CNC Orbit",
+  "Assign production jobs",
+];
+
 /**
  * Landing / ask-menu suggestion chips for the signed-in role.
  * WAITING MODEL: the structuring model should pick starters from role + inspector facts;
@@ -68,8 +76,9 @@ export const OPERATOR_CHIPS = [
  */
 export function chipsFor(session: Session | null): string[] {
   if (session?.role === "operator") return OPERATOR_CHIPS;
+  if (session?.role === "manager") return MANAGER_CHIPS;
   if (!session || session.role === "user") return USER_CHIPS;
-  // Remaining staff role sets land in follow-up commits; capabilities is the safe starter.
+  // Admin role set lands in a follow-up commit; capabilities is the safe starter.
   return [CAPABILITIES_CHIP];
 }
 
