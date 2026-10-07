@@ -847,7 +847,10 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   white-space: nowrap;
 }
 .win-app:has(.embedded-app) .win-body,
-.win-app:has(.pw) .win-body {
+.win-app:has(.pw) .win-body,
+.win-app:has(.simpleparts-app) .win-body,
+.win-app:has(.boxouts-app) .win-body,
+.win-app:has(.nesting-modal--page) .win-body {
   padding: 0;
   overflow: hidden;
   display: flex;
