@@ -201,7 +201,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "canvas",
     title: "Canvas",
-    body: "Once a window is on the board, drag to pan (two-finger slide on a trackpad), scroll or pinch to zoom, and drag a window by its title bar to move it.",
+    body: "Once a window is on the board, drag to pan (two-finger slide on a trackpad), scroll or pinch to zoom, drag a window by its title bar to move it, and drag the bottom-left or bottom-right corner to resize app and note windows.",
     anchor: { type: "help", id: "studio-canvas" },
     pad: 4,
   },

@@ -727,6 +727,64 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   min-height: 0;
   opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
+.win-resize {
+  position: absolute;
+  z-index: 5;
+  width: calc(32px / var(--studio-zoom, 1));
+  height: calc(32px / var(--studio-zoom, 1));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  opacity: calc(1 - var(--win-far, 0));
+}
+.win-resize::after {
+  content: "";
+  position: absolute;
+  width: calc(12px / var(--studio-zoom, 1));
+  height: calc(12px / var(--studio-zoom, 1));
+  border: calc(2px / var(--studio-zoom, 1)) solid var(--muted);
+  pointer-events: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.win-resize-bl {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.win-resize-bl::after {
+  left: calc(5px / var(--studio-zoom, 1));
+  bottom: calc(5px / var(--studio-zoom, 1));
+  border-top: 0;
+  border-right: 0;
+  border-bottom-left-radius: calc(10px / var(--studio-zoom, 1));
+  background: transparent;
+}
+.win-resize-br {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+.win-resize-br::after {
+  right: calc(5px / var(--studio-zoom, 1));
+  bottom: calc(5px / var(--studio-zoom, 1));
+  border-top: 0;
+  border-left: 0;
+  border-bottom-right-radius: calc(10px / var(--studio-zoom, 1));
+  background: transparent;
+}
+.win-resize:hover::after,
+.win-resize:focus-visible::after {
+  border-color: var(--acc);
+  background: transparent;
+}
+.win.is-locked .win-resize,
+.win.is-maximized .win-resize,
+.win-text .win-resize,
+.win-log .win-resize {
+  display: none;
+}
 /*
  * Far zoom: windows are map labels — drag/pinch/scroll on them go to the canvas.
  * Only title-bar action buttons stay clickable (pointer-events: auto on a none parent).
@@ -789,7 +847,10 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   white-space: nowrap;
 }
 .win-app:has(.embedded-app) .win-body,
-.win-app:has(.pw) .win-body {
+.win-app:has(.pw) .win-body,
+.win-app:has(.simpleparts-app) .win-body,
+.win-app:has(.boxouts-app) .win-body,
+.win-app:has(.nesting-modal--page) .win-body {
   padding: 0;
   overflow: hidden;
   display: flex;
@@ -835,6 +896,17 @@ html[data-theme="dark"] .win-note { color: #1a1916; }
   color: inherit;
   line-height: 1.45;
   padding: 0;
+}
+.win-note:not(.win-autosize) .win-body {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.note-body.is-fixed {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
 }
 .note-body::placeholder { color: color-mix(in oklab, currentColor 45%, transparent); }
 .win-log .win-body,
