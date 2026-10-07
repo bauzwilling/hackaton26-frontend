@@ -759,7 +759,7 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   border-top: 0;
   border-right: 0;
   border-bottom-left-radius: calc(10px / var(--studio-zoom, 1));
-  background: color-mix(in oklab, var(--face) 55%, transparent);
+  background: transparent;
 }
 .win-resize-br {
   right: 0;
@@ -772,12 +772,12 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   border-top: 0;
   border-left: 0;
   border-bottom-right-radius: calc(10px / var(--studio-zoom, 1));
-  background: color-mix(in oklab, var(--face) 55%, transparent);
+  background: transparent;
 }
 .win-resize:hover::after,
 .win-resize:focus-visible::after {
   border-color: var(--acc);
-  background: color-mix(in oklab, var(--acc) 18%, var(--face));
+  background: transparent;
 }
 .win.is-locked .win-resize,
 .win.is-maximized .win-resize,
