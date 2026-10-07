@@ -231,8 +231,10 @@ export function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+export type WindowResizeBox = { w: number; h: number; xDelta: number };
+
 export function Window({
-  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, onFocus, onClose, onHide, onMaximize, onLock, onDrag, onGrab, onFit, children,
+  title, code, z, x, y, width = 420, height, kind, query, hidden, autoSize, locked, tilt, enter, flash, flashKey, selected, viewport, nodeId, flow, maximized, resizable, zoom = 1, onFocus, onClose, onHide, onMaximize, onLock, onDrag, onGrab, onFit, onResizeStart, onResize, onResizeEnd, children,
 }: {
   title: string; code: string; z: number; x: number; y: number; width?: number; height?: number;
   kind?: string; query?: string; hidden?: boolean; autoSize?: boolean; locked?: boolean; tilt?: number; enter?: boolean;
@@ -241,18 +243,36 @@ export function Window({
   nodeId?: string;
   flow?: boolean;
   maximized?: boolean;
+  resizable?: boolean;
+  zoom?: number;
   onFocus: (e: PointerEvent<HTMLDivElement>) => void; onClose?: () => void; onHide?: () => void;
   onMaximize?: () => void;
   onLock?: () => void;
   onDrag?: (e: PointerEvent<HTMLDivElement>) => void;
   onGrab?: (e: PointerEvent<HTMLDivElement>) => void;
   onFit?: (w: number, h: number) => void;
+  onResizeStart?: () => void;
+  onResize?: (box: WindowResizeBox) => void;
+  onResizeEnd?: () => void;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const fit = autoSize !== false && !hidden;
   const onFitRef = useRef(onFit);
   onFitRef.current = onFit;
+  const onResizeRef = useRef(onResize);
+  onResizeRef.current = onResize;
+  const onResizeStartRef = useRef(onResizeStart);
+  onResizeStartRef.current = onResizeStart;
+  const onResizeEndRef = useRef(onResizeEnd);
+  onResizeEndRef.current = onResizeEnd;
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const heightRef = useRef(height);
+  heightRef.current = height;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const showResize = !!resizable && !locked && !maximized && !hidden;
 
   useEffect(() => {
     if (!fit) return;
@@ -264,6 +284,48 @@ export function Window({
     ro.observe(el);
     return () => ro.disconnect();
   }, [fit]);
+
+  const beginResize = (corner: "bl" | "br") => (e: PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const el = ref.current;
+    const startW = widthRef.current ?? el?.offsetWidth ?? 240;
+    const startH = heightRef.current ?? el?.offsetHeight ?? 160;
+    const minW = kind === "note" ? 140 : kind === "app" ? 320 : 240;
+    const minH = kind === "app" ? 240 : 80;
+    onResizeStartRef.current?.();
+
+    const onMove = (ev: globalThis.PointerEvent) => {
+      const z = Math.max(0.05, zoomRef.current || 1);
+      const dx = (ev.clientX - startClientX) / z;
+      const dy = (ev.clientY - startClientY) / z;
+      const nh = Math.max(minH, Math.round(startH + dy));
+      let nw: number;
+      let xDelta = 0;
+      if (corner === "br") {
+        nw = Math.max(minW, Math.round(startW + dx));
+      } else {
+        nw = Math.max(minW, Math.round(startW - dx));
+        xDelta = startW - nw;
+      }
+      onResizeRef.current?.({ w: nw, h: nh, xDelta });
+    };
+    const onUp = (ev: globalThis.PointerEvent) => {
+      handle.releasePointerCapture(ev.pointerId);
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      onResizeEndRef.current?.();
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  };
 
   return (
     <Surface
@@ -318,6 +380,22 @@ export function Window({
       >
         {children}
       </div>
+      {showResize && (
+        <>
+          <button
+            type="button"
+            className="win-resize win-resize-bl nodrag nopan nowheel"
+            aria-label="Resize from bottom left"
+            onPointerDown={beginResize("bl")}
+          />
+          <button
+            type="button"
+            className="win-resize win-resize-br nodrag nopan nowheel"
+            aria-label="Resize from bottom right"
+            onPointerDown={beginResize("br")}
+          />
+        </>
+      )}
       <div className="win-far-label" aria-hidden>
         <span className="win-far-title">{title}</span>
         {query ? <span className="win-far-query">{query}</span> : null}

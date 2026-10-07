@@ -15,6 +15,7 @@ import { useHelpOptional } from "../context/help";
 function NotePanel({ node }: { node: WorkspaceNode }) {
   const { setNodeBody } = useWorkspace();
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fixed = node.autoSize === false;
 
   useEffect(() => {
     if (!(node.body ?? "").trim()) ref.current?.focus();
@@ -22,15 +23,21 @@ function NotePanel({ node }: { node: WorkspaceNode }) {
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || fixed) return;
     el.style.height = "0px";
     el.style.height = `${Math.max(72, el.scrollHeight)}px`;
-  }, [node.body]);
+  }, [node.body, fixed]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !fixed) return;
+    el.style.height = "";
+  }, [fixed]);
 
   return (
     <textarea
       ref={ref}
-      className="note-body"
+      className={`note-body${fixed ? " is-fixed" : ""}`}
       rows={3}
       value={node.body ?? ""}
       placeholder="Type a note…"
@@ -155,4 +162,5 @@ export const NodeBody = memo(NodeBodyImpl, (prev, next) => (
   && prev.node.routeWhy === next.node.routeWhy
   && prev.node.confirmApps === next.node.confirmApps
   && prev.node.snapshotOriginalId === next.node.snapshotOriginalId
+  && prev.node.autoSize === next.node.autoSize
 ));

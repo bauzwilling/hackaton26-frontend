@@ -86,6 +86,7 @@ import {
   fitNode,
   hideNode,
   openAppNodes,
+  resizeNode,
   setLockedNodes,
   setNodeBodyNodes,
   tileNodes,
@@ -180,6 +181,7 @@ type Ctx = {
   removeUserEdges: (ids: string[]) => void;
   unrail: (id: string) => void;
   fit: (id: string, w: number, h: number) => void;
+  resize: (id: string, box: { w: number; h: number; x?: number; y?: number }) => void;
   maximize: (id: string) => void;
   dismissMaximize: (force?: boolean) => void;
   /** One or more app window ids filling leftover canvas (Jobs single, or admin pair). */
@@ -1429,6 +1431,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNodes((list) => fitNode(list, id, w, h));
   }, []);
 
+  const resize = useCallback((id: string, box: { w: number; h: number; x?: number; y?: number }) => {
+    setNodes((list) => resizeNode(list, id, box));
+  }, []);
+
   const close = useCallback((id: string) => {
     if (maximizedIdsRef.current.includes(id)) dismissMaximize(true);
     if (adminPairIdsRef.current.includes(id)) {
@@ -1858,6 +1864,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     removeUserEdges,
     unrail,
     fit,
+    resize,
     maximize,
     dismissMaximize,
     maximizedIds,
@@ -1889,7 +1896,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     flashKey,
     captureTourSnapshot,
     restoreTourSnapshot,
-  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, openAdminPair, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, maximize, dismissMaximize, maximizedIds, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey, captureTourSnapshot, restoreTourSnapshot]);
+  }), [nodes, inspectionNodes, inspectionJob, wireEdges, userEdges, entries, selectedEntryId, viewport, overviewOpen, previewId, fitRequest, openApp, openAdminPair, announceOpen, addNote, setNodeBody, registerAppIntake, registerAppChatActions, dispatchAppChatAction, relayAppChatReply, ask, ingestFiles, confirmIntake, restoreEntry, focusTargets, ensureConcierge, appendConciergeTurn, placeOrder, inspectJob, exitInspection, focus, commitPositions, commitViewport, addUserEdge, removeUserEdges, unrail, fit, resize, maximize, dismissMaximize, maximizedIds, commitStageSize, close, hide, show, setLocked, duplicateNodes, tile, clear, clearTranscript, sessions, activeSessionId, historyCollapsed, setHistoryCollapsed, createSession, switchSession, renameSession, deleteSession, clearPastSessions, returnToLanding, departLanding, atLanding, resuming, enteringNodeIds, flashIds, flashKey, captureTourSnapshot, restoreTourSnapshot]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }

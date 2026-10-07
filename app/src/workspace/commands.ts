@@ -283,6 +283,34 @@ export function fitNode(list: WorkspaceNode[], id: string, w: number, h: number)
   }));
 }
 
+/** Manual window resize — always persists size and turns off content autosize. Chat kinds are ignored. */
+export function resizeNode(
+  list: WorkspaceNode[],
+  id: string,
+  box: { w: number; h: number; x?: number; y?: number },
+): WorkspaceNode[] {
+  return restack(list.map((n) => {
+    if (n.id !== id || n.locked) return n;
+    if (n.kind === "text" || n.kind === "log") return n;
+    const minW = n.kind === "note" ? 140 : n.kind === "app" ? 320 : 240;
+    const minH = n.kind === "app" ? 240 : 80;
+    const nw = Math.max(minW, Math.round(box.w));
+    const nh = Math.max(minH, Math.round(box.h));
+    const nx = box.x !== undefined ? box.x : n.x;
+    const ny = box.y !== undefined ? box.y : n.y;
+    if (
+      Math.abs(n.w - nw) < 1
+      && Math.abs(n.h - nh) < 1
+      && Math.abs(n.x - nx) < 1
+      && Math.abs(n.y - ny) < 1
+      && n.autoSize === false
+    ) {
+      return n;
+    }
+    return { ...n, w: nw, h: nh, x: nx, y: ny, autoSize: false };
+  }));
+}
+
 export function closeNode(
   list: WorkspaceNode[],
   userEdges: UserEdge[],

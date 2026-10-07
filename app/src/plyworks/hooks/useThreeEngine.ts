@@ -54,6 +54,8 @@ export function useThreeEngine(
     engineRef.current = engine;
 
     const onResize = () => engine.resize();
+    const hostObserver = new ResizeObserver(onResize);
+    hostObserver.observe(el);
     const lookObserver = new MutationObserver(() => engine.syncBackground());
     lookObserver.observe(document.documentElement, {
       attributes: true,
@@ -63,6 +65,7 @@ export function useThreeEngine(
 
     return () => {
       window.removeEventListener("resize", onResize);
+      hostObserver.disconnect();
       lookObserver.disconnect();
       engine.dispose();
       engineRef.current = null;
