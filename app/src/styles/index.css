@@ -727,6 +727,64 @@ html[data-bubble="on"] .win.is-locked .win-bar {
   min-height: 0;
   opacity: calc(1 - var(--win-far, 0) * 0.62);
 }
+.win-resize {
+  position: absolute;
+  z-index: 5;
+  width: calc(32px / var(--studio-zoom, 1));
+  height: calc(32px / var(--studio-zoom, 1));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  opacity: calc(1 - var(--win-far, 0));
+}
+.win-resize::after {
+  content: "";
+  position: absolute;
+  width: calc(12px / var(--studio-zoom, 1));
+  height: calc(12px / var(--studio-zoom, 1));
+  border: calc(2px / var(--studio-zoom, 1)) solid var(--muted);
+  pointer-events: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.win-resize-bl {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.win-resize-bl::after {
+  left: calc(5px / var(--studio-zoom, 1));
+  bottom: calc(5px / var(--studio-zoom, 1));
+  border-top: 0;
+  border-right: 0;
+  border-bottom-left-radius: calc(10px / var(--studio-zoom, 1));
+  background: color-mix(in oklab, var(--face) 55%, transparent);
+}
+.win-resize-br {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+.win-resize-br::after {
+  right: calc(5px / var(--studio-zoom, 1));
+  bottom: calc(5px / var(--studio-zoom, 1));
+  border-top: 0;
+  border-left: 0;
+  border-bottom-right-radius: calc(10px / var(--studio-zoom, 1));
+  background: color-mix(in oklab, var(--face) 55%, transparent);
+}
+.win-resize:hover::after,
+.win-resize:focus-visible::after {
+  border-color: var(--acc);
+  background: color-mix(in oklab, var(--acc) 18%, var(--face));
+}
+.win.is-locked .win-resize,
+.win.is-maximized .win-resize,
+.win-text .win-resize,
+.win-log .win-resize {
+  display: none;
+}
 /*
  * Far zoom: windows are map labels — drag/pinch/scroll on them go to the canvas.
  * Only title-bar action buttons stay clickable (pointer-events: auto on a none parent).

@@ -3,17 +3,19 @@ import {
   Handle,
   Position,
   useReactFlow,
+  useStore,
   useUpdateNodeInternals,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Window } from "../../components/kit";
+import { Window, type WindowResizeBox } from "../../components/kit";
 import { canDeleteNode, useWorkspace, type NodeKind, type WorkspaceApp, type WorkspaceNode } from "../../context/workspace";
 import type { AppChatIntake } from "../../lib/appChat";
 import type { PlyworksDesign } from "../../lib/concierge";
 import { useBoardHost } from "../boardHost";
 import { NodeBody } from "../NodeBody";
 import { sameStudioData } from "../flow/map";
+import { resizingIds } from "../windowResize";
 import { flyHideWindow } from "../windowFly";
 
 export type StudioNodeData = {
@@ -49,6 +51,12 @@ const HANDLES: { id: string; position: Position }[] = [
 ];
 
 const FIT_COMMIT_MS = 140;
+const RESIZE_COMMIT_MS = 140;
+
+/** Chat-related board windows stay fixed — Concierge + request log. */
+function isChatKind(kind: NodeKind) {
+  return kind === "text" || kind === "log";
+}
 
 function toWorkspaceNode(
   id: string,
@@ -90,18 +98,49 @@ function StudioWindowNodeImpl({
   width,
   height,
 }: NodeProps<StudioFlowNode>) {
-  const { close, hide, focus, fit, maximize, maximizedIds, setLocked } = useWorkspace();
-  const { updateNode } = useReactFlow<StudioFlowNode>();
+  const { close, hide, focus, fit, resize, maximize, maximizedIds, setLocked } = useWorkspace();
+  const { updateNode, getNode } = useReactFlow<StudioFlowNode>();
   const updateInternals = useUpdateNodeInternals();
+  const zoom = useStore((s) => s.transform[2]);
   const host = useBoardHost();
   const fitTimer = useRef<number | null>(null);
+  const resizeTimer = useRef<number | null>(null);
   const lastFit = useRef({ w: 0, h: 0 });
+  const resizeOrigin = useRef({ x: 0, y: 0 });
+  const lastResize = useRef({ w: 0, h: 0, x: 0, y: 0 });
   const node = toWorkspaceNode(id, data, width, height);
   const canClose = canDeleteNode(node);
+  const maximized = maximizedIds.includes(id);
+  const resizable = !isChatKind(data.kind) && !data.locked && !maximized;
 
   useEffect(() => () => {
     if (fitTimer.current) window.clearTimeout(fitTimer.current);
-  }, []);
+    if (resizeTimer.current) window.clearTimeout(resizeTimer.current);
+    resizingIds.delete(id);
+  }, [id]);
+
+  const commitResize = (box: { w: number; h: number; x: number; y: number }) => {
+    if (resizeTimer.current) window.clearTimeout(resizeTimer.current);
+    resizeTimer.current = window.setTimeout(() => {
+      resizeTimer.current = null;
+      resize(id, box);
+    }, RESIZE_COMMIT_MS);
+  };
+
+  const applyResize = (box: WindowResizeBox) => {
+    const nextX = resizeOrigin.current.x + box.xDelta;
+    const nextY = resizeOrigin.current.y;
+    lastResize.current = { w: box.w, h: box.h, x: nextX, y: nextY };
+    updateNode(id, (current) => ({
+      width: box.w,
+      height: box.h,
+      position: { x: nextX, y: nextY },
+      style: { ...current.style, width: box.w, height: box.h },
+      data: current.data.autoSize === false ? current.data : { ...current.data, autoSize: false },
+    }));
+    updateInternals(id);
+    commitResize(lastResize.current);
+  };
 
   return (
     <div className="studio-window-node">
@@ -134,13 +173,38 @@ function StudioWindowNodeImpl({
         flashKey={data.flashKey}
         selected={selected || !!data.preview}
         viewport={false}
+        resizable={resizable}
+        zoom={zoom}
         onFocus={() => focus(id)}
         onMaximize={data.kind === "app" ? () => maximize(id) : undefined}
-        maximized={maximizedIds.includes(id)}
+        maximized={maximized}
         onClose={canClose ? () => close(id) : undefined}
         onHide={() => { void flyHideWindow(id, data.title, () => hide(id)); }}
         onLock={() => setLocked([id], !data.locked)}
         onDrag={() => { /* React Flow dragHandle owns this */ }}
+        onResizeStart={() => {
+          resizingIds.add(id);
+          const n = getNode(id);
+          resizeOrigin.current = {
+            x: n?.position.x ?? 0,
+            y: n?.position.y ?? 0,
+          };
+          lastResize.current = {
+            w: width ?? n?.width ?? 0,
+            h: height ?? n?.height ?? 0,
+            x: resizeOrigin.current.x,
+            y: resizeOrigin.current.y,
+          };
+        }}
+        onResize={applyResize}
+        onResizeEnd={() => {
+          if (resizeTimer.current) {
+            window.clearTimeout(resizeTimer.current);
+            resizeTimer.current = null;
+          }
+          resize(id, lastResize.current);
+          resizingIds.delete(id);
+        }}
         onFit={(w, h) => {
           if (data.autoSize === false) return;
           const minW = data.kind === "note" ? 140 : 240;

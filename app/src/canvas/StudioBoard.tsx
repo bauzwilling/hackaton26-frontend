@@ -36,6 +36,7 @@ import { FIT_ZOOM_MAX, GRID_GAP } from "./flow/constants";
 import { reuseFlowNode, toFlowNode, toSystemFlowEdge, toUserFlowEdge } from "./flow/map";
 import { useFineWheelZoom } from "./flow/wheelZoom";
 import type { StudioFlowNode } from "./nodes/StudioWindowNode";
+import { resizingIds } from "./windowResize";
 
 const MAP_CORNERS = [
   { id: "tl", closed: "tl", open: "br", d: "M12 2H2v10" },
@@ -363,19 +364,20 @@ function StudioBoardInner({ narrow }: { narrow: boolean }) {
           preview: previewId === n.id,
           maximized: maximizedIds.includes(n.id),
         });
-        if (old && draggingNow) {
+        const resizingNow = resizingIds.has(n.id);
+        if (old && (draggingNow || resizingNow)) {
           mapped.position = old.position;
           mapped.selected = old.selected;
         }
-        // RF owns live auto-size; keep measured box while workspace persist lags.
-        if (old && n.autoSize !== false) {
+        // RF owns live auto-size / corner-resize; keep measured box while workspace persist lags.
+        if (old && (n.autoSize !== false || resizingNow)) {
           const rfW = old.width ?? old.measured?.width;
           const rfH = old.height ?? old.measured?.height;
           if (
             rfW
             && rfH
             && (Math.abs(rfW - (mapped.width ?? 0)) > 2 || Math.abs(rfH - (mapped.height ?? 0)) > 2)
-            && (draggingNow || (old.position.x === mapped.position.x && old.position.y === mapped.position.y))
+            && (draggingNow || resizingNow || (old.position.x === mapped.position.x && old.position.y === mapped.position.y))
           ) {
             mapped.width = rfW;
             mapped.height = rfH;
