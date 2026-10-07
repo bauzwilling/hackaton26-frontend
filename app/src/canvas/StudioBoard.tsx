@@ -446,7 +446,7 @@ function StudioBoardInner({ narrow }: { narrow: boolean }) {
     if (!fitRequest) return;
     // One-shot: do not re-fit when z/size/selection churns after the request.
     if (appliedFitKey.current === fitRequest.key) return;
-    if (dragging.current.size > 0) return;
+    if (dragging.current.size > 0 || resizingIds.size > 0) return;
     const ids = fitRequest.ids.filter((id) => nodes.some((n) => n.id === id));
     if (!ids.length) return;
     // Wait until RF has the workspace size (maximize / fresh open) before filling.
