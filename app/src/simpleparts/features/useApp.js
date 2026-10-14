@@ -2388,8 +2388,14 @@ export function useApp() {
   )
 
   // Concierge hosts Nest CTAs that used to be in-app chat buttons only.
+  // Sheet selection calls this and also flips showNestingButton, whose watch
+  // calls it again. One queued turn, or Concierge shows two Nest bubbles.
+  let nestCtaQueued = false
   function offerNestCta() {
+    if (nestCtaQueued) return
+    nestCtaQueued = true
     queueMicrotask(() => {
+      nestCtaQueued = false
       if (showNestingButton.value) {
         reportNestCta(state, {
           leftover: false,
