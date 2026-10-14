@@ -67,6 +67,11 @@ export type WorkspaceNode = {
 
 export type WorkspaceEdge = { from: string; to: string; hot?: boolean };
 
+/** Chat attachment face. Image src is a small JPEG data URL we generated. */
+export type AttachmentPreview =
+  | { kind: "image"; src: string }
+  | { kind: "file"; ext: string };
+
 /** Session transcript. Later this is the API payload for a user chat thread.
  *  WAITING BFF: attachment refs can hang on a turn later — do not invent a second shape. */
 export type RequestEntry = {
@@ -97,6 +102,11 @@ export type RequestEntry = {
   pending?: boolean;
   /** User turn was a file drop — Concierge shows "Attached File" beside the clock. */
   attachment?: boolean;
+  /**
+   * Chat-sized stand-in for an artifact thumbnail.
+   * WAITING BFF: artifact preview URL replaces this local image or type icon.
+   */
+  attachmentPreview?: AttachmentPreview;
   /**
    * Interactive app questionnaire relayed into Concierge (material/sheet/Nest…).
    * WAITING BFF: SuggestedAction / streamed tool UI replaces this stamp.

@@ -7,6 +7,7 @@ import {
   snapshotPlyworksBoards,
 } from "../lib/plyworksSession";
 import type { PlyworksOp } from "../lib/plyworksOps";
+import { filePreview, imageThumbnail } from "../lib/attachmentPreview";
 import { classifyFile } from "../lib/intake";
 import {
   beginIntakeEcho,
@@ -1196,9 +1197,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         result,
         reply,
         attachment: true,
+        attachmentPreview: filePreview(file),
       };
       setEntries((prev) => [...prev, entry]);
       setSelectedEntryId(entry.id);
+
+      void imageThumbnail(file).then((src) => {
+        if (!src) return;
+        setEntries((prev) => prev.map((item) => (
+          item.id === entryId ? { ...item, attachmentPreview: { kind: "image", src } } : item
+        )));
+      });
 
       if (routeApp) {
         void (async () => {
