@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Composer } from "../components/Composer";
 import { Surface } from "../components/kit";
 import { plyworksDesignLabel } from "../lib/concierge";
@@ -16,6 +17,8 @@ import {
 } from "../context/workspace";
 import { useHelp } from "../context/help";
 import { useSession } from "../context/session";
+import type { AttachmentPreview } from "../workspace/document";
+import { isDesignChatRole } from "../lib/auth";
 import { AppPromptControls } from "./AppPromptControls";
 
 function replyOf(entry: RequestEntry) {
@@ -37,6 +40,143 @@ function truncateFileName(name: string, max = 24) {
 function displayQuery(entry: RequestEntry) {
   if (entry.attachment) return truncateFileName(entry.query);
   return entry.query;
+}
+
+function attachmentFace(entry: RequestEntry): AttachmentPreview | null {
+  const preview = entry.attachmentPreview;
+  if (!preview) return null;
+  if (preview.kind === "image" && preview.src.startsWith("data:image/")) return preview;
+  if (preview.kind === "file" && preview.ext) return preview;
+  return null;
+}
+
+function FileTypeIcon({ ext, size = 28 }: { ext: string; size?: number }) {
+  const kind = ext === "pdf"
+    ? "page"
+    : ext === "csv" || ext === "xls" || ext === "xlsx"
+      ? "sheet"
+      : ext === "dxf" || ext === "dwg" || ext === "3dm"
+        ? "cad"
+        : "file";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {kind === "sheet" ? (
+        <>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M4 9h16M4 15h16M10 3v18" />
+        </>
+      ) : kind === "cad" ? (
+        <>
+          <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
+          <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />
+        </>
+      ) : (
+        <>
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+          {kind === "page" && <path d="M8 13h8M8 17h5" />}
+        </>
+      )}
+    </svg>
+  );
+}
+
+function AttachmentFace({ preview }: { preview: AttachmentPreview }) {
+  if (preview.kind === "image") {
+    return <img className="chat-file-thumb" src={preview.src} alt="" />;
+  }
+  const label = preview.ext.slice(0, 4).toUpperCase();
+  return (
+    <div className="chat-file-icon">
+      <FileTypeIcon ext={preview.ext} />
+      <span className="chat-file-ext">{label}</span>
+    </div>
+  );
+}
+
+function FilePreviewDialog({
+  preview,
+  name,
+  onClose,
+}: {
+  preview: AttachmentPreview;
+  name: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="chat-file-preview" role="presentation" onPointerDown={onClose}>
+      <div
+        className="chat-file-preview-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={name || "File preview"}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {preview.kind === "image" ? (
+          <img className="chat-file-preview-img" src={preview.src} alt={name} />
+        ) : (
+          <div className="chat-file-preview-file">
+            <FileTypeIcon ext={preview.ext} size={64} />
+            <p className="chat-file-preview-note">
+              This file cannot be previewed here. Open it in a compatible app.
+            </p>
+          </div>
+        )}
+        {name ? <p className="chat-file-preview-name">{name}</p> : null}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function UserBubble({ entry }: { entry: RequestEntry }) {
+  const face = entry.attachment ? attachmentFace(entry) : null;
+  const [previewOpen, setPreviewOpen] = useState(false);
+  return (
+    <div className="chat-bubble chat-user" title={entry.attachment ? entry.query : undefined}>
+      {face && (
+        <button
+          type="button"
+          className="chat-file-open"
+          aria-label={`Preview ${entry.query}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setPreviewOpen(true);
+          }}
+        >
+          <AttachmentFace preview={face} />
+        </button>
+      )}
+      {previewOpen && face && (
+        <FilePreviewDialog
+          preview={face}
+          name={entry.query}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      {entry.attachment ? (
+        <div className="chat-user-meta">
+          <time dateTime={new Date(entry.at).toISOString()}>{activityClock(entry.at)}</time>
+          <span className="chat-user-meta-sep" aria-hidden>|</span>
+          <span>Attached File</span>
+        </div>
+      ) : (
+        <time dateTime={new Date(entry.at).toISOString()}>{activityClock(entry.at)}</time>
+      )}
+      {displayQuery(entry)}
+    </div>
+  );
 }
 
 function ActivityLine({
@@ -236,20 +376,7 @@ export function ConciergeThread() {
               className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
               onClick={() => setSelectedEntryId(e.id)}
             >
-              {e.query.trim() ? (
-                <div className="chat-bubble chat-user" title={e.attachment ? e.query : undefined}>
-                  {e.attachment ? (
-                    <div className="chat-user-meta">
-                      <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                      <span className="chat-user-meta-sep" aria-hidden>|</span>
-                      <span>Attached File</span>
-                    </div>
-                  ) : (
-                    <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                  )}
-                  {displayQuery(e)}
-                </div>
-              ) : null}
+              {e.query.trim() ? <UserBubble entry={e} /> : null}
               {e.windowOpened ? (
                 <ActivityLine
                   entry={e}
@@ -267,18 +394,7 @@ export function ConciergeThread() {
               className={`chat-turn${selectedEntryId === e.id ? " is-selected" : ""}`}
               onClick={() => setSelectedEntryId(e.id)}
             >
-              <div className="chat-bubble chat-user" title={e.attachment ? e.query : undefined}>
-                {e.attachment ? (
-                  <div className="chat-user-meta">
-                    <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                    <span className="chat-user-meta-sep" aria-hidden>|</span>
-                    <span>Attached File</span>
-                  </div>
-                ) : (
-                  <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
-                )}
-                {displayQuery(e)}
-              </div>
+              <UserBubble entry={e} />
               <div className={`chat-bubble chat-assistant${e.pending ? " is-pending" : ""}`}>
                 <div className="chat-assistant-meta">
                   <time dateTime={new Date(e.at).toISOString()}>{activityClock(e.at)}</time>
@@ -387,7 +503,7 @@ export function ConciergeChat() {
   const { entries } = useWorkspace();
   const { session } = useSession();
   const handedOff = useRef(entries.some((e) => e.pending)).current;
-  const canAttach = session?.role === "user";
+  const canAttach = isDesignChatRole(session);
 
   return (
     <div className="concierge">

@@ -2427,6 +2427,100 @@ html[data-bubble="on"] .win.is-maximized .win-bar:active {
   color: var(--acc-deep);
   font-weight: 500;
 }
+.chat-file-thumb {
+  display: block;
+  width: 96px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--face);
+}
+.chat-file-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.chat-file-ext {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.chat-file-open {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+.chat-file-open .chat-file-thumb,
+.chat-file-open .chat-file-icon {
+  margin-bottom: 0;
+}
+.chat-file-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--ink, #201e1d) 46%, transparent);
+}
+.chat-file-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(880px, 100%);
+  max-height: min(86vh, 100%);
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--face, #fffdf8);
+  color: var(--ink, #201e1d);
+  box-shadow: 0 18px 50px color-mix(in oklab, var(--ink, #201e1d) 28%, transparent);
+}
+.chat-file-preview-img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(72vh, 720px);
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--recess, #f3f1ee);
+}
+.chat-file-preview-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 12px 8px;
+  text-align: center;
+}
+.chat-file-preview-note,
+.chat-file-preview-name {
+  margin: 0;
+}
+.chat-file-preview-note {
+  max-width: 36ch;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--muted, #6d6762);
+}
+.chat-file-preview-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .chat-assistant {
   align-self: flex-start;
   background: var(--recess);

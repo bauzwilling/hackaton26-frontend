@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { useWorkspace } from "../context/workspace";
+import { isDesignChatRole } from "../lib/auth";
 import { chipsFor } from "../lib/catalog";
 import { FILE_ACCEPT } from "../lib/intake";
 
@@ -18,7 +19,7 @@ export function AskMenu({
 }) {
   const { session } = useSession();
   const { ask, addNote, ingestFiles, entries } = useWorkspace();
-  const canAttach = session?.role === "user";
+  const canAttach = isDesignChatRole(session);
   const [value, setValue] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);

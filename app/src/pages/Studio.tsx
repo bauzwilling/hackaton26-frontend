@@ -10,6 +10,7 @@ import { CHAT_MOVE, LAND_FADE, Surface } from "../components/kit";
 import { useSession } from "../context/session";
 import { useHelp } from "../context/help";
 import { appLabel, CHAT_RAIL_W, CHAT_SIDEBAR_W, CHAT_THREAD_W, CONCIERGE_ID, HERO_LEAVE_MS, PAIR_FADE_MS, PAIR_SHAPE_MS, isWorkspaceApp, useWorkspace } from "../context/workspace";
+import { isDesignChatRole } from "../lib/auth";
 import { chipsFor, TOUR_CHIP } from "../lib/catalog";
 import { canRequestRoleTour } from "../lib/help";
 import { useKeyboardInset } from "../lib/useKeyboardInset";
@@ -102,7 +103,7 @@ export function StudioPage() {
   const chatDockRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   const chips = useMemo(() => chipsFor(session), [session]);
-  const canAttach = session?.role === "user";
+  const canAttach = isDesignChatRole(session);
   const narrow = useNarrowLandscape();
   const coarse = useMatchMedia("(pointer: coarse)");
   const keyboardAvoid = narrow || coarse;
