@@ -1806,10 +1806,25 @@ export function useApp() {
     getPartRegistry: () => partRegistry.value,
   })
 
+  // WAITING BFF: POST /api/sketch/analyze — Simple Parts Flask stand-in; hops/solve does not read PDF or images.
+  async function sketchToDxfFile(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(partsApi('/sketch/analyze'), { method: 'POST', body: formData })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || typeof body.dxfText !== 'string' || !body.dxfText) {
+      pushFileError(body.error || 'Could not read this sketch.')
+      return null
+    }
+    const dxfName = file.name.replace(/\.(pdf|jpe?g|png)$/i, '.dxf')
+    return new File([body.dxfText], dxfName, { type: 'application/dxf' })
+  }
+
   async function onAttachFile(file) {
     const lower = file.name.toLowerCase()
     const is3dm = lower.endsWith('.3dm')
     const isDwg = lower.endsWith('.dwg')
+    const isSketch = /\.(pdf|jpe?g|png)$/i.test(lower)
     clearNestRevealInterrupted()
     cancelInitialNest()
     cancelLeftoverNest()
@@ -1821,6 +1836,32 @@ export function useApp() {
     state.dxfText.value = null
 
     pushMessage('user', 'file', file.name)
+
+    if (isSketch) {
+      state.busy.value = true
+      state.viewerBusy.value = true
+      state.busyMessage.value = 'Reading sketch…'
+      state.viewerBusyMessage.value = 'Reading sketch…'
+      try {
+        const dxfFile = await sketchToDxfFile(file)
+        if (!dxfFile) {
+          state.busy.value = false
+          state.viewerBusy.value = false
+          state.busyMessage.value = ''
+          state.viewerBusyMessage.value = ''
+          return
+        }
+        state.selectedFile.value = dxfFile
+      } catch (err) {
+        console.error('Sketch analyze error:', err)
+        pushFileError('Could not reach the backend to read this sketch.')
+        state.busy.value = false
+        state.viewerBusy.value = false
+        state.busyMessage.value = ''
+        state.viewerBusyMessage.value = ''
+        return
+      }
+    }
 
     const ok = await solveUpload({
       openModal: false,

@@ -223,7 +223,7 @@ export const STUDIO_TOUR: HelpStep[] = [
   {
     id: "drop",
     title: "File drop",
-    body: "Drop CSV, DXF, images, or PDF onto the canvas. The Concierge routes the file to the right app.",
+    body: "Drop a CSV for Door Box Out, or a DXF, DWG, 3DM, Excel, PDF, or image for Simple Parts.",
     anchor: { type: "help", id: "studio-drop" },
     prepare: "overview-close",
     pad: 4,

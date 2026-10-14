@@ -4,15 +4,38 @@
  * The real path is upload -> Artifact -> BFF file inspector -> our structuring model,
  * which answers with a message and suggested actions. Nothing here survives that.
  *
- * This round: only csv / dxf / 3dm. Format decides the job app — no name heuristics.
+ * CSV stays Box Outs. Every Simple Parts dev-test upload type goes to Simple Parts.
+ * Format decides the job app — no name heuristics.
  */
 
 /** Job apps Concierge can hand a file to in this round. */
 export type IntakeApp = "boxouts" | "simpleparts";
 
-export type IntakeFormat = "csv" | "dxf" | "3dm";
+export type IntakeFormat = "csv" | "dxf" | "3dm" | "dwg" | "xls" | "xlsx" | "pdf" | "jpg" | "png";
 
-export const FILE_ACCEPT = ".csv,.dxf,.3dm,text/csv,image/vnd.dxf,application/dxf,model/x.stl-binary,application/x-rhino";
+export const FILE_ACCEPT = [
+  ".csv",
+  ".dxf",
+  ".3dm",
+  ".dwg",
+  ".xls",
+  ".xlsx",
+  ".pdf",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  "text/csv",
+  "image/vnd.dxf",
+  "application/dxf",
+  "model/x.stl-binary",
+  "application/x-rhino",
+  "image/vnd.dwg",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+].join(",");
 
 export type IntakeResult =
   | { kind: "route"; fileName: string; format: IntakeFormat; appId: IntakeApp; message: string }
@@ -25,6 +48,27 @@ const MIME_TO_FORMAT: Record<string, IntakeFormat> = {
   "image/vnd.dxf": "dxf",
   "application/dxf": "dxf",
   "application/x-dxf": "dxf",
+  "image/vnd.dwg": "dwg",
+  "application/dwg": "dwg",
+  "application/acad": "dwg",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+
+const EXT_TO_FORMAT: Record<string, IntakeFormat> = {
+  csv: "csv",
+  dxf: "dxf",
+  "3dm": "3dm",
+  dwg: "dwg",
+  xls: "xls",
+  xlsx: "xlsx",
+  pdf: "pdf",
+  jpg: "jpg",
+  jpeg: "jpg",
+  png: "png",
 };
 
 function extensionOf(name: string) {
@@ -34,7 +78,7 @@ function extensionOf(name: string) {
 
 function formatOf(file: File): IntakeFormat | null {
   const ext = extensionOf(file.name);
-  if (ext === "csv" || ext === "dxf" || ext === "3dm") return ext;
+  if (EXT_TO_FORMAT[ext]) return EXT_TO_FORMAT[ext];
   return MIME_TO_FORMAT[(file.type || "").toLowerCase()] ?? null;
 }
 
@@ -52,6 +96,15 @@ export function openingMessage(app: IntakeApp, fileName: string, format?: Intake
   if (format === "3dm") {
     return `This looks like a Rhino model (${fileName}).`;
   }
+  if (format === "dwg") {
+    return `This looks like a CAD drawing (${fileName}).`;
+  }
+  if (format === "xls" || format === "xlsx") {
+    return `This looks like a parts spreadsheet (${fileName}).`;
+  }
+  if (format === "pdf" || format === "jpg" || format === "png") {
+    return `This looks like a sketch (${fileName}).`;
+  }
   return `This looks like a part drawing (${fileName}).`;
 }
 
@@ -66,7 +119,7 @@ export function classifyFile(file: File): IntakeResult {
       kind: "reject",
       fileName,
       format: ext || null,
-      message: `I can't read ${ext ? `.${ext}` : "this file"} yet. Drop a CSV, DXF, or 3DM.`,
+      message: `I can't read ${ext ? `.${ext}` : "this file"} yet. Drop a CSV, or a DXF, DWG, 3DM, Excel, PDF, or image.`,
     };
   }
 
