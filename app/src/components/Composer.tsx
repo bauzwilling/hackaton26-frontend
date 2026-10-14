@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { CHAT_MOVE, LAYOUT_ATTACH, LAYOUT_COMPOSER, LAYOUT_FIELD, LAYOUT_SEND, Surface } from "./kit";
 import { useSession } from "../context/session";
 import { useWorkspace } from "../context/workspace";
+import { isDesignChatRole } from "../lib/auth";
 import { FILE_ACCEPT } from "../lib/intake";
 
 function ClipIcon() {
@@ -36,7 +37,7 @@ export function Composer({
 }) {
   const { session } = useSession();
   const { ask, ingestFiles, chatOrdered, createSession } = useWorkspace();
-  const canAttach = session?.role === "user";
+  const canAttach = isDesignChatRole(session);
   const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);

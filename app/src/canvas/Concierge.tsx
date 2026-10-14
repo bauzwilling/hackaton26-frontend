@@ -16,6 +16,7 @@ import {
 } from "../context/workspace";
 import { useHelp } from "../context/help";
 import { useSession } from "../context/session";
+import { isDesignChatRole } from "../lib/auth";
 import { AppPromptControls } from "./AppPromptControls";
 
 function replyOf(entry: RequestEntry) {
@@ -387,7 +388,7 @@ export function ConciergeChat() {
   const { entries } = useWorkspace();
   const { session } = useSession();
   const handedOff = useRef(entries.some((e) => e.pending)).current;
-  const canAttach = session?.role === "user";
+  const canAttach = isDesignChatRole(session);
 
   return (
     <div className="concierge">
